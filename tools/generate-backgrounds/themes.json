@@ -1,0 +1,26 @@
+[
+  {
+    "id": "gala",
+    "prompt": "Elegant red carpet gala photo booth backdrop, a few elegantly dressed guests softly blurred in the background on both sides, out of focus, no recognizable faces, velvet ropes, warm golden bokeh lights, cinematic event atmosphere, no text, no logos, no watermark, vertical portrait composition, empty center area for a person, generous headroom and full-body space, cinematic soft lighting, photorealistic, high detail"
+  },
+  {
+    "id": "neon",
+    "prompt": "Neon party photo booth backdrop, a few dancers softly blurred in the background on both sides, silhouettes, out of focus, no recognizable faces, dark wall with magenta and cyan neon lights, subtle geometric glow, no text, no logos, no watermark, vertical portrait composition, empty center area for a person, generous headroom and full-body space, cinematic lighting, high detail"
+  },
+  {
+    "id": "playa",
+    "prompt": "Tropical beach at sunset photo booth backdrop, a few distant beachgoers as soft silhouettes in the background on both sides, out of focus, no recognizable faces, palm tree silhouettes, warm orange and pink gradient sky, calm ocean, no text, no logos, no watermark, vertical portrait composition, empty center area for a person, generous headroom and full-body space, cinematic lighting, photorealistic, high detail"
+  },
+  {
+    "id": "estudio",
+    "prompt": "Empty modern photo studio photo booth backdrop, smooth soft gradient wall, subtle spotlight from above, clean professional look, no people, no text, no logos, no watermark, vertical portrait composition, empty center area for a person, generous headroom and full-body space, soft even lighting, photorealistic, high detail"
+  },
+  {
+    "id": "retro80s",
+    "prompt": "Retro 1980s synthwave photo booth backdrop, a few dancers softly blurred in the background on both sides, silhouettes, neon rim light, out of focus, no recognizable faces, neon grid horizon, purple and pink sunset, chrome accents, no text, no logos, no watermark, vertical portrait composition, empty center area for a person, generous headroom and full-body space, cinematic lighting, high detail"
+  },
+  {
+    "id": "jardin",
+    "prompt": "Elegant garden wedding photo booth backdrop, a few elegantly dressed guests softly blurred in the background on both sides, out of focus, no recognizable faces, soft flowers and greenery, string lights, warm romantic atmosphere, no text, no logos, no watermark, vertical portrait composition, empty center area for a person, generous headroom and full-body space, soft cinematic lighting, photorealistic, high detail"
+  }
+]

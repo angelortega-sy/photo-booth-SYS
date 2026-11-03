@@ -1,0 +1,25 @@
+# Secretos — nunca subir
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Salida de generación de fondos (pruebas, no se versiona)
+tools/generate-backgrounds/out/
+
+# Node
+node_modules/
+
+# Android (cuando exista el scaffold)
+local.properties
+.gradle/
+build/
+*.apk
+*.aab
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+*.keystore
+*.jks

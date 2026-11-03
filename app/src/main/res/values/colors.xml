@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="syscom_blue">#0B63CE</color>
+    <color name="syscom_blue_light">#5EA8FF</color>
+    <color name="ink">#050B14</color>
+    <color name="ink_soft">#0B1727</color>
+    <color name="cream">#F3F8FF</color>
+    <color name="ic_launcher_background">#050B14</color>
+</resources>
