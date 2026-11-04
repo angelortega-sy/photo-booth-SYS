@@ -11,8 +11,8 @@
     <string name="welcome_hint">Toca para comenzar</string>
     <string name="home">Inicio</string>
     <string name="backgrounds">Fondos</string>
-    <string name="capture_hint">Toca el botón para tomar la primera foto</string>
-    <string name="capture_next_hint">Cuando quieras, toma la siguiente foto</string>
+    <string name="capture_hint">Muestra la palma o toca el botón</string>
+    <string name="capture_next_hint">Muestra la palma o toca el botón para la siguiente</string>
     <string name="photo_progress">FOTO %1$d DE 3</string>
     <string name="composition_failed">Tuvimos un problema al preparar tus fotos.</string>
     <string name="restart_sequence">Empezar la sesión de nuevo</string>

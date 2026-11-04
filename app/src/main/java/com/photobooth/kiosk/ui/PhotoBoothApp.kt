@@ -492,12 +492,25 @@ private fun PhotoBoothScreen(
         }
     }
 
+    val handDetectionActive = cameraReady &&
+        !state.isProcessing &&
+        !state.isCapturing &&
+        !state.hasResult &&
+        state.capturedCount < PhotoBoothUiState.PHOTO_COUNT &&
+        countdown == 0 &&
+        !showBackgrounds
+
     Box(modifier = Modifier.fillMaxSize().background(Ink)) {
         if (!state.hasResult && !state.isProcessing) {
             key(cameraKey) {
                 CameraPreview(
                     modifier = Modifier.fillMaxSize(),
                     captureRequest = captureRequest,
+                    handDetectionEnabled = handDetectionActive,
+                    onPalmDetected = {
+                        onInteraction()
+                        startCapture()
+                    },
                     onReady = {
                         cameraReady = true
                         cameraError = null
