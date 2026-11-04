@@ -17,6 +17,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -112,6 +113,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var hasCameraPermission by remember { mutableStateOf(context.hasCameraPermission()) }
     var showWelcome by rememberSaveable { mutableStateOf(true) }
+    var showAdmin by rememberSaveable { mutableStateOf(false) }
     var lastInteraction by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -126,8 +128,8 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
         lastInteraction = SystemClock.uptimeMillis()
     }
 
-    LaunchedEffect(showWelcome, state.isProcessing) {
-        if (showWelcome) return@LaunchedEffect
+    LaunchedEffect(showWelcome, state.isProcessing, showAdmin) {
+        if (showWelcome || showAdmin) return@LaunchedEffect
         while (true) {
             delay(1_000L)
             if (viewModel.uiState.value.isProcessing) continue
@@ -150,7 +152,12 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
         lastInteraction = SystemClock.uptimeMillis()
     }
 
-    BackHandler(enabled = !showWelcome && !state.isProcessing) { goHome() }
+    BackHandler(enabled = showAdmin) {
+        showAdmin = false
+        lastInteraction = SystemClock.uptimeMillis()
+    }
+
+    BackHandler(enabled = !showWelcome && !state.isProcessing && !showAdmin) { goHome() }
 
     Box(
         modifier = Modifier
@@ -171,7 +178,20 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
                 onOpenSettings = { context.openAppSettings() },
             )
 
-            showWelcome -> WelcomeScreen(onStart = { startSession() })
+            showAdmin -> AdminGate(
+                onClose = {
+                    showAdmin = false
+                    lastInteraction = SystemClock.uptimeMillis()
+                },
+            )
+
+            showWelcome -> WelcomeScreen(
+                onStart = { startSession() },
+                onAdminRequested = {
+                    showAdmin = true
+                    lastInteraction = SystemClock.uptimeMillis()
+                },
+            )
 
             else -> PhotoBoothScreen(
                 viewModel = viewModel,
@@ -184,7 +204,10 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
 }
 
 @Composable
-private fun WelcomeScreen(onStart: () -> Unit) {
+private fun WelcomeScreen(
+    onStart: () -> Unit,
+    onAdminRequested: () -> Unit,
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -222,6 +245,9 @@ private fun WelcomeScreen(onStart: () -> Unit) {
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 4.sp,
+                    modifier = Modifier.pointerInput(Unit) {
+                        detectTapGestures(onLongPress = { onAdminRequested() })
+                    },
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
