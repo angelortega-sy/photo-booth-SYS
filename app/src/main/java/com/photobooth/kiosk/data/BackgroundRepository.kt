@@ -15,6 +15,10 @@ data class BackgroundOption(
 
 class BackgroundRepository(private val context: Context) {
 
+    companion object {
+        const val ORIGINAL_ID = "original"
+    }
+
     val options: List<BackgroundOption> = listOf(
         BackgroundOption("gala", R.string.background_gala, "backgrounds/gala.webp"),
         BackgroundOption("neon", R.string.background_neon, "backgrounds/neon.webp"),
@@ -25,16 +29,29 @@ class BackgroundRepository(private val context: Context) {
     )
 
     private val thumbnails = ConcurrentHashMap<String, Bitmap>()
+    private val previewBackgrounds = ConcurrentHashMap<String, Bitmap>()
 
     /** Only one full-size background is kept in memory; the kiosk shows one at a time. */
     private var fullBackgroundId: String? = null
     private var fullBackground: Bitmap? = null
 
-    fun loadThumbnail(id: String): Bitmap? =
-        thumbnails[id] ?: decode(id, sampleSize = 8)?.also { thumbnails[id] = it }
+    fun loadThumbnail(id: String): Bitmap? {
+        if (id == ORIGINAL_ID) return null
+        return thumbnails[id]?.takeIf { !it.isRecycled }
+            ?: decode(id, sampleSize = 8)?.also { thumbnails[id] = it }
+    }
 
+    /** Loads a 540x960 preview background cached in memory for instant studio recomposition. */
+    fun loadPreview(id: String): Bitmap? {
+        if (id == ORIGINAL_ID) return null
+        return previewBackgrounds[id]?.takeIf { !it.isRecycled }
+            ?: decode(id, sampleSize = 2)?.also { previewBackgrounds[id] = it }
+    }
+
+    @Synchronized
     fun loadFull(id: String): Bitmap? {
-        if (fullBackgroundId == id) return fullBackground
+        if (id == ORIGINAL_ID) return null
+        if (fullBackgroundId == id && fullBackground?.isRecycled == false) return fullBackground
         fullBackground?.let { if (!it.isRecycled) it.recycle() }
         fullBackground = null
         fullBackgroundId = null
@@ -53,7 +70,7 @@ class BackgroundRepository(private val context: Context) {
                 val options = BitmapFactory.Options().apply {
                     inSampleSize = sampleSize
                     inPreferredConfig =
-                        if (sampleSize > 1) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
+                        if (sampleSize > 2) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
                 }
                 BitmapFactory.decodeStream(stream, null, options)
             }
@@ -63,6 +80,8 @@ class BackgroundRepository(private val context: Context) {
     fun clear() {
         thumbnails.values.forEach { if (!it.isRecycled) it.recycle() }
         thumbnails.clear()
+        previewBackgrounds.values.forEach { if (!it.isRecycled) it.recycle() }
+        previewBackgrounds.clear()
         fullBackground?.let { if (!it.isRecycled) it.recycle() }
         fullBackground = null
         fullBackgroundId = null
