@@ -311,7 +311,7 @@ object PhotoFrameComposer {
 
         // Right-aligned tag chip + optional date
         val dateSuffix = if (customization.showDateStamp) {
-            " · " + SimpleDateFormat("dd MMM yyyy", Locale("es", "MX"))
+            " · " + SimpleDateFormat("dd MMM yyyy", Locale.forLanguageTag("es-MX"))
                 .format(Date())
                 .uppercase(Locale.ROOT)
         } else {

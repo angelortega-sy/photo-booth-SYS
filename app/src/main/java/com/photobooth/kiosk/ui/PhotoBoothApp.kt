@@ -1380,6 +1380,7 @@ private fun CountdownOverlay(
                         SyscomBlueLight.copy(alpha = 0.85f),
                     ),
                 ),
+                shape = RoundedCornerShape(0.dp),
             ),
         contentAlignment = Alignment.Center,
     ) {
