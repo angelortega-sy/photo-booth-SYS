@@ -991,20 +991,28 @@ private fun PhotoBoothScreen(
             }
         }
 
-        if (state.hasResult) {
-            ResultOverlay(
+        if (state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT) {
+            StudioWizardScreen(
                 state = state,
+                backgrounds = viewModel.backgrounds,
+                loadThumbnail = viewModel::loadThumbnail,
                 enabled = !busy && !state.isExporting,
+                onStepSelected = viewModel::setWizardStep,
+                onSelectPhotoTarget = viewModel::selectResult,
+                onSelectBackground = viewModel::changeBackground,
+                onSelectLayout = viewModel::selectCollageLayout,
+                onSelectFrameStyle = viewModel::selectFrameStyle,
+                onSelectBorderStyle = viewModel::selectPhotoBorderStyle,
+                onSelectBadgePreset = viewModel::selectBadgePreset,
+                onToggleDateStamp = viewModel::toggleDateStamp,
                 onSave = { savePhoto() },
                 onShare = { sharePhoto() },
-                onSelectOutput = viewModel::selectResult,
                 onRetake = {
                     autoSequenceActive = false
                     cameraReady = false
                     viewModel.clearResult()
                 },
                 onHome = onHome,
-                onOpenBackgrounds = { showBackgrounds = true },
             )
         }
 
@@ -1126,274 +1134,6 @@ private fun CaptureButton(
     }
 }
 
-@Composable
-private fun ResultOverlay(
-    state: PhotoBoothUiState,
-    enabled: Boolean,
-    onSave: () -> Unit,
-    onShare: () -> Unit,
-    onSelectOutput: (Int?) -> Unit,
-    onRetake: () -> Unit,
-    onHome: () -> Unit,
-    onOpenBackgrounds: () -> Unit,
-) {
-    val bitmap = state.resultBitmap
-    Box(modifier = Modifier.fillMaxSize().background(Ink)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.result_title),
-                    color = Cream,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = stringResource(R.string.welcome_brand),
-                    color = SyscomBlueLight,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 3.sp,
-                )
-            }
-
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = stringResource(
-                    if (state.selectedPhotoIndex == null) R.string.result_strip_label
-                    else R.string.result_photo_label,
-                    (state.selectedPhotoIndex ?: 0) + 1,
-                ),
-                color = Cream.copy(alpha = 0.62f),
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
-            )
-            if (state.selectedPhotoIndex == null) {
-                Text(
-                    text = stringResource(R.string.result_select_strip_photo_hint),
-                    color = Cream.copy(alpha = 0.5f),
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            if (state.usedFallback) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = stringResource(R.string.result_fallback),
-                    color = Cream.copy(alpha = 0.58f),
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(InkSoft)
-                    .border(1.dp, Cream.copy(alpha = 0.08f), RoundedCornerShape(22.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (bitmap != null) {
-                    val stripTapModifier = if (state.selectedPhotoIndex == null) {
-                        Modifier.pointerInput(bitmap) {
-                            detectTapGestures { offset ->
-                                val scale = minOf(
-                                    size.width.toFloat() / bitmap.width,
-                                    size.height.toFloat() / bitmap.height,
-                                )
-                                val renderedWidth = bitmap.width * scale
-                                val left = (size.width - renderedWidth) / 2f
-                                val renderedHeight = bitmap.height * scale
-                                val top = (size.height - renderedHeight) / 2f
-                                val normalizedY = (offset.y - top) / renderedHeight
-                                if (offset.x >= left && offset.x < left + renderedWidth) {
-                                    PhotoFrameComposer.photoIndexAtStripPosition(normalizedY)
-                                        ?.let(onSelectOutput)
-                                }
-                            }
-                        }
-                    } else {
-                        Modifier
-                    }
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = stringResource(R.string.photo_description),
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize().padding(12.dp).then(stripTapModifier),
-                    )
-                } else {
-                    CircularProgressIndicator(color = SyscomBlueLight)
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutputSelector(
-                    preview = state.stripPreview,
-                    label = stringResource(R.string.result_strip_short),
-                    selected = state.selectedPhotoIndex == null,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                    onClick = { onSelectOutput(null) },
-                )
-                state.photoPreviews.forEachIndexed { index, preview ->
-                    OutputSelector(
-                        preview = preview,
-                        label = stringResource(R.string.result_photo_short, index + 1),
-                        selected = state.selectedPhotoIndex == index,
-                        enabled = enabled,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSelectOutput(index) },
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-            Button(
-                onClick = onSave,
-                enabled = enabled,
-                modifier = Modifier.fillMaxWidth().height(58.dp),
-                shape = RoundedCornerShape(29.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SyscomBlue,
-                    contentColor = Color.White,
-                ),
-            ) {
-                Icon(Icons.Rounded.Download, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.save_photo),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                OutlinedButton(
-                    onClick = onShare,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f).height(50.dp),
-                    shape = RoundedCornerShape(25.dp),
-                    border = BorderStroke(1.dp, Cream.copy(alpha = 0.22f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Share,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.share), fontSize = 13.sp)
-                }
-                OutlinedButton(
-                    onClick = onOpenBackgrounds,
-                    enabled = enabled && state.selectedPhotoIndex != null,
-                    modifier = Modifier.weight(1f).height(50.dp),
-                    shape = RoundedCornerShape(25.dp),
-                    border = BorderStroke(1.dp, Cream.copy(alpha = 0.22f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.PhotoLibrary,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.backgrounds), fontSize = 13.sp)
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                TextButton(onClick = onRetake, enabled = enabled) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(17.dp),
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(stringResource(R.string.retake), fontSize = 12.sp)
-                }
-                TextButton(onClick = onHome, enabled = enabled) {
-                    Icon(
-                        imageVector = Icons.Rounded.Home,
-                        contentDescription = null,
-                        modifier = Modifier.size(17.dp),
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(stringResource(R.string.home), fontSize = 12.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun OutputSelector(
-    preview: Bitmap?,
-    label: String,
-    selected: Boolean,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) SyscomBlue.copy(alpha = 0.2f) else InkSoft)
-            .border(
-                width = if (selected) 2.dp else 1.dp,
-                color = if (selected) SyscomBlueLight else Cream.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(12.dp),
-            )
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(
-            modifier = Modifier.fillMaxWidth().height(82.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (preview != null) {
-                Image(
-                    bitmap = preview.asImageBitmap(),
-                    contentDescription = label,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = label,
-            color = if (selected) Cream else Cream.copy(alpha = 0.62f),
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            maxLines = 1,
-        )
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BackgroundSheet(
@@ -1505,13 +1245,24 @@ private fun BackgroundCard(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            thumbnail?.let { bitmap ->
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
+            if (option.id == "original") {
+                Icon(
+                    imageVector = Icons.Rounded.CameraAlt,
                     contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
+                    tint = SyscomBlueLight,
+                    modifier = Modifier.size(34.dp),
                 )
+            } else {
+                thumbnail?.let { bitmap ->
+                    if (!bitmap.isRecycled) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
             }
             if (selected) {
                 Box(
@@ -1723,29 +1474,6 @@ private fun CountdownOverlay(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 2.5.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ProcessingOverlay() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Ink.copy(alpha = 0.82f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(
-                color = SyscomBlueLight,
-                strokeWidth = 4.dp,
-            )
-            Spacer(Modifier.height(18.dp))
-            Text(
-                text = stringResource(R.string.processing),
-                color = Cream,
-                fontSize = 16.sp,
             )
         }
     }
