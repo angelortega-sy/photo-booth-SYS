@@ -28,8 +28,8 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 - La app abre en una **pantalla de bienvenida**; la cámara no se enciende hasta tocar “Comenzar”.
 - Si el invitado no interactúa por **60 s**, la sesión termina y vuelve a bienvenida (se libera la cámara).
 - En cámara, el botón “Fondos” abre un **bottom sheet con carrusel** de fondos; no dejar el selector fijo sobre el preview.
-- En el resultado, botón grande “Guardar foto” + “Compartir” + “Fondos”; cambiar fondo recompone la misma captura sin volver a tomar la foto (`capturedPhoto` en `PhotoBoothViewModel`).
-- Después de compartir, se cierra la sesión y vuelve a bienvenida. Guardar mantiene el resultado en pantalla.
+- El resultado incluye un wizard de personalización; el CTA grande es **“Descargar · 4 fotos”** (3 fotos + tira) y “Guardar” queda como acción secundaria.
+- Después de descargar/compartir, se cierra la sesión y vuelve a bienvenida. Guardar mantiene el resultado en pantalla.
 - Paleta **azul Syscom** sobre fondo oscuro: `SyscomBlue #0B63CE`, `SyscomBlueLight #5EA8FF`, `Ink #050B14`, `InkSoft #0B1727`, `Cream #F3F8FF`.
 
 ## Modo administrador
@@ -41,6 +41,19 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 - Fotos: `PhotoLibrary` consulta `MediaStore` en `Pictures/Cabina de Fotos`, usa `READ_MEDIA_IMAGES` en API 33+ y `READ_EXTERNAL_STORAGE` en API ≤32. El borrado directo puede fallar si la app ya no es dueña del archivo; mostrar error, no crashear.
 - El botón de hotspot solo abre los ajustes del sistema. El hotspot programático + QR de descarga es la siguiente fase.
 - Layout admin responsive: header compacto (atrás + título + cerrar), botones de red a ancho completo, fotos en **2 columnas bajo 600 dp** y 4 arriba. No volver a meter dos botones de texto largo en un `Row` angosto.
+
+## Descarga / Quick Share
+
+- El CTA “Descargar · 4 fotos” intenta abrir **Quick Share directo** con el componente Samsung `com.samsung.android.app.sharelive/.presentation.main.MainActivity`; si falla, prueba el componente de Google Nearby Sharing y al final cae al share sheet del sistema.
+- No hay API pública para forzar Quick Share: el componente explícito es *best-effort*. Si no existe en el kiosko, el fallback debe seguir funcionando.
+- El intent usa `ACTION_SEND_MULTIPLE`, tipo `image/*`, `EXTRA_STREAM` con las 4 URIs de `FileProvider`, `ClipData` y `FLAG_GRANT_READ_URI_PERMISSION`. No volver a `image/jpeg` ni a URIs `file://`.
+- “Guardar” guarda los 4 JPEG en `Pictures/Cabina de Fotos` (MediaStore); no vuelve a bienvenida. Descargar/compartir sí vuelve a bienvenida.
+- En el kiosko sin Quick Share, validar que el share sheet muestre opciones útiles o agregar el servidor QR local como fallback.
+
+## Git
+
+- Trabajo activo en la rama **`angel-ortega`**; otro compañero trabaja en `main`. No commitear directo a `main`.
+- `origin/main` ya incluye el rediseño de 3 fotos/tira y el wizard (PR de `dittrich`). Hacer `git pull origin main` sobre la rama antes de abrir PR.
 
 ## Cámara (webcam USB)
 
@@ -97,13 +110,14 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 
 ## Estado de build (2026-11-04)
 
-- `assembleDebug` compila correctamente después del rediseño, el pack vertical y el modo administrador.
-- APK debug: ~88.2 MB (MediaPipe + modelo 16 MB + fondos).
-- Probado en un Samsung A55: flujo de bienvenida, cámara, captura, resultado, guardado, modo administrador, PIN, borrado de fotos y layout responsive. Falta validar el pack vertical/cutout con buena luz y la escala en la pantalla de 55".
-- El repo se subió a `origin/main` en el commit `14c48c8` antes del modo administrador.
+- `assembleDebug` compila correctamente con el flujo de 3 fotos/tira, el wizard, el modo administrador y Quick Share.
+- APK debug: ~96.9 MB (MediaPipe + modelos de segmentación/gesto + fondos).
+- Probado en un Samsung A55: flujo de bienvenida, cámara, captura, resultado, guardado, modo administrador, PIN, borrado de fotos y layout responsive. Falta validar Quick Share, el gesto de palma y el cutout con buena luz en el A55; también la escala en la pantalla de 55".
+- Rama `angel-ortega` pusheada; el gesto de palma está en el commit `2c9b619` y el merge de `origin/main` en `94ee19d`.
 
 ## Pendientes
 
+- Probar Quick Share y el gesto de palma en el A55 desbloqueado.
 - Probar la UI en la pantalla de 55" y ajustar escala/tamaños táctiles.
 - Agregar `UvcSource` cuando llegue el kiosko (validar UVC y ausencia de Play Services).
 - Validar `startLocalOnlyHotspot` en el equipo; fallback: router de viaje sin internet.

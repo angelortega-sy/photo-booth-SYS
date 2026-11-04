@@ -761,11 +761,11 @@ private fun PhotoBoothScreen(
                 return@launch
             }
 
-            val chooser = Intent.createChooser(
-                PhotoSaver.shareIntent(context, uris),
-                context.getString(R.string.share_chooser),
+            val launched = PhotoSaver.launchDownload(
+                context = context,
+                uris = uris,
+                chooserTitle = context.getString(R.string.share_chooser),
             )
-            val launched = runCatching { context.startActivity(chooser) }.isSuccess
             busy = false
             if (launched) {
                 onShared()

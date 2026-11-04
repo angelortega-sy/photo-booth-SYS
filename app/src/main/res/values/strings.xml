@@ -18,8 +18,8 @@
     <string name="restart_sequence">Empezar la sesión de nuevo</string>
     <string name="backgrounds_hint">Desliza y toca el fondo que quieras</string>
     <string name="close">Cerrar</string>
-    <string name="save_photo">Guardar todo · 4 fotos</string>
-    <string name="share_chooser">Compartir tus recuerdos</string>
+    <string name="save_photo">Descargar · 4 fotos</string>
+    <string name="share_chooser">Descargar tus fotos</string>
 
     <string name="permission_title">Necesitamos la cámara</string>
     <string name="permission_message">Para tomar tu foto, permite el acceso a la cámara.</string>

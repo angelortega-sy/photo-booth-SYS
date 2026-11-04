@@ -2,6 +2,7 @@ package com.photobooth.kiosk.photo
 
 import android.content.ContentValues
 import android.content.ClipData
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -69,7 +70,7 @@ object PhotoSaver {
 
     fun shareIntent(context: Context, uri: Uri): Intent =
         Intent(Intent.ACTION_SEND).apply {
-            type = "image/jpeg"
+            type = "image/*"
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             setPackage(null)
@@ -77,7 +78,7 @@ object PhotoSaver {
 
     fun shareIntent(context: Context, uris: List<Uri>): Intent =
         Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-            type = "image/jpeg"
+            type = "image/*"
             putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
             uris.firstOrNull()?.let { first ->
                 clipData = ClipData.newUri(context.contentResolver, "Cabina de Fotos", first).apply {
@@ -87,6 +88,32 @@ object PhotoSaver {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             setPackage(null)
         }
+
+    /**
+     * Opens Quick Share directly when the device exposes it, otherwise falls
+     * back to the standard system share sheet.
+     */
+    fun launchDownload(context: Context, uris: List<Uri>, chooserTitle: String): Boolean {
+        val base = shareIntent(context, uris)
+        for (component in QUICK_SHARE_COMPONENTS) {
+            val explicit = Intent(base).setComponent(component)
+            if (runCatching { context.startActivity(explicit) }.isSuccess) return true
+        }
+        return runCatching {
+            context.startActivity(Intent.createChooser(base, chooserTitle))
+        }.isSuccess
+    }
+
+    private val QUICK_SHARE_COMPONENTS = listOf(
+        ComponentName(
+            "com.samsung.android.app.sharelive",
+            "com.samsung.android.app.sharelive.presentation.main.MainActivity",
+        ),
+        ComponentName(
+            "com.google.android.gms",
+            "com.google.android.gms.nearby.sharing.ShareSheetActivity",
+        ),
+    )
 
     private fun saveModern(context: Context, bitmap: Bitmap): Uri {
         val resolver = context.contentResolver
