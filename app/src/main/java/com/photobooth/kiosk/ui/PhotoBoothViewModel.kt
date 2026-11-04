@@ -3,15 +3,19 @@ package com.photobooth.kiosk.ui
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.photobooth.kiosk.R
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BackgroundRepository
+import com.photobooth.kiosk.data.CameraSettingsStore
 import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
 import com.photobooth.kiosk.data.EventBadgePreset
+import com.photobooth.kiosk.data.EventBranding
+import com.photobooth.kiosk.data.EventBrandingStore
 import com.photobooth.kiosk.data.PhotoBorderStyle
 import com.photobooth.kiosk.photo.BitmapTransforms
 import com.photobooth.kiosk.photo.PhotoFrameComposer
@@ -49,6 +53,9 @@ data class PhotoBoothUiState(
     val stripPreview: Bitmap? = null,
     val selectedPhotoIndex: Int? = null,
     val usedFallbackIndices: Set<Int> = emptySet(),
+    val cameraRotationDegrees: Int = 0,
+    val backgrounds: List<BackgroundOption> = emptyList(),
+    val backgroundRevision: Int = 0,
     val errorMessage: String? = null,
 ) {
     val hasResult: Boolean
@@ -75,6 +82,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
     private val repository = BackgroundRepository(application)
     private val processor = PhotoProcessor(application)
+    private val cameraSettings = CameraSettingsStore(application)
+    private val brandingStore = EventBrandingStore(application)
 
     private val sourceFiles = arrayOfNulls<File>(PhotoBoothUiState.PHOTO_COUNT)
     private val rawPreviews = arrayOfNulls<Bitmap>(PhotoBoothUiState.PHOTO_COUNT)
@@ -92,14 +101,102 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private var exportedStateSignature: String? = null
     private var sessionToken = 0
 
-    private val _uiState = MutableStateFlow(PhotoBoothUiState())
+    private val _uiState = MutableStateFlow(
+        PhotoBoothUiState(
+            cameraRotationDegrees = cameraSettings.rotationDegrees,
+            customization = CollageCustomization(
+                eventBranding = brandingStore.load(),
+                badgePreset = if (brandingStore.hasSaved()) {
+                    EventBadgePreset.CUSTOM
+                } else {
+                    EventBadgePreset.EXPO_2027
+                },
+            ),
+            backgrounds = repository.visibleOptions,
+        ),
+    )
     val uiState: StateFlow<PhotoBoothUiState> = _uiState.asStateFlow()
 
-    val backgrounds: List<BackgroundOption> = repository.options + BackgroundOption(
-        id = BackgroundRepository.ORIGINAL_ID,
-        nameRes = R.string.background_original,
-        assetPath = "",
-    )
+    init {
+        refreshBackgrounds()
+    }
+
+    val allBackgrounds: List<BackgroundOption>
+        get() = repository.allOptions
+
+    fun refreshBackgrounds() {
+        val visible = repository.visibleOptions
+        val visibleIds = visible.mapTo(mutableSetOf()) { it.id }
+        val state = _uiState.value
+        val selected = state.selectedBackgroundId
+            .takeIf { it in visibleIds }
+            ?: visible.firstOrNull()?.id
+            ?: "gala"
+        val photoIds = state.photoBackgroundIds.map {
+            if (it in visibleIds) it else selected
+        }
+        _uiState.update {
+            it.copy(
+                backgrounds = visible,
+                selectedBackgroundId = selected,
+                photoBackgroundIds = photoIds,
+                backgroundRevision = it.backgroundRevision + 1,
+            )
+        }
+    }
+
+    private val backgroundMutex = Mutex()
+
+    fun importBackground(uri: Uri, displayName: String?, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                backgroundMutex.withLock {
+                    repository.importFromUri(uri, displayName)
+                }
+            }
+            result.onSuccess {
+                refreshBackgrounds()
+                onResult(null)
+            }.onFailure {
+                onResult(it.message)
+            }
+        }
+    }
+
+    fun setBackgroundEnabled(id: String, enabled: Boolean) {
+        if (!repository.setEnabled(id, enabled)) return
+        refreshBackgrounds()
+        if (_uiState.value.capturedCount == PhotoBoothUiState.PHOTO_COUNT) {
+            requestPreviewUpdate(sessionToken)
+        }
+    }
+
+    fun deleteBackground(id: String) {
+        if (!repository.deleteCustom(id)) return
+        refreshBackgrounds()
+        if (_uiState.value.capturedCount == PhotoBoothUiState.PHOTO_COUNT) {
+            requestPreviewUpdate(sessionToken)
+        }
+    }
+
+    fun renameBackground(id: String, name: String) {
+        if (!repository.renameCustom(id, name)) return
+        refreshBackgrounds()
+    }
+
+    fun updateEventBranding(branding: EventBranding) {
+        brandingStore.save(branding)
+        exportedStateSignature = null
+        _uiState.update {
+            it.copy(
+                customization = it.customization.copy(
+                    eventBranding = branding,
+                    badgePreset = EventBadgePreset.CUSTOM,
+                ),
+            )
+        }
+        requestPreviewUpdate(sessionToken)
+    }
 
     fun beginCapture() {
         val state = _uiState.value
@@ -247,6 +344,11 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     /** Selects a background before capture or updates one/all photos instantly in the Studio Wizard. */
+    fun setCameraRotation(degrees: Int) {
+        cameraSettings.rotationDegrees = degrees
+        _uiState.update { it.copy(cameraRotationDegrees = cameraSettings.rotationDegrees) }
+    }
+
     fun selectBackground(id: String) {
         val state = _uiState.value
         if (state.capturedCount == PhotoBoothUiState.PHOTO_COUNT) {
@@ -337,10 +439,21 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun selectBadgePreset(badgePreset: EventBadgePreset) {
-        if (_uiState.value.customization.badgePreset == badgePreset) return
+        val customization = _uiState.value.customization
+        if (customization.badgePreset == badgePreset) return
         exportedStateSignature = null
         _uiState.update { state ->
-            state.copy(customization = state.customization.copy(badgePreset = badgePreset))
+            val branding = if (badgePreset == EventBadgePreset.CUSTOM) {
+                brandingStore.load()
+            } else {
+                state.customization.eventBranding.withBadge(badgePreset)
+            }
+            state.copy(
+                customization = state.customization.copy(
+                    badgePreset = badgePreset,
+                    eventBranding = branding,
+                ),
+            )
         }
         requestPreviewUpdate(sessionToken)
     }

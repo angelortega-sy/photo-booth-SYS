@@ -42,6 +42,15 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 - El botón de hotspot solo abre los ajustes del sistema. El hotspot programático + QR de descarga es la siguiente fase.
 - Layout admin responsive: header compacto (atrás + título + cerrar), botones de red a ancho completo, fotos en **2 columnas bajo 600 dp** y 4 arriba. No volver a meter dos botones de texto largo en un `Row` angosto.
 
+## Fondos y etiquetas del evento
+
+- **Admin → Evento** permite importar fondos desde el almacenamiento con SAF (`OpenMultipleDocuments("image/*")`), ocultar/mostrar fondos integrados y renombrar/eliminar los personalizados.
+- Los fondos importados se copian a `filesDir/backgrounds/custom_<timestamp>.webp`, normalizados a **1080×1920**. No van a `assets/` ni al repo; se pierden si se borran los datos de la app.
+- El catálogo se persiste en `SharedPreferences("background_catalog")`; los invitados solo ven los fondos habilitados + “Cámara real”.
+- `EventBranding` se persiste en `SharedPreferences("event_branding")`: marca, tagline, título/subtítulo de bienvenida, headline/subheadline/tag del badge. Admin → Evento los edita.
+- La bienvenida y `PhotoFrameComposer` leen `eventBranding`; `EventBadgePreset.CUSTOM` conserva los textos personalizados. **No volver a hardcodear “EXPO SYSCOM 2027”** en la UI.
+- Al cambiar de fondo en el resultado, `requestPreviewUpdate` recompone con el catálogo actual; si el fondo elegido se oculta o borra, el ViewModel cae al primer fondo visible.
+
 ## Descarga / Quick Share
 
 - El CTA “Descargar · 4 fotos” intenta abrir **Quick Share directo** con el componente Samsung `com.samsung.android.app.sharelive/.presentation.main.MainActivity`; si falla, prueba el componente de Google Nearby Sharing y al final cae al share sheet del sistema.
@@ -110,14 +119,15 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 
 ## Estado de build (2026-11-04)
 
-- `assembleDebug` compila correctamente con el flujo de 3 fotos/tira, el wizard, el modo administrador y Quick Share.
+- `assembleDebug` compila correctamente con el flujo de 3 fotos/tira, el wizard, el modo administrador, eventos personalizables y Quick Share.
 - APK debug: ~96.9 MB (MediaPipe + modelos de segmentación/gesto + fondos).
-- Probado en un Samsung A55: flujo de bienvenida, cámara, captura, resultado, guardado, modo administrador, PIN, borrado de fotos y layout responsive. Falta validar Quick Share, el gesto de palma y el cutout con buena luz en el A55; también la escala en la pantalla de 55".
-- Rama `angel-ortega` pusheada; el gesto de palma está en el commit `2c9b619` y el merge de `origin/main` en `94ee19d`.
+- Probado en un Samsung A55: flujo de bienvenida, cámara, captura, resultado, guardado, modo administrador, PIN, borrado de fotos, layout responsive, pestaña Evento y edición de marca en vivo. Hay un fondo personalizado persistido de prueba en el catálogo.
+- Falta validar Quick Share, el gesto de palma, la importación/ocultado de fondos y el cutout con buena luz en el A55; también la escala en la pantalla de 55".
+- Rama `angel-ortega`; el gesto de palma está en `2c9b619`, el merge de `origin/main` en `94ee19d` y Quick Share en `989af84`. Los cambios de eventos/fondos aún no se commitean.
 
 ## Pendientes
 
-- Probar Quick Share y el gesto de palma en el A55 desbloqueado.
+- Probar Quick Share, el gesto de palma, la importación de fondos y el guardado de etiquetas en el A55 desbloqueado.
 - Probar la UI en la pantalla de 55" y ajustar escala/tamaños táctiles.
 - Agregar `UvcSource` cuando llegue el kiosko (validar UVC y ausencia de Play Services).
 - Validar `startLocalOnlyHotspot` en el equipo; fallback: router de viaje sin internet.

@@ -2,6 +2,7 @@ package com.photobooth.kiosk.camera
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.hardware.camera2.CameraCharacteristics
 import android.os.SystemClock
 import android.util.Log
 import android.util.Size
@@ -21,8 +22,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -37,6 +41,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 private const val TAG = "CameraPreview"
 private const val HAND_ANALYSIS_INTERVAL_MS = 250L
 
+private val EXTERNAL_CAMERA_SELECTOR = CameraSelector.Builder()
+    .addCameraFilter { cameras ->
+        cameras.filter { it.lensFacing == CameraCharacteristics.LENS_FACING_EXTERNAL }
+    }
+    .build()
+
 @Composable
 fun CameraPreview(
     modifier: Modifier = Modifier,
@@ -46,6 +56,7 @@ fun CameraPreview(
     onError: (String) -> Unit,
     handDetectionEnabled: Boolean = false,
     onPalmDetected: () -> Unit = {},
+    previewRotationDegrees: Int = 0,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -88,11 +99,15 @@ fun CameraPreview(
                 val cameraProvider = future.get()
                 provider = cameraProvider
 
-                val useFront = cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)
-                val selector = if (useFront) {
-                    CameraSelector.DEFAULT_FRONT_CAMERA
-                } else {
-                    CameraSelector.DEFAULT_BACK_CAMERA
+                val useExternal = runCatching {
+                    cameraProvider.hasCamera(EXTERNAL_CAMERA_SELECTOR)
+                }.getOrDefault(false)
+                val useFront = !useExternal &&
+                    cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)
+                val selector = when {
+                    useExternal -> EXTERNAL_CAMERA_SELECTOR
+                    useFront -> CameraSelector.DEFAULT_FRONT_CAMERA
+                    else -> CameraSelector.DEFAULT_BACK_CAMERA
                 }
                 isFrontCamera = useFront
 
@@ -118,7 +133,8 @@ fun CameraPreview(
                             if (now - lastAnalysisAt >= HAND_ANALYSIS_INTERVAL_MS) {
                                 lastAnalysisAt = now
                                 val bitmap = image.toBitmap()
-                                val rotation = image.imageInfo.rotationDegrees
+                                val rotation = (image.imageInfo.rotationDegrees +
+                                    previewRotationDegrees) % 360
                                 val upright = if (rotation == 0) {
                                     bitmap
                                 } else {
@@ -175,10 +191,24 @@ fun CameraPreview(
         }
     }
 
-    AndroidView(
-        factory = { previewView },
-        modifier = modifier,
-    )
+    BoxWithConstraints(modifier = modifier) {
+        val extraRotation = ((previewRotationDegrees % 360) + 360) % 360
+        val fillScale = if (extraRotation == 90 || extraRotation == 270) {
+            maxOf(maxHeight / maxWidth, maxWidth / maxHeight)
+        } else {
+            1f
+        }
+        AndroidView(
+            factory = { previewView },
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    rotationZ = extraRotation.toFloat()
+                    scaleX = fillScale
+                    scaleY = fillScale
+                },
+        )
+    }
 
     LaunchedEffect(captureRequest) {
         if (captureRequest <= 0) return@LaunchedEffect
@@ -192,7 +222,8 @@ fun CameraPreview(
             mainExecutor,
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
-                    val rotationDegrees = image.imageInfo.rotationDegrees
+                    val rotationDegrees = (image.imageInfo.rotationDegrees +
+                        previewRotationDegrees) % 360
                     val buffer = image.planes[0].buffer
                     val bytes = ByteArray(buffer.remaining())
                     buffer.get(bytes)

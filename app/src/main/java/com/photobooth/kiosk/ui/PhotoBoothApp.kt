@@ -116,6 +116,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.photobooth.kiosk.R
 import com.photobooth.kiosk.camera.CameraPreview
 import com.photobooth.kiosk.data.BackgroundOption
+import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoSaver
 import com.photobooth.kiosk.ui.theme.Cream
@@ -204,6 +205,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
             )
 
             showAdmin -> AdminGate(
+                viewModel = viewModel,
                 onClose = {
                     showAdmin = false
                     lastInteraction = SystemClock.uptimeMillis()
@@ -212,6 +214,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
 
             showWelcome -> WelcomeScreen(
                 loadThumbnail = viewModel::loadThumbnail,
+                branding = state.customization.eventBranding,
                 onStart = { startSession() },
                 onAdminRequested = {
                     showAdmin = true
@@ -232,6 +235,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
 @Composable
 private fun WelcomeScreen(
     loadThumbnail: (String) -> Bitmap?,
+    branding: EventBranding,
     onStart: () -> Unit,
     onAdminRequested: () -> Unit,
 ) {
@@ -308,7 +312,7 @@ private fun WelcomeScreen(
                         .padding(horizontal = 14.dp, vertical = 7.dp),
                 ) {
                     Text(
-                        text = stringResource(R.string.welcome_brand),
+                        text = branding.brand,
                         color = SyscomBlueLight,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -485,7 +489,7 @@ private fun WelcomeScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "EXPO SYSCOM 2027",
+                        text = branding.badgeHeadline,
                         color = Cream,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -497,7 +501,7 @@ private fun WelcomeScreen(
             Spacer(Modifier.height(24.dp))
 
             Text(
-                text = stringResource(R.string.welcome_title),
+                text = branding.welcomeTitle,
                 color = Cream,
                 fontSize = 46.sp,
                 lineHeight = 50.sp,
@@ -506,7 +510,7 @@ private fun WelcomeScreen(
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                text = stringResource(R.string.welcome_subtitle),
+                text = branding.welcomeSubtitle,
                 color = Cream.copy(alpha = 0.72f),
                 fontSize = 16.sp,
                 lineHeight = 22.sp,
@@ -652,12 +656,8 @@ private fun PhotoBoothScreen(
     var busy by remember { mutableStateOf(false) }
     var showBackgrounds by remember { mutableStateOf(false) }
 
-    val selectedOption = viewModel.backgrounds.firstOrNull { it.id == state.selectedBackgroundId }
-    val selectedName = if (selectedOption != null) {
-        stringResource(selectedOption.nameRes)
-    } else {
-        ""
-    }
+    val selectedOption = state.backgrounds.firstOrNull { it.id == state.selectedBackgroundId }
+    val selectedName = selectedOption?.name ?: ""
 
     LaunchedEffect(state.capturedCount) {
         if (state.capturedCount == 0) {
@@ -797,6 +797,7 @@ private fun PhotoBoothScreen(
                     modifier = Modifier.fillMaxSize(),
                     captureRequest = captureRequest,
                     handDetectionEnabled = handDetectionActive,
+                    previewRotationDegrees = state.cameraRotationDegrees,
                     onPalmDetected = {
                         onInteraction()
                         startCapture()
@@ -853,7 +854,7 @@ private fun PhotoBoothScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = stringResource(R.string.welcome_brand),
+                    text = state.customization.eventBranding.brand,
                     color = SyscomBlueLight,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -1007,7 +1008,7 @@ private fun PhotoBoothScreen(
         if (state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT) {
             StudioWizardScreen(
                 state = state,
-                backgrounds = viewModel.backgrounds,
+                backgrounds = state.backgrounds,
                 loadThumbnail = viewModel::loadThumbnail,
                 enabled = !busy && !state.isExporting,
                 onStepSelected = viewModel::setWizardStep,
@@ -1061,6 +1062,7 @@ private fun PhotoBoothScreen(
         if (showBackgrounds) {
             BackgroundSheet(
                 viewModel = viewModel,
+                backgrounds = state.backgrounds,
                 selectedId = state.selectedBackgroundId,
                 onSelect = { id ->
                     if (!state.hasResult) {
@@ -1151,6 +1153,7 @@ private fun CaptureButton(
 @Composable
 private fun BackgroundSheet(
     viewModel: PhotoBoothViewModel,
+    backgrounds: List<BackgroundOption>,
     selectedId: String,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -1216,7 +1219,7 @@ private fun BackgroundSheet(
                 contentPadding = PaddingValues(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(viewModel.backgrounds, key = { it.id }) { option ->
+                items(backgrounds, key = { it.id }) { option ->
                     BackgroundCard(
                         option = option,
                         selected = option.id == selectedId,
@@ -1297,7 +1300,7 @@ private fun BackgroundCard(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            text = stringResource(option.nameRes),
+            text = option.name,
             color = if (selected) Cream else Cream.copy(alpha = 0.62f),
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,

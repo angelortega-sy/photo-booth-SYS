@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -36,8 +38,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Backspace
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Lock
@@ -49,15 +53,19 @@ import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -82,6 +90,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.photobooth.kiosk.R
+import com.photobooth.kiosk.data.BackgroundOption
+import com.photobooth.kiosk.data.BackgroundRepository
+import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.admin.AdminAuth
 import com.photobooth.kiosk.admin.CameraOption
 import com.photobooth.kiosk.admin.DeviceDiagnostics
@@ -109,6 +120,7 @@ private enum class AdminSection(val titleRes: Int) {
     SUMMARY(R.string.admin_tab_summary),
     CAMERA(R.string.admin_section_camera),
     PHOTOS(R.string.admin_section_photos),
+    EVENT(R.string.admin_tab_event),
     SYSTEM(R.string.admin_tab_system),
 }
 
@@ -123,7 +135,10 @@ private fun hasPhotoPermission(context: android.content.Context): Boolean =
     ContextCompat.checkSelfPermission(context, photoPermission()) == PackageManager.PERMISSION_GRANTED
 
 @Composable
-fun AdminGate(onClose: () -> Unit) {
+fun AdminGate(
+    viewModel: PhotoBoothViewModel,
+    onClose: () -> Unit,
+) {
     val context = LocalContext.current
     val auth = remember(context) { AdminAuth(context) }
     var unlocked by remember { mutableStateOf(false) }
@@ -133,6 +148,7 @@ fun AdminGate(onClose: () -> Unit) {
 
     if (unlocked && !changingPin) {
         AdminScreen(
+            viewModel = viewModel,
             onClose = onClose,
             onChangePin = { changingPin = true },
         )
@@ -443,10 +459,12 @@ private fun PinKey(
 
 @Composable
 private fun AdminScreen(
+    viewModel: PhotoBoothViewModel,
     onClose: () -> Unit,
     onChangePin: () -> Unit,
 ) {
     val context = LocalContext.current
+    val appState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -591,6 +609,8 @@ private fun AdminScreen(
                                     cameraTestError = null
                                 },
                                 onCameraError = { cameraTestError = it },
+                                rotationDegrees = appState.cameraRotationDegrees,
+                                onRotationChange = viewModel::setCameraRotation,
                             )
                         }
                     }
@@ -640,6 +660,46 @@ private fun AdminScreen(
                                     onDelete = { photoToDelete = it },
                                 )
                             }
+                        }
+                    }
+
+                    AdminSection.EVENT -> {
+                        item {
+                            BackgroundsAdminCard(
+                                backgrounds = viewModel.allBackgrounds,
+                                loadThumbnail = viewModel::loadThumbnail,
+                                onImport = { uri, name ->
+                                    viewModel.importBackground(uri, name) { error ->
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (error == null) {
+                                                    context.getString(R.string.admin_background_imported)
+                                                } else {
+                                                    context.getString(
+                                                        R.string.admin_background_import_error,
+                                                    )
+                                                },
+                                            )
+                                        }
+                                    }
+                                },
+                                onToggle = viewModel::setBackgroundEnabled,
+                                onDelete = viewModel::deleteBackground,
+                                onRename = viewModel::renameBackground,
+                            )
+                        }
+                        item {
+                            EventBrandingAdminCard(
+                                branding = appState.customization.eventBranding,
+                                onSave = {
+                                    viewModel.updateEventBranding(it)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            context.getString(R.string.admin_event_saved),
+                                        )
+                                    }
+                                },
+                            )
                         }
                     }
 
@@ -740,6 +800,259 @@ private fun AdminScreen(
         )
     }
 
+}
+
+@Composable
+private fun BackgroundsAdminCard(
+    backgrounds: List<BackgroundOption>,
+    loadThumbnail: (String) -> Bitmap?,
+    onImport: (Uri, String?) -> Unit,
+    onToggle: (String, Boolean) -> Unit,
+    onDelete: (String) -> Unit,
+    onRename: (String, String) -> Unit,
+) {
+    val context = LocalContext.current
+    var renameTarget by remember { mutableStateOf<BackgroundOption?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        uris.forEach { uri ->
+            val name = runCatching {
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(OpenableColumns.DISPLAY_NAME),
+                    null,
+                    null,
+                    null,
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }
+            }.getOrNull()
+            onImport(uri, name)
+        }
+    }
+
+    AdminCard(
+        title = stringResource(R.string.admin_backgrounds_title),
+        subtitle = stringResource(R.string.admin_backgrounds_subtitle),
+    ) {
+        OutlinedButton(
+            onClick = { picker.launch(arrayOf("image/*")) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.admin_background_upload))
+        }
+        Spacer(Modifier.height(10.dp))
+        backgrounds
+            .filter { it.id != BackgroundRepository.ORIGINAL_ID }
+            .forEach { option ->
+                BackgroundAdminRow(
+                    option = option,
+                    loadThumbnail = loadThumbnail,
+                    onToggle = { enabled -> onToggle(option.id, enabled) },
+                    onDelete = { onDelete(option.id) },
+                    onRename = {
+                        renameTarget = option
+                        renameText = option.name
+                    },
+                )
+            }
+    }
+
+    renameTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text(stringResource(R.string.admin_background_rename)) },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onRename(target.id, renameText)
+                        renameTarget = null
+                    },
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) {
+                    Text(stringResource(R.string.admin_cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun BackgroundAdminRow(
+    option: BackgroundOption,
+    loadThumbnail: (String) -> Bitmap?,
+    onToggle: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+    onRename: () -> Unit,
+) {
+    val thumbnail by produceState<Bitmap?>(initialValue = null, option.id) {
+        value = withContext(Dispatchers.IO) { loadThumbnail(option.id) }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(46.dp)
+                .aspectRatio(9f / 16f)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Ink),
+            contentAlignment = Alignment.Center,
+        ) {
+            val image = thumbnail
+            if (image != null) {
+                Image(
+                    bitmap = image.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.PhotoLibrary,
+                    contentDescription = null,
+                    tint = Cream.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = option.name,
+                color = Cream,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(
+                    if (option.isBuiltIn) {
+                        R.string.admin_background_builtin
+                    } else {
+                        R.string.admin_background_custom
+                    },
+                ),
+                color = Cream.copy(alpha = 0.45f),
+                fontSize = 11.sp,
+            )
+        }
+        if (!option.isBuiltIn) {
+            IconButton(onClick = onRename) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = stringResource(R.string.admin_background_rename),
+                    tint = Cream.copy(alpha = 0.65f),
+                )
+            }
+        }
+        Switch(checked = option.enabled, onCheckedChange = onToggle)
+        if (!option.isBuiltIn) {
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = stringResource(R.string.admin_background_delete),
+                    tint = Color(0xFFFF7A7A),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventBrandingAdminCard(
+    branding: EventBranding,
+    onSave: (EventBranding) -> Unit,
+) {
+    var draft by remember { mutableStateOf(branding) }
+    LaunchedEffect(branding) { draft = branding }
+
+    AdminCard(
+        title = stringResource(R.string.admin_event_title),
+        subtitle = stringResource(R.string.admin_event_subtitle),
+    ) {
+        BrandingField(
+            label = stringResource(R.string.admin_event_brand),
+            value = draft.brand,
+            onValueChange = { draft = draft.copy(brand = it) },
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_tagline),
+            value = draft.tagline,
+            onValueChange = { draft = draft.copy(tagline = it) },
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_welcome_title),
+            value = draft.welcomeTitle,
+            onValueChange = { draft = draft.copy(welcomeTitle = it) },
+            minLines = 2,
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_welcome_subtitle),
+            value = draft.welcomeSubtitle,
+            onValueChange = { draft = draft.copy(welcomeSubtitle = it) },
+            minLines = 2,
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_badge_headline),
+            value = draft.badgeHeadline,
+            onValueChange = { draft = draft.copy(badgeHeadline = it) },
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_badge_subheadline),
+            value = draft.badgeSubheadline,
+            onValueChange = { draft = draft.copy(badgeSubheadline = it) },
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_badge_tag),
+            value = draft.badgeTag,
+            onValueChange = { draft = draft.copy(badgeTag = it) },
+        )
+        Button(
+            onClick = { onSave(draft) },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SyscomBlue,
+                contentColor = Color.White,
+            ),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(50.dp),
+        ) {
+            Text(stringResource(R.string.admin_event_save))
+        }
+    }
+}
+
+@Composable
+private fun BrandingField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    minLines: Int = 1,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = minLines == 1,
+        minLines = minLines,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+    )
 }
 
 private data class AdminData(
@@ -879,6 +1192,8 @@ private fun CameraCard(
     cameraTestError: String?,
     onToggleTest: () -> Unit,
     onCameraError: (String) -> Unit,
+    rotationDegrees: Int,
+    onRotationChange: (Int) -> Unit,
 ) {
     AdminCard(
         title = stringResource(R.string.admin_section_camera),
@@ -984,6 +1299,32 @@ private fun CameraCard(
                     if (showCameraTest) R.string.admin_stop_camera else R.string.admin_test_camera,
                 ),
             )
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = stringResource(R.string.admin_camera_rotation),
+            color = Cream,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.admin_camera_rotation_hint),
+            color = Color(0xFF9AC2F4),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Row(
+            modifier = Modifier.padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf(0, 90, 180, 270).forEach { degrees ->
+                FilterChip(
+                    selected = rotationDegrees == degrees,
+                    onClick = { onRotationChange(degrees) },
+                    label = { Text("$degrees°") },
+                )
+            }
         }
 
         if (showCameraTest) {

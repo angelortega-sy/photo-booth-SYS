@@ -325,7 +325,7 @@ object PhotoFrameComposer {
             letterSpacing = 0.10f
         }
         canvas.drawText(
-            customization.badgePreset.tagChip + dateSuffix,
+            customization.eventBranding.badgeTag + dateSuffix,
             rightX,
             pillRect.centerY() + 8f * scale,
             tagPaint,
@@ -550,7 +550,7 @@ object PhotoFrameComposer {
         customization: CollageCustomization,
     ) {
         val style = customization.frameStyle
-        val badge = customization.badgePreset
+        val badge = customization.eventBranding
         val left = 48f * scale
         val right = width - 48f * scale
 
@@ -590,7 +590,7 @@ object PhotoFrameComposer {
             letterSpacing = 0.08f
         }
         val centerY = footerRect.centerY()
-        canvas.drawText(badge.headline, textLeft, centerY - 6f * scale, titlePaint)
+        canvas.drawText(badge.badgeHeadline, textLeft, centerY - 6f * scale, titlePaint)
 
         val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = style.textSecondaryHex.toInt()
@@ -599,7 +599,7 @@ object PhotoFrameComposer {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             letterSpacing = 0.12f
         }
-        canvas.drawText(badge.subheadline, textLeft, centerY + 34f * scale, subtitlePaint)
+        canvas.drawText(badge.badgeSubheadline, textLeft, centerY + 34f * scale, subtitlePaint)
 
         // Right emblem seal
         val sealRadius = 46f * scale
