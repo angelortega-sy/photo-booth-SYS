@@ -42,6 +42,7 @@ import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -931,9 +932,9 @@ private fun StepBadgeAndDeliveryPanel(
 
         Spacer(Modifier.height(12.dp))
 
-        // Primary Save CTA
+        // Primary download CTA: opens the system share sheet, where Quick Share appears.
         Button(
-            onClick = onSave,
+            onClick = onShare,
             enabled = enabled,
             modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(27.dp),
@@ -983,7 +984,7 @@ private fun StepBadgeAndDeliveryPanel(
                 Text(stringResource(R.string.wizard_prev_step), fontSize = 13.sp)
             }
             OutlinedButton(
-                onClick = onShare,
+                onClick = onSave,
                 enabled = enabled,
                 modifier = Modifier.weight(0.62f).height(48.dp),
                 shape = RoundedCornerShape(24.dp),
@@ -991,14 +992,14 @@ private fun StepBadgeAndDeliveryPanel(
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Share,
+                    imageVector = Icons.Rounded.Save,
                     contentDescription = null,
                     tint = SyscomBlueLight,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.share),
+                    text = stringResource(R.string.save),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                 )

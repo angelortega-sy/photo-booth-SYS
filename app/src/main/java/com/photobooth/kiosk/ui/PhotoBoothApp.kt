@@ -761,11 +761,11 @@ private fun PhotoBoothScreen(
                 return@launch
             }
 
-            val chooser = Intent.createChooser(
-                PhotoSaver.shareIntent(context, uris),
-                context.getString(R.string.share_chooser),
+            val launched = PhotoSaver.launchDownload(
+                context = context,
+                uris = uris,
+                chooserTitle = context.getString(R.string.share_chooser),
             )
-            val launched = runCatching { context.startActivity(chooser) }.isSuccess
             busy = false
             if (launched) {
                 onShared()
@@ -782,12 +782,25 @@ private fun PhotoBoothScreen(
         }
     }
 
+    val handDetectionActive = cameraReady &&
+        !state.isProcessing &&
+        !state.isCapturing &&
+        !state.hasResult &&
+        state.capturedCount < PhotoBoothUiState.PHOTO_COUNT &&
+        countdown == 0 &&
+        !showBackgrounds
+
     Box(modifier = Modifier.fillMaxSize().background(Ink)) {
         if (state.capturedCount < PhotoBoothUiState.PHOTO_COUNT) {
             key(cameraKey) {
                 CameraPreview(
                     modifier = Modifier.fillMaxSize(),
                     captureRequest = captureRequest,
+                    handDetectionEnabled = handDetectionActive,
+                    onPalmDetected = {
+                        onInteraction()
+                        startCapture()
+                    },
                     onReady = {
                         cameraReady = true
                         cameraError = null

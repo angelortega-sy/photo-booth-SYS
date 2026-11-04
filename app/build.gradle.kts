@@ -37,6 +37,7 @@ android {
 
     androidResources {
         noCompress += "tflite"
+        noCompress += "task"
     }
 
     packaging {

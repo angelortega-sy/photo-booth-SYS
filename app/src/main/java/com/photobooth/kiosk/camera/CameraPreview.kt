@@ -2,8 +2,11 @@ package com.photobooth.kiosk.camera
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.SystemClock
+import android.util.Log
 import android.util.Size
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
@@ -24,9 +27,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.photobooth.kiosk.photo.BitmapTransforms
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+
+private const val TAG = "CameraPreview"
+private const val HAND_ANALYSIS_INTERVAL_MS = 250L
 
 @Composable
 fun CameraPreview(
@@ -35,17 +44,31 @@ fun CameraPreview(
     onReady: () -> Unit,
     onCaptured: (Bitmap, Int, Boolean) -> Unit,
     onError: (String) -> Unit,
+    handDetectionEnabled: Boolean = false,
+    onPalmDetected: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
+    val onPalmDetectedState = rememberUpdatedState(onPalmDetected)
+    val handDetectionEnabledState = remember { AtomicBoolean(false) }
+    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
+    val gestureDetector = remember(context) {
+        HandGestureDetector(context) {
+            mainExecutor.execute { onPalmDetectedState.value() }
+        }
+    }
 
     val previewView = remember(context) {
         PreviewView(context).apply {
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
+    }
+
+    LaunchedEffect(handDetectionEnabled) {
+        handDetectionEnabledState.set(handDetectionEnabled)
     }
 
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
@@ -57,8 +80,10 @@ fun CameraPreview(
     DisposableEffect(lifecycleOwner, previewView) {
         val future = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
+        var disposed = false
 
         val listener = Runnable {
+            if (disposed) return@Runnable
             try {
                 val cameraProvider = future.get()
                 provider = cameraProvider
@@ -80,8 +105,53 @@ fun CameraPreview(
                     .setTargetResolution(Size(1920, 1080))
                     .build()
 
+                @Suppress("DEPRECATION")
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setTargetResolution(Size(640, 480))
+                    .build()
+                var lastAnalysisAt = 0L
+                analysis.setAnalyzer(analysisExecutor) { image ->
+                    try {
+                        if (handDetectionEnabledState.get()) {
+                            val now = SystemClock.uptimeMillis()
+                            if (now - lastAnalysisAt >= HAND_ANALYSIS_INTERVAL_MS) {
+                                lastAnalysisAt = now
+                                val bitmap = image.toBitmap()
+                                val rotation = image.imageInfo.rotationDegrees
+                                val upright = if (rotation == 0) {
+                                    bitmap
+                                } else {
+                                    BitmapTransforms.rotateDegrees(bitmap, rotation)
+                                }
+                                if (upright !== bitmap && !bitmap.isRecycled) {
+                                    bitmap.recycle()
+                                }
+                                gestureDetector.analyze(upright, now)
+                            }
+                        }
+                    } catch (error: Throwable) {
+                        Log.w(TAG, "Hand analysis failed", error)
+                    } finally {
+                        image.close()
+                    }
+                }
+
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, capture)
+                try {
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        selector,
+                        preview,
+                        capture,
+                        analysis,
+                    )
+                } catch (error: Throwable) {
+                    Log.w(TAG, "Hand analysis unavailable, using camera without it", error)
+                    analysis.clearAnalyzer()
+                    runCatching { cameraProvider.unbindAll() }
+                    cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, capture)
+                }
                 imageCapture = capture
                 currentOnReady()
             } catch (error: Throwable) {
@@ -93,7 +163,10 @@ fun CameraPreview(
         future.addListener(listener, mainExecutor)
 
         onDispose {
+            disposed = true
             imageCapture = null
+            analysisExecutor.shutdownNow()
+            gestureDetector.close()
             if (future.isDone) {
                 runCatching { provider?.unbindAll() }
             } else {
