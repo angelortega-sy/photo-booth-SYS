@@ -109,7 +109,10 @@ fun CameraPreview(
 
     LaunchedEffect(captureRequest) {
         if (captureRequest <= 0) return@LaunchedEffect
-        val capture = imageCapture ?: return@LaunchedEffect
+        val capture = imageCapture ?: run {
+            currentOnError("Camera is not ready")
+            return@LaunchedEffect
+        }
         val mirror = isFrontCamera
 
         capture.takePicture(

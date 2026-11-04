@@ -40,6 +40,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Refresh
@@ -72,6 +73,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -92,6 +94,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.photobooth.kiosk.R
 import com.photobooth.kiosk.camera.CameraPreview
 import com.photobooth.kiosk.data.BackgroundOption
+import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoSaver
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
@@ -261,40 +264,66 @@ private fun WelcomeScreen(
 
             Spacer(Modifier.weight(1f))
 
-            Box(modifier = Modifier.size(238.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.size(width = 270.dp, height = 282.dp), contentAlignment = Alignment.Center) {
                 Box(
                     modifier = Modifier
-                        .size(238.dp)
+                        .size(width = 206.dp, height = 252.dp)
+                        .rotate(-8f)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(InkSoft)
+                        .border(1.dp, SyscomBlue.copy(alpha = 0.55f), RoundedCornerShape(24.dp)),
+                )
+                Column(
+                    modifier = Modifier
+                        .size(width = 206.dp, height = 252.dp)
+                        .clip(RoundedCornerShape(24.dp))
                         .background(
-                            Brush.radialGradient(
+                            Brush.verticalGradient(
                                 listOf(
-                                    SyscomBlue.copy(alpha = 0.55f),
-                                    SyscomBlueDeep.copy(alpha = 0.16f),
-                                    Color.Transparent,
+                                    SyscomBlue.copy(alpha = 0.3f),
+                                    InkSoft.copy(alpha = 0.98f),
+                                    Ink,
                                 ),
                             ),
-                            CircleShape,
-                        ),
-                )
-                Box(
-                    modifier = Modifier
-                        .size(178.dp)
-                        .border(1.dp, SyscomBlueLight.copy(alpha = 0.38f), CircleShape),
-                    contentAlignment = Alignment.Center,
+                        )
+                        .border(1.dp, SyscomBlueLight.copy(alpha = 0.42f), RoundedCornerShape(24.dp))
+                        .padding(18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = stringResource(R.string.welcome_brand),
+                            color = SyscomBlueLight,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.sp,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Text("2027", color = Cream.copy(alpha = 0.62f), fontSize = 11.sp)
+                    }
+                    Spacer(Modifier.weight(1f))
                     Box(
                         modifier = Modifier
-                            .size(138.dp)
-                            .background(InkSoft.copy(alpha = 0.92f), CircleShape),
+                            .size(110.dp)
+                            .background(SyscomBlue.copy(alpha = 0.2f), CircleShape)
+                            .border(1.dp, SyscomBlueLight.copy(alpha = 0.55f), CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.CameraAlt,
                             contentDescription = null,
                             tint = Cream,
-                            modifier = Modifier.size(68.dp),
+                            modifier = Modifier.size(56.dp),
                         )
                     }
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = "3 FOTOS · 1 TIRA",
+                        color = Cream.copy(alpha = 0.76f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.6.sp,
+                    )
                 }
             }
 
@@ -324,8 +353,8 @@ private fun WelcomeScreen(
                 modifier = Modifier
                     .widthIn(max = 420.dp)
                     .fillMaxWidth()
-                    .height(58.dp),
-                shape = RoundedCornerShape(29.dp),
+                    .height(68.dp),
+                shape = RoundedCornerShape(34.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SyscomBlue,
                     contentColor = Color.White,
@@ -381,8 +410,15 @@ private fun PhotoBoothScreen(
         ""
     }
 
+    LaunchedEffect(state.isProcessing) {
+        if (state.isProcessing) cameraReady = false
+    }
+
     fun startCapture() {
-        if (!cameraReady || busy || state.isProcessing || countdown > 0) return
+        if (!cameraReady || busy || state.isProcessing || state.isCapturing ||
+            state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT || countdown > 0
+        ) return
+        viewModel.beginCapture()
         scope.launch {
             countdown = 3
             delay(1_000L)
@@ -399,38 +435,44 @@ private fun PhotoBoothScreen(
     }
 
     fun savePhoto() {
-        val bitmap = state.resultBitmap ?: return
+        val files = state.outputFiles
+        if (files.size != 4) return
         if (busy || state.isProcessing) return
         scope.launch {
             busy = true
-            val result = withContext(Dispatchers.IO) {
-                PhotoSaver.saveToGallery(context, bitmap)
+            val results = withContext(Dispatchers.IO) {
+                files.map { PhotoSaver.saveFileToGallery(context, it) }
             }
             busy = false
+            val savedCount = results.count { it.isSuccess }
+            val message = when (savedCount) {
+                files.size -> context.getString(R.string.photos_saved)
+                0 -> context.getString(R.string.save_error)
+                else -> context.getString(R.string.photos_saved_partial, savedCount, files.size)
+            }
             snackbarHostState.showSnackbar(
-                context.getString(
-                    if (result.isSuccess) R.string.photo_saved else R.string.save_error,
-                ),
+                message,
             )
         }
     }
 
     fun sharePhoto() {
-        val bitmap = state.resultBitmap ?: return
+        val files = state.outputFiles
+        if (files.size != 4) return
         if (busy || state.isProcessing) return
         scope.launch {
             busy = true
-            val uri = withContext(Dispatchers.IO) {
-                PhotoSaver.cacheForShare(context, bitmap)
+            val uris = withContext(Dispatchers.IO) {
+                PhotoSaver.cacheFilesForShare(context, files)
             }
-            if (uri == null) {
+            if (uris == null || uris.size != files.size) {
                 busy = false
                 snackbarHostState.showSnackbar(context.getString(R.string.share_error))
                 return@launch
             }
 
             val chooser = Intent.createChooser(
-                PhotoSaver.shareIntent(context, uri),
+                PhotoSaver.shareIntent(context, uris),
                 context.getString(R.string.share_chooser),
             )
             val launched = runCatching { context.startActivity(chooser) }.isSuccess
@@ -451,7 +493,7 @@ private fun PhotoBoothScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Ink)) {
-        if (state.resultBitmap == null) {
+        if (!state.hasResult && !state.isProcessing) {
             key(cameraKey) {
                 CameraPreview(
                     modifier = Modifier.fillMaxSize(),
@@ -462,10 +504,12 @@ private fun PhotoBoothScreen(
                     },
                     onCaptured = { bitmap, rotation, mirror ->
                         cameraReady = true
+                        cameraError = null
                         viewModel.processPhoto(bitmap, rotation, mirror)
                     },
                     onError = { message ->
                         Log.e(LOG_TAG, "Camera error: $message")
+                        viewModel.captureFailed()
                         cameraReady = false
                         cameraError = message
                     },
@@ -502,16 +546,37 @@ private fun PhotoBoothScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = stringResource(R.string.app_name),
+                    text = stringResource(R.string.welcome_brand),
+                    color = SyscomBlueLight,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 3.sp,
+                )
+                Text(
+                    text = stringResource(R.string.photo_progress, state.capturedCount + 1),
                     color = Cream,
-                    fontSize = 17.sp,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = selectedName,
-                    color = Cream.copy(alpha = 0.56f),
-                    fontSize = 12.sp,
+                    color = Cream.copy(alpha = 0.68f),
+                    fontSize = 15.sp,
                 )
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
+                        Box(
+                            Modifier
+                                .size(width = 42.dp, height = 5.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(
+                                    if (index <= state.capturedCount) SyscomBlueLight
+                                    else Cream.copy(alpha = 0.24f),
+                                ),
+                        )
+                    }
+                }
             }
 
             Column(
@@ -524,12 +589,13 @@ private fun PhotoBoothScreen(
                 Box(modifier = Modifier.fillMaxWidth().height(114.dp)) {
                     CaptureButton(
                         modifier = Modifier.align(Alignment.Center),
-                        enabled = cameraReady && !state.isProcessing && countdown == 0,
+                        enabled = cameraReady && !state.isProcessing && !state.isCapturing &&
+                            state.capturedCount < PhotoBoothUiState.PHOTO_COUNT && countdown == 0,
                         onClick = { startCapture() },
                     )
                     OutlinedButton(
                         onClick = { showBackgrounds = true },
-                        enabled = !state.isProcessing && countdown == 0,
+                        enabled = state.capturedCount == 0 && !state.isProcessing && countdown == 0,
                         modifier = Modifier
                             .align(Alignment.CenterStart)
                             .padding(start = 20.dp)
@@ -553,7 +619,7 @@ private fun PhotoBoothScreen(
                     }
                     IconButton(
                         onClick = onHome,
-                        enabled = !state.isProcessing && countdown == 0,
+                    enabled = !state.isProcessing && !state.isCapturing && countdown == 0,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .padding(end = 12.dp),
@@ -566,20 +632,62 @@ private fun PhotoBoothScreen(
                     }
                 }
                 Text(
-                    text = stringResource(R.string.capture_hint),
+                    text = stringResource(
+                        if (state.capturedCount == 0) R.string.capture_hint
+                        else R.string.capture_next_hint,
+                    ),
                     color = Cream.copy(alpha = 0.48f),
-                    fontSize = 12.sp,
+                    fontSize = 14.sp,
                 )
             }
         }
 
-        state.resultBitmap?.let { bitmap ->
+        if (state.capturedCount == PhotoBoothUiState.PHOTO_COUNT &&
+            !state.hasResult && !state.isProcessing
+        ) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .widthIn(max = 440.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(InkSoft.copy(alpha = 0.96f))
+                    .border(1.dp, Cream.copy(alpha = 0.12f), RoundedCornerShape(24.dp))
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.composition_failed),
+                    color = Cream,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(14.dp))
+                Button(
+                    onClick = viewModel::retryComposition,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+                ) {
+                    Text(stringResource(R.string.retry))
+                }
+                TextButton(
+                    onClick = { viewModel.clearResult() },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.restart_sequence), color = Cream.copy(alpha = 0.76f))
+                }
+            }
+        }
+
+        if (state.hasResult) {
             ResultOverlay(
-                bitmap = bitmap,
-                usedFallback = state.usedFallback,
+                state = state,
                 enabled = !busy && !state.isProcessing,
                 onSave = { savePhoto() },
                 onShare = { sharePhoto() },
+                onSelectOutput = viewModel::selectResult,
                 onRetake = {
                     cameraReady = false
                     viewModel.clearResult()
@@ -601,7 +709,7 @@ private fun PhotoBoothScreen(
             ProcessingOverlay()
         }
 
-        if (cameraError != null && state.resultBitmap == null) {
+        if (cameraError != null && !state.hasResult) {
             CameraErrorOverlay(
                 onRetry = {
                     cameraError = null
@@ -616,7 +724,7 @@ private fun PhotoBoothScreen(
                 viewModel = viewModel,
                 selectedId = state.selectedBackgroundId,
                 onSelect = { id ->
-                    if (state.resultBitmap == null) {
+                    if (!state.hasResult) {
                         viewModel.selectBackground(id)
                     } else {
                         viewModel.changeBackground(id)
@@ -673,15 +781,16 @@ private fun CaptureButton(
 
 @Composable
 private fun ResultOverlay(
-    bitmap: Bitmap,
-    usedFallback: Boolean,
+    state: PhotoBoothUiState,
     enabled: Boolean,
     onSave: () -> Unit,
     onShare: () -> Unit,
+    onSelectOutput: (Int?) -> Unit,
     onRetake: () -> Unit,
     onHome: () -> Unit,
     onOpenBackgrounds: () -> Unit,
 ) {
+    val bitmap = state.resultBitmap
     Box(modifier = Modifier.fillMaxSize().background(Ink)) {
         Column(
             modifier = Modifier
@@ -709,8 +818,27 @@ private fun ResultOverlay(
                 )
             }
 
-            if (usedFallback) {
-                Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(
+                    if (state.selectedPhotoIndex == null) R.string.result_strip_label
+                    else R.string.result_photo_label,
+                    (state.selectedPhotoIndex ?: 0) + 1,
+                ),
+                color = Cream.copy(alpha = 0.62f),
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+            )
+            if (state.selectedPhotoIndex == null) {
+                Text(
+                    text = stringResource(R.string.result_select_strip_photo_hint),
+                    color = Cream.copy(alpha = 0.5f),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            if (state.usedFallback) {
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = stringResource(R.string.result_fallback),
                     color = Cream.copy(alpha = 0.58f),
@@ -729,12 +857,62 @@ private fun ResultOverlay(
                     .border(1.dp, Cream.copy(alpha = 0.08f), RoundedCornerShape(22.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = stringResource(R.string.photo_description),
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
+                if (bitmap != null) {
+                    val stripTapModifier = if (state.selectedPhotoIndex == null) {
+                        Modifier.pointerInput(bitmap) {
+                            detectTapGestures { offset ->
+                                val scale = minOf(
+                                    size.width.toFloat() / bitmap.width,
+                                    size.height.toFloat() / bitmap.height,
+                                )
+                                val renderedWidth = bitmap.width * scale
+                                val left = (size.width - renderedWidth) / 2f
+                                val renderedHeight = bitmap.height * scale
+                                val top = (size.height - renderedHeight) / 2f
+                                val normalizedY = (offset.y - top) / renderedHeight
+                                if (offset.x >= left && offset.x < left + renderedWidth) {
+                                    PhotoFrameComposer.photoIndexAtStripPosition(normalizedY)
+                                        ?.let(onSelectOutput)
+                                }
+                            }
+                        }
+                    } else {
+                        Modifier
+                    }
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = stringResource(R.string.photo_description),
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize().padding(12.dp).then(stripTapModifier),
+                    )
+                } else {
+                    CircularProgressIndicator(color = SyscomBlueLight)
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutputSelector(
+                    preview = state.stripPreview,
+                    label = stringResource(R.string.result_strip_short),
+                    selected = state.selectedPhotoIndex == null,
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onSelectOutput(null) },
                 )
+                state.photoPreviews.forEachIndexed { index, preview ->
+                    OutputSelector(
+                        preview = preview,
+                        label = stringResource(R.string.result_photo_short, index + 1),
+                        selected = state.selectedPhotoIndex == index,
+                        enabled = enabled,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onSelectOutput(index) },
+                    )
+                }
             }
 
             Spacer(Modifier.height(14.dp))
@@ -748,6 +926,8 @@ private fun ResultOverlay(
                     contentColor = Color.White,
                 ),
             ) {
+                Icon(Icons.Rounded.Download, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = stringResource(R.string.save_photo),
                     fontSize = 17.sp,
@@ -778,7 +958,7 @@ private fun ResultOverlay(
                 }
                 OutlinedButton(
                     onClick = onOpenBackgrounds,
-                    enabled = enabled,
+                    enabled = enabled && state.selectedPhotoIndex != null,
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(25.dp),
                     border = BorderStroke(1.dp, Cream.copy(alpha = 0.22f)),
@@ -818,6 +998,52 @@ private fun ResultOverlay(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun OutputSelector(
+    preview: Bitmap?,
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) SyscomBlue.copy(alpha = 0.2f) else InkSoft)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) SyscomBlueLight else Cream.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(12.dp),
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth().height(82.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (preview != null) {
+                Image(
+                    bitmap = preview.asImageBitmap(),
+                    contentDescription = label,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = label,
+            color = if (selected) Cream else Cream.copy(alpha = 0.62f),
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+        )
     }
 }
 

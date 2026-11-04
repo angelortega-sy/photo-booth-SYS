@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -103,6 +104,13 @@ import java.util.Date
 import java.util.Locale
 
 private enum class PinMode { CREATE, VERIFY }
+
+private enum class AdminSection(val titleRes: Int) {
+    SUMMARY(R.string.admin_tab_summary),
+    CAMERA(R.string.admin_section_camera),
+    PHOTOS(R.string.admin_section_photos),
+    SYSTEM(R.string.admin_tab_system),
+}
 
 private fun photoPermission(): String =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -455,6 +463,7 @@ private fun AdminScreen(
     var showDeleteAll by remember { mutableStateOf(false) }
     var showCameraTest by remember { mutableStateOf(false) }
     var cameraTestError by remember { mutableStateOf<String?>(null) }
+    var selectedSection by remember { mutableStateOf(AdminSection.SUMMARY) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -529,133 +538,154 @@ private fun AdminScreen(
     ) {
         val compact = LocalConfiguration.current.screenWidthDp < 600
         val photoColumns = if (compact) 2 else 4
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                horizontal = if (compact) 18.dp else 26.dp,
-                vertical = 20.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = if (compact) 18.dp else 26.dp),
         ) {
-            item {
-                AdminHeader(onClose = onClose)
-            }
+            AdminHeader(onClose = onClose)
+            AdminSectionTabs(
+                selected = selectedSection,
+                compact = compact,
+                onSelect = { selectedSection = it },
+            )
 
-            item {
-                DeviceCard(summary)
-            }
-
-            item {
-                CameraCard(
-                    cameras = cameras,
-                    usbDevices = usbDevices,
-                    showCameraTest = showCameraTest,
-                    cameraTestError = cameraTestError,
-                    onToggleTest = {
-                        showCameraTest = !showCameraTest
-                        cameraTestError = null
-                    },
-                    onCameraError = { cameraTestError = it },
-                )
-            }
-
-            item {
-                PhotosHeader(
-                    photoCount = photos.size,
-                    permissionGranted = photoPermissionGranted,
-                    onRefresh = { refreshKey++ },
-                    onRequestPermission = { permissionLauncher.launch(photoPermission()) },
-                    onDeleteAll = { showDeleteAll = true },
-                )
-            }
-
-            if (!photoPermissionGranted) {
-                item {
-                    AdminCard(
-                        title = stringResource(R.string.admin_section_photos),
-                        subtitle = stringResource(R.string.admin_permission_photos),
-                    ) {
-                        Button(
-                            onClick = { permissionLauncher.launch(photoPermission()) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = SyscomBlue,
-                                contentColor = Color.White,
-                            ),
-                        ) {
-                            Text(stringResource(R.string.admin_permission_photos))
-                        }
-                    }
-                }
-            } else if (photos.isEmpty()) {
-                item {
-                    Text(
-                        text = stringResource(R.string.admin_no_photos),
-                        color = Cream.copy(alpha = 0.55f),
-                        fontSize = 15.sp,
-                        modifier = Modifier.padding(vertical = 8.dp),
-                    )
-                }
-            } else {
-                items(photos.chunked(photoColumns)) { rowPhotos ->
-                    PhotoRow(
-                        photos = rowPhotos,
-                        columns = photoColumns,
-                        onDelete = { photoToDelete = it },
-                    )
-                }
-            }
-
-            item {
-                NetworkCard(
-                    networkType = networkType,
-                    addresses = addresses,
-                    onOpenNetworkSettings = {
-                        runCatching {
-                            context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
-                        }
-                    },
-                    onOpenHotspotSettings = {
-                        val intent = Intent("android.settings.WIFI_HOTSPOT_SETTINGS")
-                        val opened = runCatching { context.startActivity(intent) }.isSuccess
-                        if (!opened) {
-                            runCatching {
-                                context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentPadding = PaddingValues(vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                when (selectedSection) {
+                    AdminSection.SUMMARY -> {
+                        item { DeviceCard(summary) }
+                        item {
+                            AdminCard(
+                                title = stringResource(R.string.admin_status_title),
+                                subtitle = stringResource(R.string.admin_status_subtitle),
+                            ) {
+                                InfoRow("Cámaras", cameras.size.toString())
+                                InfoRow("USB", usbDevices.size.toString())
+                                InfoRow("Conexión", networkType)
+                                InfoRow("IP local", addresses.firstOrNull()?.address ?: "—")
+                                InfoRow("Galería", photos.size.toString())
                             }
                         }
-                    },
-                )
-            }
+                        item {
+                            Text(
+                                text = "Modo administrador · ${summary?.appVersion ?: ""}",
+                                color = Cream.copy(alpha = 0.32f),
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
 
-            item {
-                AdminCard(
-                    title = "Seguridad",
-                    subtitle = "PIN de administrador configurado",
-                ) {
-                    InfoRow("PIN", "Protegido")
-                    Text(
-                        text = "El PIN se guarda cifrado en este dispositivo. Si se olvida, hay que borrar los datos de la app.",
-                        color = Cream.copy(alpha = 0.55f),
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                    OutlinedButton(
-                        onClick = onChangePin,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                    ) {
-                        Text(stringResource(R.string.admin_change_pin))
+                    AdminSection.CAMERA -> {
+                        item {
+                            CameraCard(
+                                cameras = cameras,
+                                usbDevices = usbDevices,
+                                showCameraTest = showCameraTest,
+                                cameraTestError = cameraTestError,
+                                onToggleTest = {
+                                    showCameraTest = !showCameraTest
+                                    cameraTestError = null
+                                },
+                                onCameraError = { cameraTestError = it },
+                            )
+                        }
+                    }
+
+                    AdminSection.PHOTOS -> {
+                        item {
+                            PhotosHeader(
+                                photoCount = photos.size,
+                                permissionGranted = photoPermissionGranted,
+                                compact = compact,
+                                onRefresh = { refreshKey++ },
+                                onRequestPermission = { permissionLauncher.launch(photoPermission()) },
+                                onDeleteAll = { showDeleteAll = true },
+                            )
+                        }
+                        if (!photoPermissionGranted) {
+                            item {
+                                AdminCard(
+                                    title = stringResource(R.string.admin_section_photos),
+                                    subtitle = stringResource(R.string.admin_permission_photos),
+                                ) {
+                                    Button(
+                                        onClick = { permissionLauncher.launch(photoPermission()) },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = SyscomBlue,
+                                            contentColor = Color.White,
+                                        ),
+                                    ) {
+                                        Text(stringResource(R.string.admin_permission_photos))
+                                    }
+                                }
+                            }
+                        } else if (photos.isEmpty()) {
+                            item {
+                                Text(
+                                    text = stringResource(R.string.admin_no_photos),
+                                    color = Cream.copy(alpha = 0.55f),
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                )
+                            }
+                        } else {
+                            items(photos.chunked(photoColumns)) { rowPhotos ->
+                                PhotoRow(
+                                    photos = rowPhotos,
+                                    columns = photoColumns,
+                                    onDelete = { photoToDelete = it },
+                                )
+                            }
+                        }
+                    }
+
+                    AdminSection.SYSTEM -> {
+                        item {
+                            NetworkCard(
+                                networkType = networkType,
+                                addresses = addresses,
+                                onOpenNetworkSettings = {
+                                    runCatching {
+                                        context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+                                    }
+                                },
+                                onOpenHotspotSettings = {
+                                    val intent = Intent("android.settings.WIFI_HOTSPOT_SETTINGS")
+                                    val opened = runCatching { context.startActivity(intent) }.isSuccess
+                                    if (!opened) {
+                                        runCatching {
+                                            context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                        item {
+                            AdminCard(
+                                title = stringResource(R.string.admin_security_title),
+                                subtitle = stringResource(R.string.admin_security_subtitle),
+                            ) {
+                                InfoRow("PIN", "Protegido")
+                                Text(
+                                    text = stringResource(R.string.admin_security_hint),
+                                    color = Cream.copy(alpha = 0.55f),
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                                OutlinedButton(
+                                    onClick = onChangePin,
+                                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                                ) {
+                                    Text(stringResource(R.string.admin_change_pin))
+                                }
+                            }
+                        }
                     }
                 }
-            }
-
-            item {
-                Text(
-                    text = "Modo administrador · ${summary?.appVersion ?: ""}",
-                    color = Cream.copy(alpha = 0.30f),
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(bottom = 18.dp),
-                )
             }
         }
 
@@ -720,6 +750,69 @@ private data class AdminData(
     val networkType: String,
     val summary: DeviceSummary?,
 )
+
+@Composable
+private fun AdminSectionTabs(
+    selected: AdminSection,
+    compact: Boolean,
+    onSelect: (AdminSection) -> Unit,
+) {
+    val sections = AdminSection.entries
+    if (compact) {
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            items(sections) { section ->
+                AdminSectionTab(
+                    section = section,
+                    selected = selected == section,
+                    onSelect = { onSelect(section) },
+                    modifier = Modifier.widthIn(min = 108.dp),
+                )
+            }
+        }
+    } else {
+        Row(Modifier.fillMaxWidth()) {
+            sections.forEach { section ->
+                AdminSectionTab(
+                    section = section,
+                    selected = selected == section,
+                    onSelect = { onSelect(section) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminSectionTab(
+    section: AdminSection,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TextButton(onClick = onSelect, modifier = modifier) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = stringResource(section.titleRes),
+                color = if (selected) Cream else Cream.copy(alpha = 0.52f),
+                fontSize = 14.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(8.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (selected) SyscomBlueLight else Color.Transparent),
+            )
+        }
+    }
+}
 
 @Composable
 private fun AdminHeader(onClose: () -> Unit) {
@@ -926,6 +1019,7 @@ private fun CameraCard(
 private fun PhotosHeader(
     photoCount: Int,
     permissionGranted: Boolean,
+    compact: Boolean,
     onRefresh: () -> Unit,
     onRequestPermission: () -> Unit,
     onDeleteAll: () -> Unit,
@@ -950,17 +1044,44 @@ private fun PhotosHeader(
             color = Cream.copy(alpha = 0.50f),
             fontSize = 13.sp,
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (!permissionGranted) {
-                TextButton(onClick = onRequestPermission) {
-                    Text(stringResource(R.string.admin_permission_photos), color = SyscomBlueLight)
+        if (compact) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (!permissionGranted) {
+                    TextButton(onClick = onRequestPermission, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.admin_permission_photos), color = SyscomBlueLight)
+                    }
+                } else {
+                    TextButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = null,
+                            tint = Cream.copy(alpha = 0.70f),
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.admin_refresh), color = Cream.copy(alpha = 0.70f))
+                    }
+                    TextButton(
+                        onClick = onDeleteAll,
+                        enabled = photoCount > 0,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.admin_delete_all), color = Color(0xFFFF7A7A))
+                    }
                 }
-            } else {
-                TextButton(onClick = onRefresh) {
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!permissionGranted) {
+                    TextButton(onClick = onRequestPermission) {
+                        Text(stringResource(R.string.admin_permission_photos), color = SyscomBlueLight)
+                    }
+                } else {
+                    TextButton(onClick = onRefresh) {
                     Icon(
                         imageVector = Icons.Rounded.Refresh,
                         contentDescription = null,
@@ -969,9 +1090,10 @@ private fun PhotosHeader(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.admin_refresh), color = Cream.copy(alpha = 0.70f))
-                }
-                TextButton(onClick = onDeleteAll, enabled = photoCount > 0) {
-                    Text(stringResource(R.string.admin_delete_all), color = Color(0xFFFF7A7A))
+                    }
+                    TextButton(onClick = onDeleteAll, enabled = photoCount > 0) {
+                        Text(stringResource(R.string.admin_delete_all), color = Color(0xFFFF7A7A))
+                    }
                 }
             }
         }
@@ -1140,15 +1262,12 @@ private fun AdminCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(InkSoft)
-            .border(1.dp, Cream.copy(alpha = 0.08f), RoundedCornerShape(22.dp))
-            .padding(20.dp),
+            .padding(vertical = 8.dp),
     ) {
         Text(
             text = title,
             color = Cream,
-            fontSize = 20.sp,
+            fontSize = 19.sp,
             fontWeight = FontWeight.Bold,
         )
         if (subtitle != null) {
@@ -1159,7 +1278,7 @@ private fun AdminCard(
                 modifier = Modifier.padding(top = 3.dp),
             )
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
         content()
     }
 }
