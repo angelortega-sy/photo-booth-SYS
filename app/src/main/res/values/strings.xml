@@ -36,6 +36,50 @@
     <string name="background_estudio">Estudio</string>
     <string name="background_retro80s">Retro 80s</string>
     <string name="background_jardin">Jardín</string>
+    <string name="background_original">Cámara real</string>
+
+    <string name="layout_poster_hero">Póster 1+2</string>
+    <string name="layout_poster_hero_sub">1 grande + 2 debajo</string>
+    <string name="layout_strip_classic">Tira Clásica</string>
+    <string name="layout_strip_classic_sub">3 fotos en tira vertical</string>
+    <string name="layout_editorial_grid">Póster Editorial</string>
+    <string name="layout_editorial_grid_sub">Mosaico revista + sello</string>
+
+    <string name="frame_syscom_dark">Azul Syscom</string>
+    <string name="frame_classic_pearl">Galería Perla</string>
+    <string name="frame_cyber_neon">Cyber Neón</string>
+    <string name="frame_gala_gold">Gala VIP</string>
+
+    <string name="border_clean_rounded">Borde Suave</string>
+    <string name="border_polaroid_white">Marco Blanco</string>
+    <string name="border_tech_hud">Visor Tech</string>
+    <string name="border_minimal_sharp">Corte Editorial</string>
+
+    <string name="badge_expo_2027">Expo Syscom 2027</string>
+    <string name="badge_innovation">Innovación que Conecta</string>
+    <string name="badge_vip_guest">Invitado VIP</string>
+    <string name="badge_team_power">Equipo Syscom</string>
+    <string name="badge_memories">Recuerdo Oficial</string>
+
+    <string name="wizard_step_backgrounds">1. Fondos</string>
+    <string name="wizard_step_collage">2. Collage y Marco</string>
+    <string name="wizard_step_badge">3. Sello y Entrega</string>
+    <string name="wizard_apply_all">Aplicar a las 3</string>
+    <string name="wizard_photo_tab">Foto %1$d</string>
+    <string name="wizard_view_collage">Ver Collage</string>
+    <string name="wizard_next_step">Siguiente paso</string>
+    <string name="wizard_prev_step">Anterior</string>
+    <string name="wizard_section_layout">Diseño del collage</string>
+    <string name="wizard_section_frame">Color y estilo del marco</string>
+    <string name="wizard_section_border">Marco de cada foto</string>
+    <string name="wizard_section_badge">Sello y frase del evento</string>
+    <string name="wizard_date_stamp">Incluir fecha del evento en el encabezado</string>
+    <string name="wizard_preparing_shot">Afinando recorte de Foto %1$d…</string>
+    <string name="wizard_tap_photo_hint">Toca cualquier foto del collage para editar su fondo individualmente</string>
+    <string name="countdown_get_ready">¡PREPÁRATE!</string>
+    <string name="countdown_smile">¡SONRÍE!</string>
+    <string name="countdown_next_pose">¡Foto %1$d lista! Cambia de pose para la Foto %2$d…</string>
+    <string name="capture_auto_sequence_hint">Toca una vez: tomaremos las 3 fotos seguidas automáticamente</string>
 
     <string name="result_title">Tus fotos</string>
     <string name="result_strip_label">Tira completa · 3 fotos</string>

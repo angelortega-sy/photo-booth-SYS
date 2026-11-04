@@ -26,19 +26,39 @@ data class CompositeResult(
     val usedFallback: Boolean,
 )
 
+/**
+ * Holds the pre-segmented person cutout and refined 540x960 alpha mask for a single capture.
+ * Keeping 540x960 layers in memory allows <5ms live studio previews and fast 1080x1920 final
+ * exports without re-running MediaPipe or the guided filter when changing backgrounds or frames.
+ */
+class PreparedCutout(
+    val previewOriginal: Bitmap,
+    val previewPersonLayer: Bitmap?,
+    val workAlphaMask: Bitmap?,
+    val usedFallback: Boolean,
+) {
+    fun recycle() {
+        if (!previewOriginal.isRecycled) previewOriginal.recycle()
+        previewPersonLayer?.let { if (!it.isRecycled) it.recycle() }
+        workAlphaMask?.let { if (!it.isRecycled) it.recycle() }
+    }
+}
+
 class PhotoProcessor(context: Context) {
 
     companion object {
         const val OUTPUT_WIDTH = 1080
         const val OUTPUT_HEIGHT = 1920
+        const val PREVIEW_WIDTH = 540
+        const val PREVIEW_HEIGHT = 960
 
         private const val TAG = "PhotoProcessor"
         private const val MODEL_PATH = "models/selfie_multiclass_256x256.tflite"
 
         // The model mask is only 256x256. Refining at half output resolution is
         // enough to remove the stair-stepped edges without a big memory cost.
-        private const val ALPHA_WORK_WIDTH = 540
-        private const val ALPHA_WORK_HEIGHT = 960
+        private const val ALPHA_WORK_WIDTH = PREVIEW_WIDTH
+        private const val ALPHA_WORK_HEIGHT = PREVIEW_HEIGHT
         private const val GUIDE_RADIUS = 8
         private const val GUIDE_EPSILON = 0.006f
     }
@@ -59,6 +79,170 @@ class PhotoProcessor(context: Context) {
         Log.w(TAG, "Could not create segmenter; photos will use the original image", it)
     }.getOrNull()
 
+    /**
+     * Runs MediaPipe segmentation and the guided filter once for a captured photo,
+     * producing a reusable [PreparedCutout] for instant background switching.
+     */
+    @Synchronized
+    fun extractCutout(photo: Bitmap): PreparedCutout {
+        val framed = runCatching {
+            BitmapTransforms.centerCrop(photo, OUTPUT_WIDTH, OUTPUT_HEIGHT)
+        }.getOrElse {
+            val fallbackPreview = Bitmap.createBitmap(PREVIEW_WIDTH, PREVIEW_HEIGHT, Bitmap.Config.ARGB_8888)
+            return PreparedCutout(
+                previewOriginal = fallbackPreview,
+                previewPersonLayer = null,
+                workAlphaMask = null,
+                usedFallback = true,
+            )
+        }
+
+        val previewOriginal = Bitmap.createScaledBitmap(framed, PREVIEW_WIDTH, PREVIEW_HEIGHT, true)
+        val activeSegmenter = segmenter
+        if (activeSegmenter == null) {
+            if (framed !== photo && !framed.isRecycled) framed.recycle()
+            return PreparedCutout(
+                previewOriginal = previewOriginal,
+                previewPersonLayer = null,
+                workAlphaMask = null,
+                usedFallback = true,
+            )
+        }
+
+        return try {
+            val image = BitmapImageBuilder(framed).build()
+            val result = activeSegmenter.segment(image)
+            val workAlpha = buildWorkAlpha(previewOriginal, result)
+            if (workAlpha == null) {
+                PreparedCutout(
+                    previewOriginal = previewOriginal,
+                    previewPersonLayer = null,
+                    workAlphaMask = null,
+                    usedFallback = true,
+                )
+            } else {
+                val previewPerson = Bitmap.createBitmap(
+                    PREVIEW_WIDTH,
+                    PREVIEW_HEIGHT,
+                    Bitmap.Config.ARGB_8888,
+                )
+                val layerCanvas = Canvas(previewPerson)
+                layerCanvas.drawBitmap(previewOriginal, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+                layerCanvas.drawBitmap(
+                    workAlpha,
+                    0f,
+                    0f,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+                    },
+                )
+                PreparedCutout(
+                    previewOriginal = previewOriginal,
+                    previewPersonLayer = previewPerson,
+                    workAlphaMask = workAlpha,
+                    usedFallback = false,
+                )
+            }
+        } catch (error: Throwable) {
+            Log.w(TAG, "Cutout extraction failed; falling back to original photo", error)
+            PreparedCutout(
+                previewOriginal = previewOriginal,
+                previewPersonLayer = null,
+                workAlphaMask = null,
+                usedFallback = true,
+            )
+        } finally {
+            if (framed !== photo && !framed.isRecycled) framed.recycle()
+        }
+    }
+
+    /**
+     * Fast preview composition (540x960) using a cached [PreparedCutout].
+     * When [previewBackground] is null, returns a copy of the original preview photo.
+     */
+    fun compositePreview(cutout: PreparedCutout, previewBackground: Bitmap?): CompositeResult {
+        val personLayer = cutout.previewPersonLayer
+        if (previewBackground == null || personLayer == null || cutout.usedFallback) {
+            val copy = cutout.previewOriginal.copy(Bitmap.Config.ARGB_8888, false)
+                ?: Bitmap.createBitmap(PREVIEW_WIDTH, PREVIEW_HEIGHT, Bitmap.Config.ARGB_8888)
+            return CompositeResult(
+                bitmap = copy,
+                usedFallback = previewBackground != null && cutout.usedFallback,
+            )
+        }
+
+        val output = Bitmap.createBitmap(PREVIEW_WIDTH, PREVIEW_HEIGHT, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val bgFrame = if (
+            previewBackground.width == PREVIEW_WIDTH && previewBackground.height == PREVIEW_HEIGHT
+        ) {
+            previewBackground
+        } else {
+            BitmapTransforms.centerCrop(previewBackground, PREVIEW_WIDTH, PREVIEW_HEIGHT)
+        }
+        canvas.drawBitmap(bgFrame, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        if (bgFrame !== previewBackground) bgFrame.recycle()
+
+        canvas.drawBitmap(personLayer, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        return CompositeResult(output, usedFallback = false)
+    }
+
+    /**
+     * Full-resolution composition (1080x1920) reusing the cached alpha mask from [cutout]
+     * when available, avoiding a second MediaPipe inference pass.
+     */
+    fun compositeFull(
+        sourcePhoto: Bitmap,
+        cutout: PreparedCutout?,
+        background: Bitmap?,
+    ): CompositeResult {
+        val framed = runCatching {
+            BitmapTransforms.centerCrop(sourcePhoto, OUTPUT_WIDTH, OUTPUT_HEIGHT)
+        }.getOrElse {
+            return fallback(sourcePhoto)
+        }
+
+        if (background == null) {
+            return CompositeResult(framed, usedFallback = false)
+        }
+
+        val cachedWorkAlpha = cutout?.workAlphaMask?.takeIf { !it.isRecycled && !cutout.usedFallback }
+        if (cachedWorkAlpha != null) {
+            return try {
+                val fullAlpha = Bitmap.createScaledBitmap(
+                    cachedWorkAlpha,
+                    OUTPUT_WIDTH,
+                    OUTPUT_HEIGHT,
+                    true,
+                )
+                try {
+                    CompositeResult(
+                        bitmap = renderLayers(framed, background, fullAlpha),
+                        usedFallback = false,
+                    )
+                } finally {
+                    if (fullAlpha !== cachedWorkAlpha && !fullAlpha.isRecycled) fullAlpha.recycle()
+                }
+            } catch (error: Throwable) {
+                Log.w(TAG, "Cached full composite failed; using fallback", error)
+                CompositeResult(framed, usedFallback = true)
+            } finally {
+                if (framed !== sourcePhoto && !framed.isRecycled) framed.recycle()
+            }
+        }
+
+        if (cutout != null && cutout.usedFallback) {
+            return CompositeResult(framed, usedFallback = true)
+        }
+
+        return try {
+            composite(framed, background)
+        } finally {
+            if (framed !== sourcePhoto && !framed.isRecycled) framed.recycle()
+        }
+    }
+
+    @Synchronized
     fun composite(photo: Bitmap, background: Bitmap): CompositeResult {
         val activeSegmenter = segmenter ?: return fallback(photo)
         val framed = runCatching {
@@ -91,50 +275,59 @@ class PhotoProcessor(context: Context) {
         val alpha = buildRefinedAlpha(framed, result) ?: return null
 
         try {
-            val output = Bitmap.createBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(output)
-
-            val backgroundFrame = if (
-                background.width == OUTPUT_WIDTH && background.height == OUTPUT_HEIGHT
-            ) {
-                background
-            } else {
-                BitmapTransforms.centerCrop(background, OUTPUT_WIDTH, OUTPUT_HEIGHT)
-            }
-            canvas.drawBitmap(backgroundFrame, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
-            if (backgroundFrame !== background) backgroundFrame.recycle()
-
-            val personLayer = Bitmap.createBitmap(
-                OUTPUT_WIDTH,
-                OUTPUT_HEIGHT,
-                Bitmap.Config.ARGB_8888,
+            return CompositeResult(
+                bitmap = renderLayers(framed, background, alpha),
+                usedFallback = false,
             )
-            val layerCanvas = Canvas(personLayer)
-            layerCanvas.drawBitmap(framed, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
-            layerCanvas.drawBitmap(
-                alpha,
-                0f,
-                0f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-                },
-            )
-            canvas.drawBitmap(personLayer, 0f, 0f, null)
-
-            personLayer.recycle()
-            return CompositeResult(output, usedFallback = false)
         } finally {
             if (!alpha.isRecycled) alpha.recycle()
         }
     }
 
-    /**
-     * The category mask is hard 0/1 at 256x256, which is what created the square,
-     * stair-stepped silhouette. The confidence masks keep soft probabilities, and
-     * a guided filter snaps those probabilities to the real image edges.
-     */
-    private fun buildRefinedAlpha(
+    private fun renderLayers(
         framed: Bitmap,
+        background: Bitmap,
+        alpha: Bitmap,
+    ): Bitmap {
+        val output = Bitmap.createBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+
+        val backgroundFrame = if (
+            background.width == OUTPUT_WIDTH && background.height == OUTPUT_HEIGHT
+        ) {
+            background
+        } else {
+            BitmapTransforms.centerCrop(background, OUTPUT_WIDTH, OUTPUT_HEIGHT)
+        }
+        canvas.drawBitmap(backgroundFrame, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        if (backgroundFrame !== background) backgroundFrame.recycle()
+
+        val personLayer = Bitmap.createBitmap(
+            OUTPUT_WIDTH,
+            OUTPUT_HEIGHT,
+            Bitmap.Config.ARGB_8888,
+        )
+        val layerCanvas = Canvas(personLayer)
+        layerCanvas.drawBitmap(framed, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        layerCanvas.drawBitmap(
+            alpha,
+            0f,
+            0f,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+            },
+        )
+        canvas.drawBitmap(personLayer, 0f, 0f, null)
+        personLayer.recycle()
+        return output
+    }
+
+    /**
+     * Builds the refined alpha mask at [ALPHA_WORK_WIDTH]x[ALPHA_WORK_HEIGHT] (540x960)
+     * using confidence probabilities and a guided filter.
+     */
+    private fun buildWorkAlpha(
+        guideBitmap540: Bitmap,
         result: ImageSegmenterResult,
     ): Bitmap? {
         val confidenceMasks = result.confidenceMasks().orElse(null)
@@ -176,10 +369,16 @@ class PhotoProcessor(context: Context) {
             workHeight,
         )
 
-        val guideBitmap = Bitmap.createScaledBitmap(framed, workWidth, workHeight, true)
+        val scaledGuide = if (
+            guideBitmap540.width == workWidth && guideBitmap540.height == workHeight
+        ) {
+            guideBitmap540
+        } else {
+            Bitmap.createScaledBitmap(guideBitmap540, workWidth, workHeight, true)
+        }
         val guidePixels = IntArray(workWidth * workHeight)
-        guideBitmap.getPixels(guidePixels, 0, workWidth, 0, 0, workWidth, workHeight)
-        guideBitmap.recycle()
+        scaledGuide.getPixels(guidePixels, 0, workWidth, 0, 0, workWidth, workHeight)
+        if (scaledGuide !== guideBitmap540) scaledGuide.recycle()
 
         val guide = FloatArray(guidePixels.size) { index ->
             val color = guidePixels[index]
@@ -203,12 +402,31 @@ class PhotoProcessor(context: Context) {
             val alphaByte = (value * 255f).roundToInt().coerceIn(0, 255)
             (alphaByte shl 24) or 0x00FFFFFF
         }
-        val workAlpha = Bitmap.createBitmap(
+        return Bitmap.createBitmap(
             workPixels,
             workWidth,
             workHeight,
             Bitmap.Config.ARGB_8888,
         )
+    }
+
+    /**
+     * The category mask is hard 0/1 at 256x256, which is what created the square,
+     * stair-stepped silhouette. The confidence masks keep soft probabilities, and
+     * a guided filter snaps those probabilities to the real image edges.
+     */
+    private fun buildRefinedAlpha(
+        framed: Bitmap,
+        result: ImageSegmenterResult,
+    ): Bitmap? {
+        val workWidth = min(ALPHA_WORK_WIDTH, OUTPUT_WIDTH)
+        val workHeight = min(ALPHA_WORK_HEIGHT, OUTPUT_HEIGHT)
+        val guideBitmap = Bitmap.createScaledBitmap(framed, workWidth, workHeight, true)
+        val workAlpha = try {
+            buildWorkAlpha(guideBitmap, result)
+        } finally {
+            guideBitmap.recycle()
+        } ?: return null
 
         val fullAlpha = if (workWidth == OUTPUT_WIDTH && workHeight == OUTPUT_HEIGHT) {
             workAlpha
