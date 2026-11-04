@@ -114,6 +114,7 @@
 
     <string name="admin_title">Modo administrador</string>
     <string name="admin_subtitle">Solo para personal autorizado</string>
+    <string name="admin_back">Volver</string>
     <string name="admin_close">Cerrar</string>
     <string name="admin_cancel">Cancelar</string>
     <string name="admin_change_pin">Cambiar PIN</string>
@@ -134,6 +135,12 @@
     <string name="admin_tab_summary">Resumen</string>
     <string name="admin_tab_system">Sistema y red</string>
     <string name="admin_tab_event">Evento</string>
+    <string name="admin_settings_group">Configuración</string>
+    <string name="admin_nav_camera_description">Cámaras, orientación y prueba en vivo</string>
+    <string name="admin_nav_photos_description">Galería de la cabina y administración de fotos</string>
+    <string name="admin_nav_event_description">Fondos y etiquetas visibles para los invitados</string>
+    <string name="admin_nav_system_description">Conexión, hotspot y seguridad</string>
+    <string name="admin_camera_controls_title">Cámaras y controles</string>
     <string name="admin_backgrounds_title">Fondos del evento</string>
     <string name="admin_backgrounds_subtitle">Sube imágenes del almacenamiento y elige cuáles ve el invitado.</string>
     <string name="admin_background_upload">Subir fondos</string>
