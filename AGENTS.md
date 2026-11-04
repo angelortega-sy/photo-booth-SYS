@@ -58,6 +58,8 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 - El intent usa `ACTION_SEND_MULTIPLE`, tipo `image/*`, `EXTRA_STREAM` con las 4 URIs de `FileProvider`, `ClipData` y `FLAG_GRANT_READ_URI_PERMISSION`. No volver a `image/jpeg` ni a URIs `file://`.
 - “Guardar” guarda los 4 JPEG en `Pictures/Cabina de Fotos` (MediaStore); no vuelve a bienvenida. Descargar/compartir sí vuelve a bienvenida.
 - En el kiosko sin Quick Share, validar que el share sheet muestre opciones útiles o agregar el servidor QR local como fallback.
+- **Quick Share no existe en iPhone** y Bluetooth no sirve para mandar fotos a iOS. No usar Bluetooth como flujo principal. La solución cross-platform es un **servidor HTTP local + QR** (ver “QR y salida”), pendiente para el final.
+- Mantener Quick Share como opción rápida para Android y ofrecer QR como opción “iPhone / otros” cuando se implemente.
 
 ## Git
 
@@ -74,7 +76,10 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 
 ## Kiosko
 
-- Equipo objetivo probable: Syscom/Hikvision **DS-D6055UT-D/S**, 55" 4K táctil, Android 13, Cortex-A55, 4 GB RAM, 32 GB eMMC. La ficha **no lista cámara integrada**; validar el equipo prestado antes de asumirla.
+- Dos candidatos Syscom/Hikvision de 55" 4K, Android 13, Cortex-A55, 4 GB RAM, 32 GB eMMC; **ninguna ficha lista cámara integrada**:
+  - **239971 / DS-D6055UN-D/S**: **no táctil**. Si es el equipo, hace falta mouse/touch USB para operar la app, además de webcam USB.
+  - **240573 / DS-D6055UT-D/S**: táctil 10 puntos.
+- Validar el equipo prestado antes de asumir cámara o touch.
 - Panel nativo 3840×2160; en vertical son 2160×3840, así que 1080×1920 es exactamente la mitad. Mantener ese tamaño por RAM.
 - Validar en el equipo real: instalación de APK, cámara integrada, UVC, Play Services, device owner/LockTask y escala de la UI en 55".
 - Pantalla completa inmersiva, sin barras del sistema; mantener pantalla encendida.
@@ -83,7 +88,7 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 
 ## QR y salida
 
-- Flujo de dos QR: (1) unirse al hotspot con `WIFI:T:WPA;S:<ssid>;P:<pass>;;`; (2) descargar la foto con `http://<ip-del-kiosko>:<puerto>/p/<token>`.
+- Flujo de dos QR: (1) unirse al hotspot con `WIFI:T:WPA;S:<ssid>;P:<pass>;;`; (2) descargar la foto con `http://<ip-del-kiosko>:<puerto>/p/<token>`. Es la ruta recomendada para **iPhone**, sin app ni internet; implementar al final.
 - El kiosko corre un servidor HTTP local (NanoHTTPD/Ktor) y funciona sin internet, con hotspot propio o con el Wi-Fi del lugar.
 - Leer el IP real del hotspot en runtime; no hardcodear `192.168.43.1`.
 - Android avisa "sin internet" y puede saltar a datos móviles: indicar en pantalla que el invitado elija "mantener conexión" y desactive el cambio automático.
