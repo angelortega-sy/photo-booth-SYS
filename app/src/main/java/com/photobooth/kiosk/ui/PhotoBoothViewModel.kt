@@ -17,6 +17,8 @@ import com.photobooth.kiosk.data.EventBadgePreset
 import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventBrandingStore
 import com.photobooth.kiosk.data.PhotoBorderStyle
+import com.photobooth.kiosk.delivery.DeliverySession
+import com.photobooth.kiosk.delivery.LocalDeliveryServer
 import com.photobooth.kiosk.photo.BitmapTransforms
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoProcessor
@@ -55,6 +57,7 @@ data class PhotoBoothUiState(
     val usedFallbackIndices: Set<Int> = emptySet(),
     val cameraRotationDegrees: Int = 0,
     val backgrounds: List<BackgroundOption> = emptyList(),
+    val adminBackgrounds: List<BackgroundOption> = emptyList(),
     val backgroundRevision: Int = 0,
     val errorMessage: String? = null,
 ) {
@@ -100,6 +103,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private var outputDirectory: File? = null
     private var exportedStateSignature: String? = null
     private var sessionToken = 0
+    private var deliveryServer: LocalDeliveryServer? = null
 
     private val _uiState = MutableStateFlow(
         PhotoBoothUiState(
@@ -113,6 +117,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 },
             ),
             backgrounds = repository.visibleOptions,
+            adminBackgrounds = repository.allOptions,
         ),
     )
     val uiState: StateFlow<PhotoBoothUiState> = _uiState.asStateFlow()
@@ -138,6 +143,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update {
             it.copy(
                 backgrounds = visible,
+                adminBackgrounds = repository.allOptions,
                 selectedBackgroundId = selected,
                 photoBackgroundIds = photoIds,
                 backgroundRevision = it.backgroundRevision + 1,
@@ -182,6 +188,26 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     fun renameBackground(id: String, name: String) {
         if (!repository.renameCustom(id, name)) return
         refreshBackgrounds()
+    }
+
+    suspend fun startDelivery(): DeliverySession? {
+        val files = ensureExportedFiles() ?: return null
+        if (files.size != 4) return null
+        val title = _uiState.value.customization.eventBranding.badgeHeadline
+        deliveryServer?.stop()
+        val server = LocalDeliveryServer()
+        val session = server.start(files, title)
+        if (session == null) {
+            server.stop()
+            return null
+        }
+        deliveryServer = server
+        return session
+    }
+
+    fun stopDelivery() {
+        deliveryServer?.stop()
+        deliveryServer = null
     }
 
     fun updateEventBranding(branding: EventBranding) {
@@ -719,6 +745,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun clearSession(resetBackground: Boolean) {
         sessionToken += 1
+        stopDelivery()
         previewJob?.cancel()
         val state = _uiState.value
         val oldBitmaps = state.photoPreviews +
@@ -809,6 +836,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
     override fun onCleared() {
         super.onCleared()
+        stopDelivery()
         previewJob?.cancel()
         processor.close()
         repository.clear()

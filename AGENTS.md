@@ -41,6 +41,7 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 - Fotos: `PhotoLibrary` consulta `MediaStore` en `Pictures/Cabina de Fotos`, usa `READ_MEDIA_IMAGES` en API 33+ y `READ_EXTERNAL_STORAGE` en API ≤32. El borrado directo puede fallar si la app ya no es dueña del archivo; mostrar error, no crashear.
 - El botón de hotspot solo abre los ajustes del sistema. El hotspot programático + QR de descarga es la siguiente fase.
 - Layout admin responsive: header compacto (atrás + título + cerrar), botones de red a ancho completo, fotos en **2 columnas bajo 600 dp** y 4 arriba. No volver a meter dos botones de texto largo en un `Row` angosto.
+- La lista de fondos del admin se lee de `state.adminBackgrounds` (estado observable), no del getter `repository.allOptions`; así importar/borrar/renombrar refresca la lista sin salir de la pestaña.
 
 ## Fondos y etiquetas del evento
 
@@ -59,7 +60,11 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 - “Guardar” guarda los 4 JPEG en `Pictures/Cabina de Fotos` (MediaStore); no vuelve a bienvenida. Descargar/compartir sí vuelve a bienvenida.
 - En el kiosko sin Quick Share, validar que el share sheet muestre opciones útiles o agregar el servidor QR local como fallback.
 - **Quick Share no existe en iPhone** y Bluetooth no sirve para mandar fotos a iOS. No usar Bluetooth como flujo principal. La solución cross-platform es un **servidor HTTP local + QR** (ver “QR y salida”), pendiente para el final.
-- Mantener Quick Share como opción rápida para Android y ofrecer QR como opción “iPhone / otros” cuando se implemente.
+- Mantener Quick Share como opción rápida para Android y ofrecer QR como opción “iPhone / otros”.
+- El CTA “Descargar · 4 fotos” abre un menú con **Quick Share** y **Código QR**. El QR levanta `LocalDeliveryServer`, un servidor HTTP sin dependencias que sirve solo la sesión actual con token aleatorio: página móvil, 4 JPEG y ZIP.
+- `LocalDeliveryServer` usa el IP local real (prefiere wlan/ap/eth), puerto efímero y se detiene al cerrar el QR o terminar la sesión. No expone galería ni rutas arbitrarias.
+- QR generado con ZXing (`com.google.zxing:core`); requiere `INTERNET` en el manifiesto. La página funciona en Safari/Chrome sin app.
+- Probado desde la red local: página 200, imagen 200, ZIP 200; el servidor se apaga al cerrar el diálogo. Falta probar con un iPhone real y con hotspot dedicado.
 
 ## Git
 

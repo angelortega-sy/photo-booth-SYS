@@ -20,6 +20,15 @@
     <string name="close">Cerrar</string>
     <string name="save_photo">Descargar · 4 fotos</string>
     <string name="share_chooser">Descargar tus fotos</string>
+    <string name="download_options_title">Descargar tus fotos</string>
+    <string name="download_options_subtitle">Elige cómo quieres llevarte las 4 imágenes.</string>
+    <string name="quick_share_option">Quick Share · Android</string>
+    <string name="qr_option">Código QR · iPhone y otros</string>
+    <string name="qr_title">Escanea para descargar</string>
+    <string name="qr_hint">Abre la cámara de tu iPhone o Android y escanea el código. Ambos dispositivos deben estar en el mismo Wi-Fi.</string>
+    <string name="copy_link">Copiar enlace</string>
+    <string name="link_copied">Enlace copiado</string>
+    <string name="qr_error">No se pudo iniciar la descarga por QR. Revisa que el tótem esté conectado por Wi-Fi o Ethernet.</string>
 
     <string name="permission_title">Necesitamos la cámara</string>
     <string name="permission_message">Para tomar tu foto, permite el acceso a la cámara.</string>

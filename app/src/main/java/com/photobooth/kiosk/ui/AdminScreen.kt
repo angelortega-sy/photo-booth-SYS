@@ -666,7 +666,7 @@ private fun AdminScreen(
                     AdminSection.EVENT -> {
                         item {
                             BackgroundsAdminCard(
-                                backgrounds = viewModel.allBackgrounds,
+                                backgrounds = appState.adminBackgrounds.ifEmpty { viewModel.allBackgrounds },
                                 loadThumbnail = viewModel::loadThumbnail,
                                 onImport = { uri, name ->
                                     viewModel.importBackground(uri, name) { error ->
