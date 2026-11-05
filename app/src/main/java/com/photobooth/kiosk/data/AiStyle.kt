@@ -25,24 +25,31 @@ data class AiStyle(
     val prompt: String,
 )
 
-/** Optional fun accessory applied on top of the chosen style. Multi-select. */
+/** Optional fun accessory applied on top of the chosen style. Single-select per group in new flow. */
 data class AiAccessory(
     val id: String,
     @param:StringRes val labelRes: Int,
     val promptFragment: String,
 )
 
+/** One accessory group: only one option (or none) can be selected per group. */
+data class AiAccessoryGroup(
+    val id: String,
+    @param:StringRes val labelRes: Int,
+    val options: List<AiAccessory>,
+)
+
 object AiAccessories {
-    val ALL: List<AiAccessory> = listOf(
+    val HEAD_OPTIONS: List<AiAccessory> = listOf(
         AiAccessory(
-            id = "sunglasses",
-            labelRes = R.string.ai_accessory_sunglasses,
-            promptFragment = "stylish sunglasses matching the art style",
+            id = "cap",
+            labelRes = R.string.ai_accessory_cap,
+            promptFragment = "a casual cap matching the art style",
         ),
         AiAccessory(
-            id = "hat",
-            labelRes = R.string.ai_accessory_hat,
-            promptFragment = "a festive party hat matching the art style",
+            id = "headband",
+            labelRes = R.string.ai_accessory_headband,
+            promptFragment = "a festive headband matching the art style",
         ),
         AiAccessory(
             id = "crown",
@@ -50,16 +57,82 @@ object AiAccessories {
             promptFragment = "an elegant golden crown matching the art style",
         ),
         AiAccessory(
+            id = "party_hat",
+            labelRes = R.string.ai_accessory_hat,
+            promptFragment = "a festive party hat matching the art style",
+        ),
+        AiAccessory(
+            id = "bunny_ears",
+            labelRes = R.string.ai_accessory_bunny_ears,
+            promptFragment = "cute bunny ears matching the art style",
+        ),
+    )
+
+    val FACE_OPTIONS: List<AiAccessory> = listOf(
+        AiAccessory(
+            id = "sunglasses",
+            labelRes = R.string.ai_accessory_sunglasses,
+            promptFragment = "stylish sunglasses matching the art style",
+        ),
+        AiAccessory(
+            id = "mask",
+            labelRes = R.string.ai_accessory_mask,
+            promptFragment = "an elegant party mask matching the art style",
+        ),
+    )
+
+    val EXTRA_OPTIONS: List<AiAccessory> = listOf(
+        AiAccessory(
             id = "flowers",
             labelRes = R.string.ai_accessory_flowers,
             promptFragment = "festive flowers and balloons around the person, matching the art style",
         ),
+        AiAccessory(
+            id = "scarf",
+            labelRes = R.string.ai_accessory_scarf,
+            promptFragment = "a colorful scarf matching the art style",
+        ),
+        AiAccessory(
+            id = "lei",
+            labelRes = R.string.ai_accessory_lei,
+            promptFragment = "a festive flower lei necklace matching the art style",
+        ),
     )
+
+    val ALL: List<AiAccessory> = HEAD_OPTIONS + FACE_OPTIONS + EXTRA_OPTIONS
+
+    val GROUPS: List<AiAccessoryGroup> = listOf(
+        AiAccessoryGroup("head", R.string.ai_accessory_group_head, HEAD_OPTIONS),
+        AiAccessoryGroup("face", R.string.ai_accessory_group_face, FACE_OPTIONS),
+        AiAccessoryGroup("extra", R.string.ai_accessory_group_extra, EXTRA_OPTIONS),
+    )
+
+    private val GROUP_BY_ID: Map<String, String> = buildMap {
+        HEAD_OPTIONS.forEach { put(it.id, "head") }
+        FACE_OPTIONS.forEach { put(it.id, "face") }
+        EXTRA_OPTIONS.forEach { put(it.id, "extra") }
+    }
+
+    /** Single-select within a group: toggles off when the same id is tapped again. */
+    fun selectExclusive(current: Set<String>, id: String): Set<String> {
+        val group = GROUP_BY_ID[id] ?: return current
+        val updated = current.filterNot { GROUP_BY_ID[it] == group }.toMutableSet()
+        if (id !in current) updated.add(id)
+        return updated
+    }
 
     fun promptFor(selectedIds: Set<String>): String {
         val fragments = ALL.filter { it.id in selectedIds }.map { it.promptFragment }
         if (fragments.isEmpty()) return ""
         return "Also add these accessories to the person: " + fragments.joinToString("; ") + ". "
+    }
+
+    /** Legacy multi-toggle kept for the old 3-photo flow; new IA flow uses [selectExclusive]. */
+    fun toggleLegacy(current: Set<String>, id: String): Set<String> {
+        if (ALL.none { it.id == id }) return current
+        val updated = current.toMutableSet()
+        if (!updated.add(id)) updated.remove(id)
+        return updated
     }
 }
 

@@ -175,6 +175,7 @@ class AiBackendClient {
         baseUrl: String,
         token: String,
         jobId: String,
+        expectedPhotos: Int = EXPECTED_PHOTOS,
         onProgress: (Int) -> Unit,
     ): AiJobSnapshot {
         repeat(MAX_POLL_ATTEMPTS) {
@@ -183,7 +184,7 @@ class AiBackendClient {
             onProgress(snapshot.progress.coerceIn(0, 100))
             when (snapshot.status) {
                 "done" -> {
-                    if (snapshot.results.size < EXPECTED_PHOTOS) {
+                    if (snapshot.results.size < expectedPhotos) {
                         throw AiBackendException("Backend job finished without all styled photos")
                     }
                     return snapshot
