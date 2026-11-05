@@ -15,6 +15,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +36,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,6 +44,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AttachMoney
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Edit
@@ -88,14 +92,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.photobooth.kiosk.R
-import com.photobooth.kiosk.data.AiSettings
 import com.photobooth.kiosk.data.BackgroundOption
+import com.photobooth.kiosk.network.BoothModel
+import com.photobooth.kiosk.network.UsageMonth
+import com.photobooth.kiosk.network.UsageRequest
+import com.photobooth.kiosk.network.UsageSummary
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.admin.AdminAuth
@@ -107,7 +116,6 @@ import com.photobooth.kiosk.admin.PhotoLibrary
 import com.photobooth.kiosk.admin.SavedPhoto
 import com.photobooth.kiosk.admin.UsbDeviceOption
 import com.photobooth.kiosk.camera.CameraPreview
-import com.photobooth.kiosk.network.AiBackendClient
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.InkSoft
@@ -130,6 +138,7 @@ private enum class AdminSection(
     CAMERA(R.string.admin_section_camera, R.string.admin_nav_camera_description),
     PHOTOS(R.string.admin_section_photos, R.string.admin_nav_photos_description),
     EVENT(R.string.admin_tab_event, R.string.admin_nav_event_description),
+    USAGE(R.string.admin_tab_usage, R.string.admin_nav_usage_description),
     SYSTEM(R.string.admin_tab_system, R.string.admin_nav_system_description),
 }
 
@@ -738,6 +747,12 @@ private fun AdminScreen(
                         }
                     }
 
+                    AdminSection.USAGE -> {
+                        item {
+                            UsageAdminCard(viewModel = viewModel)
+                        }
+                    }
+
                     AdminSection.SYSTEM -> {
                         item {
                             NetworkCard(
@@ -761,14 +776,11 @@ private fun AdminScreen(
                         }
                         item {
                             AiServerAdminCard(
-                                initial = viewModel.loadAiSettings(),
-                                onSave = { settings ->
-                                    viewModel.saveAiSettings(settings)
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            context.getString(R.string.admin_ai_saved),
-                                        )
-                                    }
+                                viewModel = viewModel,
+                                models = appState.serverModels,
+                                selectedModelId = appState.selectedModelId,
+                                onMessage = { message ->
+                                    scope.launch { snackbarHostState.showSnackbar(message) }
                                 },
                             )
                         }
@@ -1093,22 +1105,41 @@ private fun EventBrandingAdminCard(
 
 @Composable
 private fun AiServerAdminCard(
-    initial: AiSettings,
-    onSave: (AiSettings) -> Unit,
+    viewModel: PhotoBoothViewModel,
+    models: List<BoothModel>,
+    selectedModelId: String,
+    onMessage: (String) -> Unit,
 ) {
-    var baseUrl by remember { mutableStateOf(initial.baseUrl) }
-    var token by remember { mutableStateOf(initial.kioskToken) }
-    var modelId by remember { mutableStateOf(initial.modelId) }
+    val context = LocalContext.current
+    val identity = remember { viewModel.loadIdentity() }
+    var baseUrl by remember { mutableStateOf(identity.baseUrl) }
+    var enrollCode by remember { mutableStateOf("") }
+    var deviceId by remember { mutableStateOf(identity.deviceId) }
     var testing by remember { mutableStateOf(false) }
+    var enrolling by remember { mutableStateOf(false) }
     var testSucceeded by remember { mutableStateOf<Boolean?>(null) }
-    var testDetail by remember { mutableStateOf("") }
+    var statusText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    val backendClient = remember { AiBackendClient() }
+
+    LaunchedEffect(deviceId) {
+        if (deviceId.startsWith("dev_")) viewModel.refreshServerCatalog()
+    }
 
     AdminCard(
         title = stringResource(R.string.admin_ai_title),
         subtitle = stringResource(R.string.admin_ai_subtitle),
     ) {
+        Text(
+            text = if (deviceId.startsWith("dev_")) {
+                stringResource(R.string.admin_ai_status_ok, deviceId)
+            } else {
+                stringResource(R.string.admin_ai_status_none)
+            },
+            color = if (deviceId.startsWith("dev_")) SyscomBlueLight else Cream.copy(alpha = 0.7f),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         OutlinedTextField(
             value = baseUrl,
             onValueChange = { baseUrl = it },
@@ -1116,29 +1147,10 @@ private fun AiServerAdminCard(
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
-        OutlinedTextField(
-            value = token,
-            onValueChange = { token = it },
-            label = { Text(stringResource(R.string.admin_ai_token)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        )
-        OutlinedTextField(
-            value = modelId,
-            onValueChange = { modelId = it },
-            label = { Text(stringResource(R.string.admin_ai_model)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        )
         Button(
             onClick = {
-                onSave(
-                    AiSettings(
-                        baseUrl = baseUrl.trim(),
-                        kioskToken = token.trim(),
-                        modelId = modelId.trim().ifEmpty { AiSettings.DEFAULT_MODEL_ID },
-                    ),
-                )
+                viewModel.saveServerBaseUrl(baseUrl)
+                onMessage(context.getString(R.string.admin_ai_saved))
             },
             colors = ButtonDefaults.buttonColors(
                 containerColor = SyscomBlue,
@@ -1148,22 +1160,104 @@ private fun AiServerAdminCard(
         ) {
             Text(stringResource(R.string.admin_ai_save))
         }
+        OutlinedTextField(
+            value = enrollCode,
+            onValueChange = { enrollCode = it },
+            label = { Text(stringResource(R.string.admin_ai_enroll)) },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
+        Button(
+            onClick = {
+                viewModel.saveServerBaseUrl(baseUrl)
+                enrolling = true
+                statusText = ""
+                scope.launch {
+                    val result = runCatching { viewModel.enrollDevice(enrollCode) }
+                    enrolling = false
+                    result.onSuccess { id ->
+                        deviceId = id
+                        enrollCode = ""
+                        viewModel.refreshServerCatalog()
+                        onMessage(context.getString(R.string.admin_ai_enrolled))
+                    }.onFailure { error ->
+                        statusText = viewModel.explainServerError(error)
+                    }
+                }
+            },
+            enabled = !enrolling && enrollCode.isNotBlank(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SyscomBlue,
+                contentColor = Color.White,
+            ),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(50.dp),
+        ) {
+            Text(
+                stringResource(
+                    if (enrolling) R.string.admin_ai_enrolling else R.string.admin_ai_enroll_action,
+                ),
+            )
+        }
+        if (statusText.isNotBlank()) {
+            Text(
+                text = statusText,
+                color = Color(0xFFFF7A7A),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+        if (models.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.ai_section_model),
+                color = Cream,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 14.dp),
+            )
+            models.forEach { model ->
+                val price = if (model.priceUsd == null) {
+                    stringResource(R.string.ai_price_unknown)
+                } else {
+                    String.format(java.util.Locale.US, "$%.4f", model.priceUsd)
+                }
+                val unit = when (model.priceUnit) {
+                    "image" -> stringResource(R.string.ai_unit_image)
+                    "megapixel" -> stringResource(R.string.ai_unit_megapixel)
+                    "token" -> stringResource(R.string.ai_unit_token)
+                    else -> model.priceUnit.orEmpty()
+                }
+                TextButton(
+                    onClick = { viewModel.selectServerModel(model.id) },
+                    enabled = model.selectable,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = buildString {
+                            if (model.id == selectedModelId) append("● ") else append("○ ")
+                            append(model.name)
+                            append(" · ")
+                            append(price)
+                            if (unit.isNotBlank()) append(" / ").append(unit)
+                            if (model.overBudget) append(" · ").append(context.getString(R.string.ai_over_budget))
+                        },
+                        color = if (model.selectable) Cream else Cream.copy(alpha = 0.35f),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
         OutlinedButton(
             onClick = {
+                viewModel.saveServerBaseUrl(baseUrl)
                 testing = true
                 testSucceeded = null
-                testDetail = ""
                 scope.launch {
-                    val target = baseUrl.trim()
-                    val result = withContext(Dispatchers.IO) {
-                        backendClient.testConnection(target)
-                    }
+                    val ok = viewModel.testServer()
                     testing = false
-                    testSucceeded = result.isSuccess
-                    testDetail = result.fold(
-                        onSuccess = { "" },
-                        onFailure = { it.message?.trim().orEmpty().take(160) },
-                    )
+                    testSucceeded = ok
                 }
             },
             enabled = !testing,
@@ -1184,16 +1278,123 @@ private fun AiServerAdminCard(
                 modifier = Modifier.padding(top = 8.dp),
             )
             false -> Text(
-                text = buildString {
-                    append(stringResource(R.string.admin_ai_test_error))
-                    if (testDetail.isNotBlank()) append(": ").append(testDetail)
-                },
+                text = stringResource(R.string.admin_ai_test_error),
                 color = Color(0xFFFF7A7A),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 8.dp),
             )
             null -> Unit
+        }
+    }
+}
+
+@Composable
+private fun UsageAdminCard(viewModel: PhotoBoothViewModel) {
+    var months by remember { mutableStateOf<List<UsageMonth>>(emptyList()) }
+    var selectedMonth by remember { mutableStateOf("") }
+    var summary by remember { mutableStateOf<UsageSummary?>(null) }
+    var requests by remember { mutableStateOf<List<UsageRequest>>(emptyList()) }
+    var errorText by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun load(month: String) {
+        loading = true
+        errorText = ""
+        val result = runCatching {
+            val loadedMonths = viewModel.loadUsageMonths()
+            val chosen = month.ifBlank { loadedMonths.firstOrNull()?.month.orEmpty() }
+            val loadedSummary = if (chosen.isBlank()) null else viewModel.loadUsageSummary(chosen)
+            val loadedRequests = if (chosen.isBlank()) emptyList() else viewModel.loadUsageRequests(chosen)
+            Triple(loadedMonths, chosen, loadedSummary to loadedRequests)
+        }
+        loading = false
+        result.onSuccess { (loadedMonths, chosen, detail) ->
+            months = loadedMonths
+            selectedMonth = chosen
+            summary = detail.first
+            requests = detail.second
+        }.onFailure { error ->
+            errorText = viewModel.explainServerError(error)
+        }
+    }
+
+    LaunchedEffect(Unit) { load("") }
+
+    AdminCard(
+        title = stringResource(R.string.admin_usage_title),
+        subtitle = stringResource(R.string.admin_usage_subtitle),
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                color = SyscomBlueLight,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        }
+        if (months.isEmpty() && !loading) {
+            Text(
+                text = stringResource(R.string.admin_usage_empty),
+                color = Cream.copy(alpha = 0.7f),
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+        if (months.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                months.forEach { month ->
+                    TextButton(onClick = {
+                        scope.launch { load(month.month) }
+                    }) {
+                        Text(
+                            text = month.month,
+                            color = if (month.month == selectedMonth) SyscomBlueLight else Cream,
+                            fontWeight = if (month.month == selectedMonth) FontWeight.Bold else FontWeight.Medium,
+                        )
+                    }
+                }
+            }
+        }
+        summary?.let { item ->
+            Text(
+                text = stringResource(
+                    R.string.admin_usage_total,
+                    String.format(java.util.Locale.US, "%.4f", item.totalCostUsd),
+                    item.requestCount,
+                ),
+                color = Cream,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+        requests.forEach { request ->
+            val cost = request.costUsd ?: request.estimatedCostUsd
+            val costLabel = if (cost == null) {
+                stringResource(R.string.ai_price_unknown)
+            } else {
+                String.format(java.util.Locale.US, "$%.4f", cost)
+            }
+            Text(
+                text = "${request.createdAt} · ${request.styleId} · ${request.modelId} · $costLabel · ${request.status}",
+                color = Cream.copy(alpha = 0.78f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+        if (errorText.isNotBlank()) {
+            Text(
+                text = errorText,
+                color = Color(0xFFFF7A7A),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
     }
 }
@@ -1230,6 +1431,7 @@ private fun AdminSectionNavigationGroup(
 ) {
     val sections = listOf(
         AdminSection.EVENT,
+        AdminSection.USAGE,
         AdminSection.CAMERA,
         AdminSection.PHOTOS,
         AdminSection.SYSTEM,
@@ -1311,6 +1513,7 @@ private fun adminSectionIcon(section: AdminSection): ImageVector = when (section
     AdminSection.CAMERA -> Icons.Rounded.CameraAlt
     AdminSection.PHOTOS -> Icons.Rounded.PhotoLibrary
     AdminSection.EVENT -> Icons.Rounded.Edit
+    AdminSection.USAGE -> Icons.Rounded.AttachMoney
     AdminSection.SYSTEM -> Icons.Rounded.Wifi
 }
 

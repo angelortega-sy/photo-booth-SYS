@@ -14,6 +14,8 @@ import com.photobooth.kiosk.data.AiStatus
 import com.photobooth.kiosk.data.AiStyle
 import com.photobooth.kiosk.data.AiStyles
 import com.photobooth.kiosk.data.BackgroundOption
+import com.photobooth.kiosk.data.DeviceIdentity
+import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CameraSettingsStore
 import com.photobooth.kiosk.data.CollageCustomization
@@ -27,7 +29,13 @@ import com.photobooth.kiosk.delivery.DeliverySession
 import com.photobooth.kiosk.delivery.LocalDeliveryServer
 import com.photobooth.kiosk.network.AiBackendClient
 import com.photobooth.kiosk.network.AiBackendException
-import com.photobooth.kiosk.network.AiGeneratePhoto
+import com.photobooth.kiosk.network.BoothModel
+import com.photobooth.kiosk.network.BoothStyle
+import com.photobooth.kiosk.network.UsageMonth
+import com.photobooth.kiosk.network.UsageRequest
+import com.photobooth.kiosk.network.UsageSummary
+import com.photobooth.kiosk.network.decodeImage
+import com.photobooth.kiosk.security.DeviceKeyStore
 import com.photobooth.kiosk.photo.BitmapTransforms
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoProcessor
@@ -68,6 +76,10 @@ data class PhotoBoothUiState(
     val usedFallbackIndices: Set<Int> = emptySet(),
     val cameraRotationDegrees: Int = 0,
     val aiStyles: List<AiStyle> = AiStyles.ALL,
+    val serverStyles: List<BoothStyle> = emptyList(),
+    val serverModels: List<BoothModel> = emptyList(),
+    val selectedModelId: String = "",
+    val styleDecided: Boolean = false,
     val selectedAiStyleId: String = "ghibli",
     /** Per-photo AI backdrop: "none" (Sin fondo), a built-in id, or a custom id. */
     val aiBackgroundIds: List<String> = List(PHOTO_COUNT) { BackgroundRepository.NO_BACKGROUND_ID },
@@ -110,7 +122,9 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private val cameraSettings = CameraSettingsStore(application)
     private val brandingStore = EventBrandingStore(application)
     private val aiSettings = AiSettingsStore(application)
-    private val aiClient = AiBackendClient()
+    private val identityStore = DeviceIdentityStore(application)
+    private val deviceKeys = DeviceKeyStore()
+    private val aiClient = AiBackendClient(identityStore, deviceKeys)
     private val aiFullBitmaps = arrayOfNulls<Bitmap>(PhotoBoothUiState.PHOTO_COUNT)
     private var aiJob: Job? = null
 
@@ -130,6 +144,11 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private var exportedStateSignature: String? = null
     private var sessionToken = 0
     private var deliveryServer: LocalDeliveryServer? = null
+    private var remoteSessionId: String? = null
+    private var remoteSessionStyled = false
+    private var uploadedSignature: String? = null
+    private var remoteShareUrl: String? = null
+    private var styledStrip: Bitmap? = null
 
     private val _uiState = MutableStateFlow(
         PhotoBoothUiState(
@@ -144,6 +163,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             ),
             backgrounds = repository.visibleOptions,
             adminBackgrounds = repository.allOptions,
+            selectedModelId = aiSettings.load().modelId,
         ),
     )
     val uiState: StateFlow<PhotoBoothUiState> = _uiState.asStateFlow()
@@ -219,6 +239,21 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     suspend fun startDelivery(): DeliverySession? {
         val files = ensureExportedFiles() ?: return null
         if (files.size != 4) return null
+        if (identityStore.load().enrolled) {
+            try {
+                val shareUrl = withContext(Dispatchers.IO) { publishShare(files) }
+                deliveryServer?.stop()
+                deliveryServer = null
+                return DeliverySession(pageUrl = shareUrl, token = "drive", port = 0)
+            } catch (error: AiBackendException) {
+                if (error.httpCode != null) {
+                    _uiState.update { it.copy(errorMessage = aiUserMessage(error)) }
+                    return null
+                }
+            } catch (_: Throwable) {
+                // No network: fall back to the local QR.
+            }
+        }
         val title = _uiState.value.customization.eventBranding.badgeHeadline
         deliveryServer?.stop()
         val server = LocalDeliveryServer()
@@ -376,6 +411,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
                 if (_uiState.value.capturedCount == PhotoBoothUiState.PHOTO_COUNT) {
                     requestPreviewUpdate(token, forceIndex = index)
+                    refreshServerCatalog()
                 }
             }
         }
@@ -384,7 +420,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     fun setWizardStep(step: Int) {
         val state = _uiState.value
         val coerced = step.coerceIn(0, 2)
-        if (coerced > 0 && !state.hasAiResult) return
+        if (coerced > 0 && !state.hasAiResult && !state.styleDecided) return
         _uiState.update { it.copy(wizardStep = coerced) }
     }
 
@@ -535,14 +571,92 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
     fun loadAiSettings(): AiSettings = aiSettings.load()
 
-    fun saveAiSettings(settings: AiSettings) {
-        aiSettings.save(settings)
+    fun loadIdentity(): DeviceIdentity = identityStore.load()
+
+    fun saveServerBaseUrl(baseUrl: String) {
+        identityStore.saveBaseUrl(baseUrl)
+    }
+
+    fun saveSelectedModel(modelId: String) {
+        aiSettings.saveModel(modelId)
+        _uiState.update { it.copy(selectedModelId = modelId.trim()) }
     }
 
     fun selectAiStyle(id: String) {
-        if (AiStyles.ALL.none { it.id == id }) return
         if (aiConfigLocked()) return
-        _uiState.update { it.copy(selectedAiStyleId = id) }
+        val known = _uiState.value.serverStyles.any { it.id == id } || AiStyles.ALL.any { it.id == id }
+        if (!known) return
+        _uiState.update { it.copy(selectedAiStyleId = id, aiError = null) }
+    }
+
+    fun selectServerModel(id: String) {
+        if (aiConfigLocked()) return
+        val model = _uiState.value.serverModels.firstOrNull { it.id == id } ?: return
+        if (!model.selectable) return
+        saveSelectedModel(id)
+    }
+
+    fun keepOriginalPhoto() {
+        if (aiConfigLocked() && _uiState.value.hasAiResult) return
+        _uiState.update {
+            it.copy(
+                styleDecided = true,
+                wizardStep = 1,
+                aiError = null,
+            )
+        }
+    }
+
+    fun refreshServerCatalog() {
+        if (!identityStore.load().enrolled) return
+        viewModelScope.launch {
+            val loaded = withContext(Dispatchers.IO) {
+                runCatching { aiClient.styles() to aiClient.models() }
+            }
+            loaded.onSuccess { (styles, models) ->
+                val saved = aiSettings.load().modelId
+                _uiState.update { state ->
+                    val modelId = when {
+                        models.any { it.id == state.selectedModelId && it.selectable } -> state.selectedModelId
+                        models.any { it.id == saved && it.selectable } -> saved
+                        else -> models.firstOrNull { it.selectable }?.id.orEmpty()
+                    }
+                    if (modelId.isNotBlank()) aiSettings.saveModel(modelId)
+                    val styleId = when {
+                        styles.any { it.id == state.selectedAiStyleId } -> state.selectedAiStyleId
+                        else -> styles.firstOrNull()?.id ?: state.selectedAiStyleId
+                    }
+                    state.copy(
+                        serverStyles = styles,
+                        serverModels = models,
+                        selectedModelId = modelId,
+                        selectedAiStyleId = styleId,
+                    )
+                }
+            }
+        }
+    }
+
+    suspend fun enrollDevice(code: String): String = withContext(Dispatchers.IO) {
+        val deviceId = aiClient.enroll(code)
+        deviceId
+    }
+
+    suspend fun testServer(): Boolean = withContext(Dispatchers.IO) {
+        runCatching { aiClient.health() }.getOrDefault(false)
+    }
+
+    suspend fun loadUsageMonths(): List<UsageMonth> = withContext(Dispatchers.IO) {
+        aiClient.usageMonths()
+    }
+
+    suspend fun loadUsageSummary(month: String): UsageSummary = withContext(Dispatchers.IO) {
+        aiClient.usageSummary(month)
+    }
+
+    suspend fun loadUsageRequests(month: String): List<UsageRequest> = withContext(Dispatchers.IO) {
+        val (from, to) = monthBounds(month)
+        aiClient.usageRequests(from, to)
     }
 
     /** AI backdrop for one photo: "none", a built-in id, or a custom id. */
@@ -568,6 +682,11 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun explainServerError(error: Throwable): String = when (error) {
+        is AiBackendException -> aiUserMessage(error)
+        else -> getApplication<Application>().getString(R.string.ai_error_network)
+    }
+
     fun cancelAi() {
         aiJob?.cancel()
     }
@@ -585,24 +704,26 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     /**
-     * Uploads the 3 ORIGINAL guest photos (never local composites) to the
-     * configured backend, polls the styling job, downloads the 3 styled
-     * 1080x1920 images and rebuilds the strip with the existing customization.
-     * Per-photo backdrops: none (full scene), prompt (built-in description) or
-     * custom (exact uploaded reference). Then auto-advances to the design step.
+     * Uploads the four exported JPEGs and restyles the strip. The prompt stays
+     * on the server; the booth only sends a style id and a model id.
      */
     fun generateWithAi() {
         val snapshot = _uiState.value
         if (snapshot.capturedCount != PhotoBoothUiState.PHOTO_COUNT) return
         if (snapshot.aiStatus == AiStatus.UPLOADING || snapshot.aiStatus == AiStatus.GENERATING) return
         if (snapshot.isExporting || snapshot.isProcessing) return
-        val settings = aiSettings.load()
-        if (settings.baseUrl.isBlank()) {
+        val app = getApplication<Application>()
+        val styleId = snapshot.selectedAiStyleId
+        val modelId = snapshot.selectedModelId.ifBlank { aiSettings.load().modelId }
+        if (!identityStore.load().enrolled) {
             _uiState.update {
-                it.copy(
-                    aiStatus = AiStatus.ERROR,
-                    aiError = getApplication<Application>().getString(R.string.ai_error_no_server),
-                )
+                it.copy(aiStatus = AiStatus.ERROR, aiError = app.getString(R.string.ai_error_not_enrolled))
+            }
+            return
+        }
+        if (styleId.isBlank() || modelId.isBlank()) {
+            _uiState.update {
+                it.copy(aiStatus = AiStatus.ERROR, aiError = app.getString(R.string.ai_error_no_model))
             }
             return
         }
@@ -619,182 +740,52 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                         aiCost = null,
                     )
                 }
-                val baseUrl = settings.baseUrl
-                val kioskToken = settings.kioskToken
-                val modelId = settings.modelId.ifBlank { AiSettings.DEFAULT_MODEL_ID }
-
-                val bgIds = _uiState.value.photoBackgroundIds
-                val styleId = _uiState.value.selectedAiStyleId
-                val stylePrompt = AiStyles.byId(styleId).prompt
-                val aiBgIds = _uiState.value.aiBackgroundIds
-                val accessoryIds = _uiState.value.selectedAiAccessories.toList()
-                val accessoriesPrompt = AiAccessories.promptFor(_uiState.value.selectedAiAccessories)
-                val eventId = _uiState.value.customization.eventBranding.brand.ifBlank { "SYSCOM" }
-
-                val inputs = withContext(Dispatchers.IO) { buildOriginalAiInputs() }
+                val files = ensureExportedFiles() ?: throw AiBackendException("Missing photos")
+                if (files.size != 4) throw AiBackendException("Missing photos")
                 if (token != sessionToken) throw SessionExpiredException()
-
                 val sessionId = withContext(Dispatchers.IO) {
-                    aiClient.createSession(baseUrl, kioskToken)
-                }
-                for (index in inputs.indices) {
-                    coroutineContext.ensureActive()
-                    withContext(Dispatchers.IO) {
-                        aiClient.uploadPhoto(baseUrl, kioskToken, sessionId, index, inputs[index])
-                    }
-                    if (token != sessionToken) throw SessionExpiredException()
-                    _uiState.update { it.copy(aiUploadedCount = index + 1) }
-                }
-
-                _uiState.update { it.copy(aiStatus = AiStatus.GENERATING) }
-                // Resolve per-photo backdrop references before requesting generation.
-                val backgroundRefs = withContext(Dispatchers.IO) {
-                    resolveAiBackgroundRefs(baseUrl, kioskToken, sessionId, aiBgIds)
+                    val created = aiClient.createSession()
+                    _uiState.update { it.copy(aiUploadedCount = 1) }
+                    aiClient.uploadPhotos(created.id, files[0], files[1], files[2], files[3])
+                    created.id
                 }
                 if (token != sessionToken) throw SessionExpiredException()
-                val generatePhotos = aiBgIds.mapIndexed { index, backgroundId ->
-                    val ref = backgroundRefs[index]
-                    AiGeneratePhoto(
-                        index = index,
-                        backgroundId = backgroundId,
-                        backgroundMode = when {
-                            backgroundId == BackgroundRepository.NO_BACKGROUND_ID -> "none"
-                            ref.isCustom -> "custom"
-                            else -> "prompt"
-                        },
-                        backgroundPrompt = if (!ref.isCustom &&
-                            backgroundId != BackgroundRepository.NO_BACKGROUND_ID
-                        ) {
-                            repository.backgroundPrompt(backgroundId)
-                                ?: "Festive event backdrop matching '${backgroundId}', no readable text."
-                        } else {
-                            null
-                        },
-                        backgroundRefId = ref.refId,
-                        backgroundDataBase64 = ref.inlineData,
-                    )
-                }
-                val jobId = withContext(Dispatchers.IO) {
-                    aiClient.requestGenerate(
-                        baseUrl,
-                        kioskToken,
-                        sessionId,
-                        styleId,
-                        stylePrompt,
-                        modelId,
-                        eventId,
-                        generatePhotos,
-                        accessoryIds,
-                        accessoriesPrompt,
-                    )
-                }
-                val job = withContext(Dispatchers.IO) {
-                    aiClient.awaitJob(baseUrl, kioskToken, jobId) { progress ->
-                        _uiState.update { it.copy(aiProgress = progress) }
-                    }
+                remoteSessionId = sessionId
+                remoteSessionStyled = true
+                uploadedSignature = null
+                remoteShareUrl = null
+                _uiState.update { it.copy(aiStatus = AiStatus.GENERATING, aiUploadedCount = 4, aiProgress = 45) }
+                val styled = withContext(Dispatchers.IO) {
+                    aiClient.stylize(sessionId, modelId, styleId)
                 }
                 coroutineContext.ensureActive()
                 if (token != sessionToken) throw SessionExpiredException()
-
-                val customization = _uiState.value.customization
-                val styledDir = File(ensureSessionDirectory(), "ai_${UUID.randomUUID()}")
-                check(styledDir.mkdirs()) { "Could not create AI session storage" }
-                val decoded = withContext(Dispatchers.IO) {
-                    job.results.sortedBy { it.index }
-                        .take(PhotoBoothUiState.PHOTO_COUNT)
-                        .map { image ->
-                            val target = File(styledDir, "ai_styled_${image.index + 1}.jpg")
-                            aiClient.downloadToFile(baseUrl, image.url, kioskToken, target)
-                            BitmapFactory.decodeFile(target.absolutePath)
-                                ?: throw AiBackendException("Styled photo ${image.index + 1} is not a valid image")
-                        }
-                }
-                if (token != sessionToken) {
-                    decoded.forEach { if (!it.isRecycled) it.recycle() }
-                    throw SessionExpiredException()
-                }
-                val normalized = decoded.map { bitmap ->
-                    val cropped = BitmapTransforms.centerCrop(
-                        bitmap,
-                        PhotoProcessor.OUTPUT_WIDTH,
-                        PhotoProcessor.OUTPUT_HEIGHT,
+                val bytes = decodeImage(styled.imageBase64)
+                if (bytes.isEmpty()) throw AiBackendException("Styled strip is empty")
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    ?: throw AiBackendException("Styled strip is not a valid image")
+                files[3].writeBytes(bytes)
+                styledStrip = bitmap
+                val cost = styled.costUsd ?: styled.estimatedCostUsd
+                val oldStrip = _uiState.value.stripPreview
+                _uiState.update { current ->
+                    current.copy(
+                        stripPreview = bitmap,
+                        stripFile = files[3],
+                        photoFiles = files.take(PhotoBoothUiState.PHOTO_COUNT),
+                        aiStatus = AiStatus.READY,
+                        hasAiResult = true,
+                        styleDecided = true,
+                        aiCost = cost,
+                        aiProgress = 100,
+                        wizardStep = 1,
+                        selectedPhotoIndex = null,
+                        errorMessage = null,
+                        aiError = null,
                     )
-                    if (cropped !== bitmap && !bitmap.isRecycled) bitmap.recycle()
-                    cropped
                 }
-                for (index in normalized.indices) {
-                    aiFullBitmaps[index]?.let { old -> if (!old.isRecycled) old.recycle() }
-                    aiFullBitmaps[index] = normalized[index]
-                }
-
-                val framedPreviews = normalized.map { bitmap ->
-                    PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = true)
-                }
-                val collagePreview = PhotoFrameComposer.composeCollage(
-                    normalized,
-                    customization,
-                    previewScale = true,
-                )
-                val framedFull = normalized.map { bitmap ->
-                    PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = false)
-                }
-                try {
-                    val filesWritten = withContext(Dispatchers.IO) {
-                        val renderDir = File(ensureSessionDirectory(), "render_${UUID.randomUUID()}")
-                        check(renderDir.mkdirs()) { "Could not create AI render storage" }
-                        val photoFiles = List(PhotoBoothUiState.PHOTO_COUNT) { index ->
-                            File(renderDir, "cabina_ia_${index + 1}.jpg")
-                        }
-                        val stripFile = File(renderDir, "cabina_ia_tira.jpg")
-                        for (index in normalized.indices) {
-                            if (!PhotoFrameComposer.writeJpeg(framedFull[index], photoFiles[index])) {
-                                error("Could not write styled photo $index")
-                            }
-                        }
-                        val collageFull = PhotoFrameComposer.composeCollage(
-                            normalized,
-                            customization,
-                            previewScale = false,
-                        )
-                        try {
-                            if (!PhotoFrameComposer.writeJpeg(collageFull, stripFile)) {
-                                error("Could not write styled collage")
-                            }
-                        } finally {
-                            if (!collageFull.isRecycled) collageFull.recycle()
-                        }
-                        photoFiles + stripFile
-                    }
-                    if (token != sessionToken) throw SessionExpiredException()
-
-                    val oldPreviews = _uiState.value.photoPreviews +
-                        listOfNotNull(_uiState.value.stripPreview)
-                    val oldOutputDir = outputDirectory
-                    outputDirectory = filesWritten.last().parentFile
-                    _uiState.update { current ->
-                        current.copy(
-                            photoPreviews = framedPreviews,
-                            stripPreview = collagePreview,
-                            photoFiles = filesWritten.take(PhotoBoothUiState.PHOTO_COUNT),
-                            stripFile = filesWritten.last(),
-                            aiStatus = AiStatus.READY,
-                            hasAiResult = true,
-                            aiCost = job.cost,
-                            aiProgress = 100,
-                            // Auto-advance: config -> design once the AI photos exist.
-                            wizardStep = 1,
-                            selectedPhotoIndex = null,
-                            errorMessage = null,
-                        )
-                    }
-                    exportedStateSignature = stateSignature(_uiState.value)
-                    oldPreviews.forEach { old ->
-                        if (old !in framedPreviews && old !== collagePreview) recycleLater(old)
-                    }
-                    oldOutputDir?.let(::deleteLater)
-                } finally {
-                    framedFull.forEach { if (!it.isRecycled) it.recycle() }
-                }
+                exportedStateSignature = stateSignature(_uiState.value)
+                if (oldStrip != null && oldStrip !== bitmap && !oldStrip.isRecycled) recycleLater(oldStrip)
             } catch (error: CancellationException) {
                 _uiState.update { current ->
                     current.copy(
@@ -819,91 +810,63 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    private fun aiUserMessage(error: AiBackendException): String {
-        val app = getApplication<Application>()
-        return if (error.httpCode != null) {
-            app.getString(R.string.ai_error_server)
-        } else {
-            app.getString(R.string.ai_error_network)
-        }
-    }
-
     /**
-     * Full-resolution ORIGINAL guest photos as AI input: decoded capture file
-     * center-cropped to 1080x1920 (or the raw preview upscaled when the file
-     * write is still finishing). Never a local composite: the AI generates
-     * the whole photo (person + backdrop) itself.
+     * Returns the Drive share URL. If the guest already paid for a styled strip,
+     * that session already holds the originals and the styled strip, so we only
+     * finalize it. Otherwise we upload the current exports once per export state.
+     * Never calls stylize here: that would charge a second generation.
      */
-    private fun buildOriginalAiInputs(): List<File> {
-        val directory = ensureSessionDirectory()
-        return List(PhotoBoothUiState.PHOTO_COUNT) { index ->
-            val source = sourceFiles[index]?.let { file ->
-                BitmapFactory.decodeFile(file.absolutePath)
-            } ?: rawPreviews[index]?.let { preview ->
-                Bitmap.createScaledBitmap(
-                    preview,
-                    PhotoProcessor.OUTPUT_WIDTH,
-                    PhotoProcessor.OUTPUT_HEIGHT,
-                    true,
-                )
-            } ?: throw AiBackendException("Missing source image for shot $index")
-            try {
-                val cropped = BitmapTransforms.centerCrop(
-                    source,
-                    PhotoProcessor.OUTPUT_WIDTH,
-                    PhotoProcessor.OUTPUT_HEIGHT,
-                )
-                try {
-                    val target = File(directory, "ai_input_${index + 1}.jpg")
-                    if (!PhotoFrameComposer.writeJpeg(cropped, target)) {
-                        throw AiBackendException("Could not prepare photo ${index + 1} for upload")
-                    }
-                    target
-                } finally {
-                    if (!cropped.isRecycled) cropped.recycle()
-                }
-            } finally {
-                if (!source.isRecycled) source.recycle()
+    private fun publishShare(files: List<File>): String {
+        val existingId = remoteSessionId
+        val sessionId = if (existingId != null && remoteSessionStyled) {
+            existingId
+        } else {
+            val signature = stateSignature(_uiState.value)
+            if (existingId != null && uploadedSignature == signature) {
+                existingId
+            } else {
+                val created = aiClient.createSession()
+                aiClient.uploadPhotos(created.id, files[0], files[1], files[2], files[3])
+                remoteSessionId = created.id
+                remoteSessionStyled = false
+                uploadedSignature = signature
+                remoteShareUrl = null
+                created.id
             }
         }
+        remoteShareUrl?.let { if (sessionId == remoteSessionId) return it }
+        val shareUrl = aiClient.finalize(sessionId)
+        remoteShareUrl = shareUrl
+        return shareUrl
     }
 
-    private data class AiBackgroundRef(
-        val isCustom: Boolean,
-        val refId: String? = null,
-        val inlineData: String? = null,
-    )
+    private fun monthBounds(month: String): Pair<String, String> {
+        val parts = month.split("-")
+        val year = parts[0].toInt()
+        val mon = parts[1].toInt()
+        val start = String.format(java.util.Locale.US, "%04d-%02d-01T00:00:00.000Z", year, mon)
+        val nextYear = if (mon == 12) year + 1 else year
+        val nextMonth = if (mon == 12) 1 else mon + 1
+        val end = String.format(java.util.Locale.US, "%04d-%02d-01T00:00:00.000Z", nextYear, nextMonth)
+        return start to end
+    }
 
-    /**
-     * Uploads exact custom background images as per-photo references. Prefers
-     * the dedicated backgrounds endpoint; when the backend has no such route
-     * (404/405) it falls back to an inline base64 data-URL in generate JSON.
-     */
-    private fun resolveAiBackgroundRefs(
-        baseUrl: String,
-        token: String,
-        sessionId: String,
-        aiBgIds: List<String>,
-    ): List<AiBackgroundRef> = aiBgIds.mapIndexed { index, backgroundId ->
-        if (!repository.isCustom(backgroundId)) {
-            AiBackgroundRef(isCustom = false)
-        } else {
-            val file = repository.customBackgroundFile(backgroundId)
-                ?: throw AiBackendException("Custom background is missing for photo ${index + 1}")
-            try {
-                val refId = aiClient.uploadBackground(baseUrl, token, sessionId, index, file)
-                AiBackgroundRef(isCustom = true, refId = refId)
-            } catch (error: AiBackendException) {
-                if (error.httpCode == 404 || error.httpCode == 405) {
-                    val bytes = file.readBytes()
-                    val encoded = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                    AiBackgroundRef(
-                        isCustom = true,
-                        inlineData = "data:image/jpeg;base64,$encoded",
-                    )
-                } else {
-                    throw error
-                }
+    private fun aiUserMessage(error: AiBackendException): String {
+        val app = getApplication<Application>()
+        return when (error.code) {
+            "quota_exceeded" -> app.getString(R.string.ai_error_quota)
+            "budget_exceeded" -> app.getString(R.string.ai_error_budget)
+            "clock_skew" -> app.getString(R.string.ai_error_clock)
+            "model_over_budget" -> app.getString(R.string.ai_error_model_budget)
+            "invalid_password", "invalid_enroll_code" -> app.getString(R.string.ai_error_enroll_code)
+            "enroll_not_configured" -> app.getString(R.string.ai_error_enroll_missing)
+            "device_revoked" -> app.getString(R.string.ai_error_revoked)
+            "unknown_device", "invalid_signature" ->
+                app.getString(R.string.ai_error_not_enrolled)
+            else -> if (error.httpCode != null) {
+                app.getString(R.string.ai_error_server)
+            } else {
+                app.getString(R.string.ai_error_network)
             }
         }
     }
@@ -1016,17 +979,21 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                     return@withLock
                 }
 
+                val heldStrip = styledStrip?.takeUnless { it.isRecycled }
+                val stripToShow = heldStrip ?: newCollagePreview
+                if (heldStrip != null && !newCollagePreview.isRecycled) newCollagePreview.recycle()
+
                 val oldPreviews = _uiState.value.photoPreviews + listOfNotNull(_uiState.value.stripPreview)
                 _uiState.update { current ->
                     current.copy(
                         isProcessing = false,
                         photoPreviews = newPhotoPreviews,
-                        stripPreview = newCollagePreview,
+                        stripPreview = stripToShow,
                         errorMessage = null,
                     )
                 }
                 oldPreviews.forEach { old ->
-                    if (old !in newPhotoPreviews && old !== newCollagePreview) {
+                    if (old !in newPhotoPreviews && old !== stripToShow) {
                         recycleLater(old)
                     }
                 }
@@ -1243,6 +1210,11 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         sessionDirectory = null
         outputDirectory = null
         exportedStateSignature = null
+        remoteSessionId = null
+        remoteSessionStyled = false
+        uploadedSignature = null
+        remoteShareUrl = null
+        styledStrip = null
 
         val initialBg = if (resetBackground) {
             BackgroundRepository.ORIGINAL_ID
@@ -1252,6 +1224,20 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.value = PhotoBoothUiState(
             selectedBackgroundId = initialBg,
             photoBackgroundIds = List(PhotoBoothUiState.PHOTO_COUNT) { initialBg },
+            cameraRotationDegrees = cameraSettings.rotationDegrees,
+            serverStyles = state.serverStyles,
+            serverModels = state.serverModels,
+            selectedModelId = state.selectedModelId,
+            customization = CollageCustomization(
+                eventBranding = brandingStore.load(),
+                badgePreset = if (brandingStore.hasSaved()) {
+                    EventBadgePreset.CUSTOM
+                } else {
+                    EventBadgePreset.EXPO_2027
+                },
+            ),
+            backgrounds = repository.visibleOptions,
+            adminBackgrounds = repository.allOptions,
         )
 
         oldBitmaps.forEach(::recycleLater)

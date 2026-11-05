@@ -10,9 +10,9 @@ Paquete: `com.photobooth.kiosk`. App visible: “Cabina de Fotos”.
 - No subas core/compose/lifecycle a versiones que exijan `compileSdk 37` o AGP 9.1 sin actualizar AGP y Gradle primero.
 - Pantalla kiosko en **vertical (portrait)**; salida y fondos a 1080×1920. En producción la cámara es una **webcam USB**, no una cámara integrada. Para pruebas en teléfono, CameraX usa la cámara frontal si existe (selfie) y la trasera como fallback.
 - Segmentación de la persona **en el dispositivo** (preferir MediaPipe Image Segmenter; ML Kit solo si el equipo tiene Google Play Services) y composición sobre un fondo predefinido.
-- Fondos locales como fallback/offline. El flujo nuevo usa **IA vía backend propio**; OpenRouter se llama solo desde el servidor y la app nunca lleva la API key.
+- Fondos locales como fallback/offline. La app puede llamar **solo** a `https://110-238-85-51.sslip.io` (cabeceras firmadas con la llave del tótem). Nunca llama a OpenRouter y la API key no entra al APK, a `BuildConfig` ni a los recursos.
 - Salida: QR para iPhone/Android + Quick Share Android. El flujo nuevo quita “Guardar”.
-- Offline: fallback local (fondos + QR local); la generación IA requiere red.
+- Offline: fallback local (fondos + QR local de `LocalDeliveryServer`). Si el tótem no está registrado o no hay red, el QR local sigue funcionando. La generación IA requiere red.
 
 ## Convenciones de código
 
@@ -21,7 +21,7 @@ Paquete: `com.photobooth.kiosk`. App visible: “Cabina de Fotos”.
 
 ## Flujo
 
-captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo global + fondo por foto → backend IA (OpenRouter) → tira local con marca/hashtag/fecha → QR cross-platform + Quick Share Android.
+captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o “así está bien” → diseño local → QR de Drive (o QR local si no hay red) + Quick Share.
 
 ## Experiencia de uso
 
@@ -106,8 +106,9 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo global + fondo
 
 ## QR y salida
 
-- Flujo de dos QR: (1) unirse al hotspot con `WIFI:T:WPA;S:<ssid>;P:<pass>;;`; (2) descargar la foto con `http://<ip-del-kiosko>:<puerto>/p/<token>`. Es la ruta recomendada para **iPhone**, sin app ni internet; implementar al final.
-- El kiosko corre un servidor HTTP local (NanoHTTPD/Ktor) y funciona sin internet, con hotspot propio o con el Wi-Fi del lugar.
+- Con red y tótem registrado, el QR de entrega apunta al `shareUrl` de Google Drive que devuelve `POST /v1/sessions/:id/finalize`.
+- Sin red o sin registro, el QR sigue siendo el servidor HTTP local (`http://<ip-del-kiosko>:<puerto>/p/<token>`). Quick Share no cambia.
+- El kiosko corre un servidor HTTP local y funciona sin internet, con hotspot propio o con el Wi-Fi del lugar.
 - Leer el IP real del hotspot en runtime; no hardcodear `192.168.43.1`.
 - Android avisa "sin internet" y puede saltar a datos móviles: indicar en pantalla que el invitado elija "mantener conexión" y desactive el cambio automático.
 - Fallback: share sheet (`ACTION_SEND` + `FileProvider`) si el invitado no puede entrar a la red.
@@ -115,8 +116,8 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo global + fondo
 
 ## Fondos (contenido, no runtime)
 
-- La app **nunca** llama a OpenRouter directamente; el backend sí. Los fondos del pack se generan una sola vez con `tools/generate-backgrounds/` (Node 18+, `POST https://openrouter.ai/api/v1/images`).
-- La key va en `tools/generate-backgrounds/.env`, que está gitignored. No debe terminar en el APK ni en el repo.
+- La app **nunca** llama a OpenRouter. El único runtime permitido es `https://110-238-85-51.sslip.io`. Los prompts viven en el servidor; la cabina manda `styleId` y `modelId`.
+- La key de OpenRouter vive solo en el VPS. No debe terminar en el APK, en `SharedPreferences`, en el repo ni en `tools/generate-backgrounds/.env` publicado. Ese `.env` local sigue gitignored.
 - `out/` está gitignored: se revisan las imágenes y solo las aprobadas se copian a `app/src/main/assets/backgrounds/`.
 - **Pack aprobado:** 6 temas verticales generados con Grok Imagine 2.0 (`x-ai/grok-imagine-image-2.0`), 9:16 a 2K, ~$0.08/imagen, en `out/grok-pack-portrait/`: `gala`, `neon`, `playa`, `estudio`, `retro80s`, `jardin`.
 - Personas de fondo: `gala`, `neon`, `playa`, `retro80s` y `jardin` incluyen invitados/siluetas desenfocadas; `estudio` va sin personas. Centro libre y sin caras reconocibles.
