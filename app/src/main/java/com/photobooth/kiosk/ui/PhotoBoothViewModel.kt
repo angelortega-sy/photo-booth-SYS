@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.photobooth.kiosk.R
+import com.photobooth.kiosk.data.AiAccessories
 import com.photobooth.kiosk.data.AiSettings
 import com.photobooth.kiosk.data.AiSettingsStore
 import com.photobooth.kiosk.data.AiStatus
@@ -48,7 +49,7 @@ import java.io.File
 import java.util.UUID
 
 data class PhotoBoothUiState(
-    val selectedBackgroundId: String = "gala",
+    val selectedBackgroundId: String = BackgroundRepository.ORIGINAL_ID,
     val applyBackgroundToAll: Boolean = true,
     val capturedCount: Int = 0,
     val captureThumbnails: List<Bitmap> = emptyList(),
@@ -59,7 +60,7 @@ data class PhotoBoothUiState(
     val wizardStep: Int = 0,
     val customization: CollageCustomization = CollageCustomization(),
     val photoFiles: List<File> = emptyList(),
-    val photoBackgroundIds: List<String> = listOf("gala", "gala", "gala"),
+    val photoBackgroundIds: List<String> = List(PHOTO_COUNT) { BackgroundRepository.ORIGINAL_ID },
     val photoPreviews: List<Bitmap> = emptyList(),
     val stripFile: File? = null,
     val stripPreview: Bitmap? = null,
@@ -68,6 +69,9 @@ data class PhotoBoothUiState(
     val cameraRotationDegrees: Int = 0,
     val aiStyles: List<AiStyle> = AiStyles.ALL,
     val selectedAiStyleId: String = "ghibli",
+    /** Per-photo AI backdrop: "none" (Sin fondo), a built-in id, or a custom id. */
+    val aiBackgroundIds: List<String> = List(PHOTO_COUNT) { BackgroundRepository.NO_BACKGROUND_ID },
+    val selectedAiAccessories: Set<String> = emptySet(),
     val aiStatus: AiStatus = AiStatus.IDLE,
     val aiUploadedCount: Int = 0,
     val aiProgress: Int = 0,
@@ -158,7 +162,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         val selected = state.selectedBackgroundId
             .takeIf { it in visibleIds }
             ?: visible.firstOrNull()?.id
-            ?: "gala"
+            ?: BackgroundRepository.ORIGINAL_ID
         val photoIds = state.photoBackgroundIds.map {
             if (it in visibleIds) it else selected
         }
@@ -378,7 +382,9 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun setWizardStep(step: Int) {
+        val state = _uiState.value
         val coerced = step.coerceIn(0, 2)
+        if (coerced > 0 && !state.hasAiResult) return
         _uiState.update { it.copy(wizardStep = coerced) }
     }
 
@@ -535,9 +541,31 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
     fun selectAiStyle(id: String) {
         if (AiStyles.ALL.none { it.id == id }) return
-        val status = _uiState.value.aiStatus
-        if (status == AiStatus.UPLOADING || status == AiStatus.GENERATING) return
+        if (aiConfigLocked()) return
         _uiState.update { it.copy(selectedAiStyleId = id) }
+    }
+
+    /** AI backdrop for one photo: "none", a built-in id, or a custom id. */
+    fun selectAiBackground(index: Int, id: String) {
+        if (index !in 0 until PhotoBoothUiState.PHOTO_COUNT) return
+        if (aiConfigLocked()) return
+        _uiState.update { state ->
+            val updated = state.aiBackgroundIds.toMutableList()
+            if (index >= updated.size) return@update state
+            updated[index] = id
+            state.copy(aiBackgroundIds = updated, aiError = null)
+        }
+    }
+
+    /** Multi-select accessories (sunglasses, hat, crown, flowers). */
+    fun toggleAiAccessory(id: String) {
+        if (AiAccessories.ALL.none { it.id == id }) return
+        if (aiConfigLocked()) return
+        _uiState.update { state ->
+            val updated = state.selectedAiAccessories.toMutableSet()
+            if (!updated.add(id)) updated.remove(id)
+            state.copy(selectedAiAccessories = updated)
+        }
     }
 
     fun cancelAi() {
@@ -545,9 +573,23 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     /**
-     * Uploads the 3 already-composed photos to the configured backend, polls
-     * the styling job, downloads the 3 styled 1080x1920 images and rebuilds
-     * the strip with the existing frame customization.
+     * AI config (style, per-photo backdrops, accessories) is locked while a run
+     * is in flight and once a paid result exists: changing it would silently
+     * drop the paid styling. Regeneration reuses the same locked config.
+     */
+    private fun aiConfigLocked(): Boolean {
+        val state = _uiState.value
+        return state.hasAiResult ||
+            state.aiStatus == AiStatus.UPLOADING ||
+            state.aiStatus == AiStatus.GENERATING
+    }
+
+    /**
+     * Uploads the 3 ORIGINAL guest photos (never local composites) to the
+     * configured backend, polls the styling job, downloads the 3 styled
+     * 1080x1920 images and rebuilds the strip with the existing customization.
+     * Per-photo backdrops: none (full scene), prompt (built-in description) or
+     * custom (exact uploaded reference). Then auto-advances to the design step.
      */
     fun generateWithAi() {
         val snapshot = _uiState.value
@@ -584,9 +626,12 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 val bgIds = _uiState.value.photoBackgroundIds
                 val styleId = _uiState.value.selectedAiStyleId
                 val stylePrompt = AiStyles.byId(styleId).prompt
+                val aiBgIds = _uiState.value.aiBackgroundIds
+                val accessoryIds = _uiState.value.selectedAiAccessories.toList()
+                val accessoriesPrompt = AiAccessories.promptFor(_uiState.value.selectedAiAccessories)
                 val eventId = _uiState.value.customization.eventBranding.brand.ifBlank { "SYSCOM" }
 
-                val inputs = withContext(Dispatchers.IO) { buildAiInputs(bgIds) }
+                val inputs = withContext(Dispatchers.IO) { buildOriginalAiInputs() }
                 if (token != sessionToken) throw SessionExpiredException()
 
                 val sessionId = withContext(Dispatchers.IO) {
@@ -602,15 +647,31 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 }
 
                 _uiState.update { it.copy(aiStatus = AiStatus.GENERATING) }
-                val generatePhotos = bgIds.mapIndexed { index, backgroundId ->
+                // Resolve per-photo backdrop references before requesting generation.
+                val backgroundRefs = withContext(Dispatchers.IO) {
+                    resolveAiBackgroundRefs(baseUrl, kioskToken, sessionId, aiBgIds)
+                }
+                if (token != sessionToken) throw SessionExpiredException()
+                val generatePhotos = aiBgIds.mapIndexed { index, backgroundId ->
+                    val ref = backgroundRefs[index]
                     AiGeneratePhoto(
                         index = index,
                         backgroundId = backgroundId,
-                        backgroundMode = if (backgroundId == BackgroundRepository.ORIGINAL_ID) {
-                            "original"
-                        } else {
-                            "asset"
+                        backgroundMode = when {
+                            backgroundId == BackgroundRepository.NO_BACKGROUND_ID -> "none"
+                            ref.isCustom -> "custom"
+                            else -> "prompt"
                         },
+                        backgroundPrompt = if (!ref.isCustom &&
+                            backgroundId != BackgroundRepository.NO_BACKGROUND_ID
+                        ) {
+                            repository.backgroundPrompt(backgroundId)
+                                ?: "Festive event backdrop matching '${backgroundId}', no readable text."
+                        } else {
+                            null
+                        },
+                        backgroundRefId = ref.refId,
+                        backgroundDataBase64 = ref.inlineData,
                     )
                 }
                 val jobId = withContext(Dispatchers.IO) {
@@ -623,6 +684,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                         modelId,
                         eventId,
                         generatePhotos,
+                        accessoryIds,
+                        accessoriesPrompt,
                     )
                 }
                 val job = withContext(Dispatchers.IO) {
@@ -718,6 +781,9 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                             hasAiResult = true,
                             aiCost = job.cost,
                             aiProgress = 100,
+                            // Auto-advance: config -> design once the AI photos exist.
+                            wizardStep = 1,
+                            selectedPhotoIndex = null,
                             errorMessage = null,
                         )
                     }
@@ -762,8 +828,13 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    /** Full-resolution unframed composites (person + chosen background) used as AI input. */
-    private fun buildAiInputs(bgIds: List<String>): List<File> {
+    /**
+     * Full-resolution ORIGINAL guest photos as AI input: decoded capture file
+     * center-cropped to 1080x1920 (or the raw preview upscaled when the file
+     * write is still finishing). Never a local composite: the AI generates
+     * the whole photo (person + backdrop) itself.
+     */
+    private fun buildOriginalAiInputs(): List<File> {
         val directory = ensureSessionDirectory()
         return List(PhotoBoothUiState.PHOTO_COUNT) { index ->
             val source = sourceFiles[index]?.let { file ->
@@ -777,24 +848,62 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 )
             } ?: throw AiBackendException("Missing source image for shot $index")
             try {
-                val bgId = bgIds.getOrElse(index) { _uiState.value.selectedBackgroundId }
-                val fullBg = if (bgId == BackgroundRepository.ORIGINAL_ID) {
-                    null
-                } else {
-                    repository.loadFull(bgId)
-                }
-                val composite = processor.compositeFull(source, preparedCutouts[index], fullBg).bitmap
+                val cropped = BitmapTransforms.centerCrop(
+                    source,
+                    PhotoProcessor.OUTPUT_WIDTH,
+                    PhotoProcessor.OUTPUT_HEIGHT,
+                )
                 try {
                     val target = File(directory, "ai_input_${index + 1}.jpg")
-                    if (!PhotoFrameComposer.writeJpeg(composite, target)) {
+                    if (!PhotoFrameComposer.writeJpeg(cropped, target)) {
                         throw AiBackendException("Could not prepare photo ${index + 1} for upload")
                     }
                     target
                 } finally {
-                    if (!composite.isRecycled) composite.recycle()
+                    if (!cropped.isRecycled) cropped.recycle()
                 }
             } finally {
                 if (!source.isRecycled) source.recycle()
+            }
+        }
+    }
+
+    private data class AiBackgroundRef(
+        val isCustom: Boolean,
+        val refId: String? = null,
+        val inlineData: String? = null,
+    )
+
+    /**
+     * Uploads exact custom background images as per-photo references. Prefers
+     * the dedicated backgrounds endpoint; when the backend has no such route
+     * (404/405) it falls back to an inline base64 data-URL in generate JSON.
+     */
+    private fun resolveAiBackgroundRefs(
+        baseUrl: String,
+        token: String,
+        sessionId: String,
+        aiBgIds: List<String>,
+    ): List<AiBackgroundRef> = aiBgIds.mapIndexed { index, backgroundId ->
+        if (!repository.isCustom(backgroundId)) {
+            AiBackgroundRef(isCustom = false)
+        } else {
+            val file = repository.customBackgroundFile(backgroundId)
+                ?: throw AiBackendException("Custom background is missing for photo ${index + 1}")
+            try {
+                val refId = aiClient.uploadBackground(baseUrl, token, sessionId, index, file)
+                AiBackgroundRef(isCustom = true, refId = refId)
+            } catch (error: AiBackendException) {
+                if (error.httpCode == 404 || error.httpCode == 405) {
+                    val bytes = file.readBytes()
+                    val encoded = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                    AiBackgroundRef(
+                        isCustom = true,
+                        inlineData = "data:image/jpeg;base64,$encoded",
+                    )
+                } else {
+                    throw error
+                }
             }
         }
     }
@@ -945,6 +1054,10 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         append(state.hasAiResult)
         append("|")
         append(state.selectedAiStyleId)
+        append("|")
+        append(state.aiBackgroundIds.joinToString(","))
+        append("|")
+        append(state.selectedAiAccessories.sorted().joinToString(","))
     }
 
     /**
@@ -1131,7 +1244,11 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         outputDirectory = null
         exportedStateSignature = null
 
-        val initialBg = if (resetBackground) "gala" else state.selectedBackgroundId
+        val initialBg = if (resetBackground) {
+            BackgroundRepository.ORIGINAL_ID
+        } else {
+            state.selectedBackgroundId
+        }
         _uiState.value = PhotoBoothUiState(
             selectedBackgroundId = initialBg,
             photoBackgroundIds = List(PhotoBoothUiState.PHOTO_COUNT) { initialBg },
