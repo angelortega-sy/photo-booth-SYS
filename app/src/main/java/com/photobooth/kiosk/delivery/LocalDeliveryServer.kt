@@ -42,7 +42,7 @@ class LocalDeliveryServer {
     private var running = false
 
     fun start(files: List<File>, eventTitle: String): DeliverySession? {
-        if (files.size != 4 || files.any { !it.isFile }) return null
+        if (files.isEmpty() || files.size > 4 || files.any { !it.isFile }) return null
         val address = LocalNetwork.ipv4Address() ?: return null
 
         stop()
@@ -143,8 +143,13 @@ class LocalDeliveryServer {
 
     private fun pageHtml(): String {
         val title = escapeHtml(eventTitle)
+        val single = files.size == 1
         val cards = files.mapIndexed { index, _ ->
-            val label = if (index == 3) "Tira completa" else "Foto ${index + 1}"
+            val label = when {
+                single -> "Mi foto"
+                index == 3 && files.size == 4 -> "Tira completa"
+                else -> "Foto ${index + 1}"
+            }
             """
             <a class="card" href="/d/$token/i/$index" download="${downloadName(index)}">
               <img src="/d/$token/i/$index" alt="$label">
@@ -196,9 +201,9 @@ class LocalDeliveryServer {
               <main>
                 <div class="brand">Cabina de Fotos</div>
                 <h1>$title</h1>
-                <p class="subtle">Tus cuatro recuerdos están listos. Toca una foto para guardarla en tu teléfono.</p>
+                <p class="subtle">${if (single) "Tu foto está lista. Tócala para guardarla en tu teléfono." else "Tus recuerdos están listos. Toca una foto para guardarla en tu teléfono."}</p>
                 <div class="grid">$cards</div>
-                <a class="zip" href="/d/$token/all.zip">Descargar todo · ZIP</a>
+                <a class="zip" href="/d/$token/all.zip">${if (single) "Descargar foto · JPG" else "Descargar todo · ZIP"}</a>
                 <p class="hint">En iPhone, si la foto se abre en lugar de descargarse, mantén presionada la imagen y elige “Guardar en Fotos”.</p>
               </main>
             </body>
@@ -219,7 +224,7 @@ class LocalDeliveryServer {
     }
 
     private fun downloadName(index: Int): String =
-        if (index == 3) "cabina-tira.jpg" else "cabina-foto-${index + 1}.jpg"
+        if (index == 3 && files.size == 4) "cabina-tira.jpg" else "cabina-foto-${index + 1}.jpg"
 
     private fun sendText(socket: Socket, status: Int, text: String) {
         send(socket, status, "text/plain; charset=utf-8", text.toByteArray(Charsets.UTF_8))
