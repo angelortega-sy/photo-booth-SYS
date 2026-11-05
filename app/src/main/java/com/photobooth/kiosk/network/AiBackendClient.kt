@@ -15,7 +15,8 @@ class AiBackendException(
     message: String,
     val httpCode: Int? = null,
     val code: String? = null,
-) : Exception(message)
+    cause: Throwable? = null,
+) : Exception(message, cause)
 
 data class BoothStyle(val id: String, val name: String)
 

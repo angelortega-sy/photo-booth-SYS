@@ -1112,7 +1112,9 @@ private fun AiServerAdminCard(
 ) {
     val context = LocalContext.current
     val identity = remember { viewModel.loadIdentity() }
-    var baseUrl by remember { mutableStateOf(identity.baseUrl) }
+    val storedAi = remember { viewModel.loadAiSettings() }
+    var baseUrl by remember { mutableStateOf(identity.baseUrl.ifBlank { storedAi.baseUrl }) }
+    var kioskToken by remember { mutableStateOf(storedAi.kioskToken) }
     var enrollCode by remember { mutableStateOf("") }
     var deviceId by remember { mutableStateOf(identity.deviceId) }
     var testing by remember { mutableStateOf(false) }
@@ -1147,9 +1149,19 @@ private fun AiServerAdminCard(
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
+        OutlinedTextField(
+            value = kioskToken,
+            onValueChange = { kioskToken = it },
+            label = { Text(stringResource(R.string.admin_ai_token)) },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
         Button(
             onClick = {
                 viewModel.saveServerBaseUrl(baseUrl)
+                viewModel.saveKioskToken(kioskToken)
                 onMessage(context.getString(R.string.admin_ai_saved))
             },
             colors = ButtonDefaults.buttonColors(

@@ -147,6 +147,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
     var hasCameraPermission by remember { mutableStateOf(context.hasCameraPermission()) }
     var showWelcome by rememberSaveable { mutableStateOf(true) }
     var showAdmin by rememberSaveable { mutableStateOf(false) }
+    var boothMode by rememberSaveable { mutableStateOf<String?>(null) } // "ai" | "collage"
     var lastInteraction by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -168,6 +169,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
             if (viewModel.uiState.value.isProcessing) continue
             if (SystemClock.uptimeMillis() - lastInteraction >= IDLE_TIMEOUT_MS) {
                 viewModel.endSession()
+                boothMode = null
                 showWelcome = true
                 break
             }
@@ -177,6 +179,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
     fun goHome() {
         viewModel.endSession()
         showWelcome = true
+        boothMode = null
         lastInteraction = SystemClock.uptimeMillis()
     }
 
@@ -227,6 +230,23 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
                     showAdmin = true
                     lastInteraction = SystemClock.uptimeMillis()
                 },
+            )
+
+            boothMode == null -> ModeSelectScreen(
+                onPickAi = {
+                    boothMode = "ai"
+                    lastInteraction = SystemClock.uptimeMillis()
+                },
+                onPickCollage = {
+                    boothMode = "collage"
+                    lastInteraction = SystemClock.uptimeMillis()
+                },
+                onHome = { goHome() },
+            )
+
+            boothMode == "ai" -> com.photobooth.kiosk.ui.ai.AiSingleFlow(
+                onHome = { goHome() },
+                onInteraction = { lastInteraction = SystemClock.uptimeMillis() },
             )
 
             else -> PhotoBoothScreen(

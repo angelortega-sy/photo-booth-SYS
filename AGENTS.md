@@ -67,6 +67,8 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 
 ## Descarga / Quick Share
 
+- `LocalDeliveryServer.start()` acepta **1 a 4 archivos** (no solo 4): el flujo IA de 1 foto sirve una sola imagen; el collage sirve 3 + tira. La página y el ZIP adaptan textos y nombres según la cantidad.
+
 - El CTA “Descargar · 4 fotos” intenta abrir **Quick Share directo** con el componente Samsung `com.samsung.android.app.sharelive/.presentation.main.MainActivity`; si falla, prueba el componente de Google Nearby Sharing y al final cae al share sheet del sistema.
 - No hay API pública para forzar Quick Share: el componente explícito es *best-effort*. Si no existe en el kiosko, el fallback debe seguir funcionando.
 - El intent usa `ACTION_SEND_MULTIPLE`, tipo `image/*`, `EXTRA_STREAM` con las 4 URIs de `FileProvider`, `ClipData` y `FLAG_GRANT_READ_URI_PERMISSION`. No volver a `image/jpeg` ni a URIs `file://`.

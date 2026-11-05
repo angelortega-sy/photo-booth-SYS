@@ -574,7 +574,13 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     fun loadIdentity(): DeviceIdentity = identityStore.load()
 
     fun saveServerBaseUrl(baseUrl: String) {
-        identityStore.saveBaseUrl(baseUrl)
+        val trimmed = baseUrl.trim()
+        identityStore.saveBaseUrl(trimmed)
+        aiSettings.save(aiSettings.load().copy(baseUrl = trimmed))
+    }
+
+    fun saveKioskToken(token: String) {
+        aiSettings.save(aiSettings.load().copy(kioskToken = token.trim()))
     }
 
     fun saveSelectedModel(modelId: String) {
