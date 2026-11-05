@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -85,6 +86,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -526,6 +528,10 @@ private fun AdminScreen(
         if (selectedSection == AdminSection.SUMMARY) onClose()
         else selectedSection = AdminSection.SUMMARY
     }
+    val listState = rememberLazyListState()
+    LaunchedEffect(selectedSection) {
+        listState.scrollToItem(0)
+    }
 
     fun deletePhoto(photo: SavedPhoto) {
         scope.launch {
@@ -582,11 +588,26 @@ private fun AdminScreen(
 
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
+                state = listState,
                 contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 when (selectedSection) {
                     AdminSection.SUMMARY -> {
+                        item {
+                            Text(
+                                text = stringResource(R.string.admin_settings_group),
+                                color = Cream.copy(alpha = 0.68f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        item {
+                            AdminSectionNavigationGroup(
+                                onSelect = { selectedSection = it },
+                            )
+                        }
                         item { DeviceCard(summary) }
                         item {
                             AdminCard(
@@ -605,20 +626,6 @@ private fun AdminScreen(
                                 text = "Modo administrador · ${summary?.appVersion ?: ""}",
                                 color = Cream.copy(alpha = 0.32f),
                                 fontSize = 12.sp,
-                            )
-                        }
-                        item {
-                            Text(
-                                text = stringResource(R.string.admin_settings_group),
-                                color = Cream,
-                                fontSize = 19.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
-                            )
-                        }
-                        item {
-                            AdminSectionNavigationGroup(
-                                onSelect = { selectedSection = it },
                             )
                         }
                     }
@@ -1113,7 +1120,7 @@ private fun AdminSectionNavigationGroup(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 82.dp)
-                    .clickable { onSelect(section) }
+                    .clickable(role = Role.Button) { onSelect(section) }
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -1323,7 +1330,7 @@ private fun CameraCard(
         if (usbDevices.isEmpty()) {
             Text(
                 text = stringResource(R.string.admin_no_usb),
-                color = Cream.copy(alpha = 0.45f),
+                color = Cream.copy(alpha = 0.55f),
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp),
             )
@@ -1686,7 +1693,7 @@ private fun AdminCard(
         if (subtitle != null) {
             Text(
                 text = subtitle,
-                color = Cream.copy(alpha = 0.45f),
+                color = Cream.copy(alpha = 0.55f),
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp),
             )
