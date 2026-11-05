@@ -15,8 +15,8 @@ import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.EventBrandingStore
-import com.photobooth.kiosk.network.AiBackendClient
 import com.photobooth.kiosk.network.AiBackendException
+import com.photobooth.kiosk.network.ProvisionalAiClient
 import com.photobooth.kiosk.network.AiGeneratePhoto
 import com.photobooth.kiosk.photo.BitmapTransforms
 import com.photobooth.kiosk.photo.PhotoFrameComposer
@@ -59,7 +59,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
     private val repository = BackgroundRepository(application)
     private val brandingStore = EventBrandingStore(application)
     private val aiSettings = AiSettingsStore(application)
-    private val aiClient = AiBackendClient()
+    private val aiClient = ProvisionalAiClient()
 
     private var originalFile: File? = null
     private var styledBitmap: Bitmap? = null

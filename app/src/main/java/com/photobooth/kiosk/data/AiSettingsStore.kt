@@ -2,16 +2,15 @@ package com.photobooth.kiosk.data
 
 import android.content.Context
 
-/** Backend connection settings for AI styling. Never stores the OpenRouter key. */
+/**
+ * Selected image model, plus the URL and optional kiosk token used by the
+ * single-photo flow. The OpenRouter key and the device private key never live here.
+ */
 data class AiSettings(
     val baseUrl: String = "",
     val kioskToken: String = "",
-    val modelId: String = DEFAULT_MODEL_ID,
-) {
-    companion object {
-        const val DEFAULT_MODEL_ID = "openai/gpt-image-2.6-sunburst"
-    }
-}
+    val modelId: String = "",
+)
 
 class AiSettingsStore(context: Context) {
 
@@ -21,15 +20,20 @@ class AiSettingsStore(context: Context) {
     fun load(): AiSettings = AiSettings(
         baseUrl = prefs.getString(KEY_BASE_URL, "").orEmpty().trim(),
         kioskToken = prefs.getString(KEY_TOKEN, "").orEmpty().trim(),
-        modelId = prefs.getString(KEY_MODEL, AiSettings.DEFAULT_MODEL_ID)
-            .orEmpty().trim().ifEmpty { AiSettings.DEFAULT_MODEL_ID },
+        modelId = prefs.getString(KEY_MODEL, "").orEmpty().trim(),
     )
 
     fun save(settings: AiSettings) {
         prefs.edit()
             .putString(KEY_BASE_URL, settings.baseUrl.trim())
             .putString(KEY_TOKEN, settings.kioskToken.trim())
-            .putString(KEY_MODEL, settings.modelId.trim().ifEmpty { AiSettings.DEFAULT_MODEL_ID })
+            .putString(KEY_MODEL, settings.modelId.trim())
+            .apply()
+    }
+
+    fun saveModel(modelId: String) {
+        prefs.edit()
+            .putString(KEY_MODEL, modelId.trim())
             .apply()
     }
 

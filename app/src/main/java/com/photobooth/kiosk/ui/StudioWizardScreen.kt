@@ -104,7 +104,8 @@ fun StudioWizardScreen(
     onSelectBadgePreset: (EventBadgePreset) -> Unit,
     onToggleDateStamp: (Boolean) -> Unit,
     onSelectAiStyle: (String) -> Unit,
-    onToggleAiAccessory: (String) -> Unit,
+    onSelectModel: (String) -> Unit,
+    onKeepOriginal: () -> Unit,
     onGenerateAi: () -> Unit,
     onCancelAi: () -> Unit,
     onShare: () -> Unit,
@@ -339,12 +340,10 @@ fun StudioWizardScreen(
                 when (state.wizardStep) {
                     0 -> AiConfigPanel(
                         state = state,
-                        backgrounds = backgrounds,
-                        loadThumbnail = loadThumbnail,
                         enabled = enabled,
                         onSelectAiStyle = onSelectAiStyle,
-                        onSelectAiBackground = onSelectAiBackground,
-                        onToggleAiAccessory = onToggleAiAccessory,
+                        onSelectModel = onSelectModel,
+                        onKeepOriginal = onKeepOriginal,
                         onGenerateAi = onGenerateAi,
                         onCancelAi = onCancelAi,
                     )
@@ -454,12 +453,10 @@ private fun PreviewTargetChip(
 @Composable
 private fun AiConfigPanel(
     state: PhotoBoothUiState,
-    backgrounds: List<BackgroundOption>,
-    loadThumbnail: (String) -> Bitmap?,
     enabled: Boolean,
     onSelectAiStyle: (String) -> Unit,
-    onSelectAiBackground: (Int, String) -> Unit,
-    onToggleAiAccessory: (String) -> Unit,
+    onSelectModel: (String) -> Unit,
+    onKeepOriginal: () -> Unit,
     onGenerateAi: () -> Unit,
     onCancelAi: () -> Unit,
 ) {
@@ -516,7 +513,6 @@ private fun AiConfigPanel(
             )
         }
 
-        // 1 - Global AI style (one for all 3 photos)
         Spacer(Modifier.height(10.dp))
         Text(
             text = stringResource(R.string.ai_section_style),
@@ -531,64 +527,77 @@ private fun AiConfigPanel(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            state.aiStyles.forEach { style ->
-                TargetScopeChip(
-                    text = stringResource(style.labelRes),
-                    selected = state.selectedAiStyleId == style.id,
-                    onClick = { if (!locked) onSelectAiStyle(style.id) },
-                )
+            val styles = state.serverStyles
+            if (styles.isEmpty()) {
+                state.aiStyles.forEach { style ->
+                    TargetScopeChip(
+                        text = stringResource(style.labelRes),
+                        selected = state.selectedAiStyleId == style.id,
+                        onClick = { if (!locked) onSelectAiStyle(style.id) },
+                    )
+                }
+            } else {
+                styles.forEach { style ->
+                    TargetScopeChip(
+                        text = style.name,
+                        selected = state.selectedAiStyleId == style.id,
+                        onClick = { if (!locked) onSelectAiStyle(style.id) },
+                    )
+                }
             }
         }
 
-        // 2 - Per-photo backdrop: none, built-in (prompt mode) or custom (exact reference)
         Spacer(Modifier.height(10.dp))
         Text(
-            text = stringResource(R.string.ai_section_background),
+            text = stringResource(R.string.ai_section_model),
             color = Cream.copy(alpha = 0.85f),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-        )
-        repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
-            Spacer(Modifier.height(6.dp))
-            AiBackdropSelector(
-                index = index,
-                backgrounds = backgrounds,
-                selectedId = state.aiBackgroundIds.getOrNull(index)
-                    ?: BackgroundRepository.NO_BACKGROUND_ID,
-                locked = locked,
-                loadThumbnail = loadThumbnail,
-                onSelectAiBackground = onSelectAiBackground,
-            )
-        }
-
-        // 3 - Accessories (multi-select)
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = stringResource(R.string.ai_section_accessories),
-            color = Cream.copy(alpha = 0.85f),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = stringResource(R.string.ai_accessory_none_hint),
-            color = Cream.copy(alpha = 0.55f),
-            fontSize = 11.sp,
         )
         Spacer(Modifier.height(6.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            com.photobooth.kiosk.data.AiAccessories.ALL.forEach { accessory ->
-                TargetScopeChip(
-                    text = stringResource(accessory.labelRes),
-                    selected = accessory.id in state.selectedAiAccessories,
-                    onClick = { if (!locked) onToggleAiAccessory(accessory.id) },
+        if (state.serverModels.isEmpty()) {
+            Text(
+                text = stringResource(R.string.ai_models_empty),
+                color = Cream.copy(alpha = 0.55f),
+                fontSize = 11.sp,
+            )
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                state.serverModels.forEach { model ->
+                    TargetScopeChip(
+                        text = model.name,
+                        selected = state.selectedModelId == model.id,
+                        enabled = model.selectable && !locked,
+                        onClick = { if (!locked && model.selectable) onSelectModel(model.id) },
+                    )
+                }
+            }
+            val selected = state.serverModels.firstOrNull { it.id == state.selectedModelId }
+            if (selected != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = modelPriceLabel(selected.priceUsd, selected.priceUnit, selected.overBudget),
+                    color = if (selected.overBudget) Color(0xFFFF7A7A) else Cream.copy(alpha = 0.7f),
+                    fontSize = 11.sp,
                 )
             }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = onKeepOriginal,
+            enabled = enabled && !running && !state.hasAiResult,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, Cream.copy(alpha = 0.24f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
+        ) {
+            Text(stringResource(R.string.ai_keep_original), fontWeight = FontWeight.SemiBold)
         }
 
         // Generate + progress
@@ -769,6 +778,7 @@ private fun rememberNoBackgroundOption(): BackgroundOption {
 private fun TargetScopeChip(
     text: String,
     selected: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Box(
@@ -777,19 +787,40 @@ private fun TargetScopeChip(
             .background(if (selected) SyscomBlue.copy(alpha = 0.28f) else Ink)
             .border(
                 width = if (selected) 1.5.dp else 1.dp,
-                color = if (selected) SyscomBlueLight else Cream.copy(alpha = 0.16f),
+                color = if (selected) SyscomBlueLight else Cream.copy(alpha = if (enabled) 0.16f else 0.08f),
                 shape = RoundedCornerShape(16.dp),
             )
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
             text = text,
-            color = if (selected) Cream else Cream.copy(alpha = 0.68f),
+            color = when {
+                !enabled -> Cream.copy(alpha = 0.32f)
+                selected -> Cream
+                else -> Cream.copy(alpha = 0.68f)
+            },
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
         )
     }
+}
+
+@Composable
+private fun modelPriceLabel(priceUsd: Double?, unit: String?, overBudget: Boolean): String {
+    val price = if (priceUsd == null) {
+        stringResource(R.string.ai_price_unknown)
+    } else {
+        String.format(java.util.Locale.US, "$%.4f", priceUsd)
+    }
+    val unitLabel = when (unit) {
+        "image" -> stringResource(R.string.ai_unit_image)
+        "megapixel" -> stringResource(R.string.ai_unit_megapixel)
+        "token" -> stringResource(R.string.ai_unit_token)
+        else -> unit.orEmpty()
+    }
+    val base = if (unitLabel.isBlank()) price else "$price / $unitLabel"
+    return if (overBudget) "$base · ${stringResource(R.string.ai_over_budget)}" else base
 }
 
 @Composable

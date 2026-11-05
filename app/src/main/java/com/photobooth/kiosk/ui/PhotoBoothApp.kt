@@ -764,7 +764,9 @@ private fun QrDeliveryDialog(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = stringResource(R.string.qr_hint),
+                    text = stringResource(
+                        if (session.token == "drive") R.string.qr_hint_drive else R.string.qr_hint,
+                    ),
                     color = Cream.copy(alpha = 0.68f),
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,
@@ -957,10 +959,10 @@ private fun PhotoBoothScreen(
             busy = true
             val session = viewModel.startDelivery()
             busy = false
-            if (session == null) {
+            if (session == null && viewModel.uiState.value.errorMessage == null) {
                 snackbarHostState.showSnackbar(context.getString(R.string.qr_error))
             } else {
-                deliverySession = session
+                session?.let { deliverySession = it }
             }
         }
     }
@@ -1215,7 +1217,8 @@ private fun PhotoBoothScreen(
                 onSelectBadgePreset = viewModel::selectBadgePreset,
                 onToggleDateStamp = viewModel::toggleDateStamp,
                 onSelectAiStyle = viewModel::selectAiStyle,
-                onToggleAiAccessory = viewModel::toggleAiAccessory,
+                onSelectModel = viewModel::selectServerModel,
+                onKeepOriginal = viewModel::keepOriginalPhoto,
                 onGenerateAi = { viewModel.generateWithAi() },
                 onCancelAi = { viewModel.cancelAi() },
                 onShare = { showDeliveryOptions = true },

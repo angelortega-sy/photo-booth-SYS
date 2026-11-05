@@ -1,379 +1,350 @@
 package com.photobooth.kiosk.network
 
-import android.util.Log
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
-import org.json.JSONArray
+import android.util.Base64
+import com.photobooth.kiosk.data.DeviceIdentityStore
+import com.photobooth.kiosk.security.DeviceKeyStore
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.coroutines.coroutineContext
+import java.security.MessageDigest
+import java.util.UUID
 
-/**
- * HTTP client for the provisional AI backend. The app never talks to
- * OpenRouter directly and never holds its API key; all generation happens
- * server-side. Uses only HttpURLConnection plus org.json, no extra deps.
- *
- * Contract (provisional backend notes for the teammate):
- * - POST {baseUrl}/v1/sessions -> {"sessionId":"..."}
- * - POST {baseUrl}/v1/sessions/{sessionId}/photos?index=0..2 (raw JPEG body:
- *   the ORIGINAL guest photo, never a local composite)
- * - POST {baseUrl}/v1/sessions/{sessionId}/backgrounds?index=N (raw JPEG body:
- *   exact custom background reference, optional per photo) ->
- *   {"refId":"..."} (if the backend has no such route it may answer 404/405;
- *   the app then falls back to embedding the background as base64 in generate)
- * - POST {baseUrl}/v1/sessions/{sessionId}/generate -> {"jobId":"..."}
- * - GET  {baseUrl}/v1/jobs/{jobId} -> {status, progress, cost, results, error}
- *
- * Generate body: {styleId, stylePrompt, modelId, eventId, accessories:[ids],
- * accessoriesPrompt, photos:[{index, backgroundMode:"none"|"prompt"|"custom",
- * backgroundId, backgroundPrompt?, backgroundRefId?, backgroundData?}]}
- * - "none": person photo only; backend generates a complete styled scene.
- * - "prompt": person photo + English backgroundPrompt; backend generates the
- *   full scene (person + described backdrop) in the chosen style.
- * - "custom": person photo + exact custom background image (uploaded reference
- *   via backgroundRefId, or inline data-URL JPEG via backgroundData); backend
- *   must keep the custom background exactly and transform only the person.
- * The backend is expected to make 3 OpenRouter image calls (one per photo).
- */
 class AiBackendException(
     message: String,
     val httpCode: Int? = null,
+    val code: String? = null,
     cause: Throwable? = null,
-) : IOException(message, cause)
+) : Exception(message, cause)
 
-data class AiGeneratePhoto(
-    val index: Int,
-    val backgroundId: String,
-    val backgroundMode: String,
-    val backgroundPrompt: String? = null,
-    val backgroundRefId: String? = null,
-    val backgroundDataBase64: String? = null,
+data class BoothStyle(val id: String, val name: String)
+
+data class BoothModel(
+    val id: String,
+    val name: String,
+    val priceUsd: Double?,
+    val priceUnit: String?,
+    val provider: String,
+    val overBudget: Boolean,
+    val selectable: Boolean,
 )
 
-data class AiJobImage(
-    val index: Int,
-    val url: String,
+data class BoothSession(val id: String, val expiresAt: String)
+
+data class StylizeResult(
+    val costUsd: Double?,
+    val estimatedCostUsd: Double?,
+    val imageBase64: String,
 )
 
-data class AiJobSnapshot(
+data class UsageMonth(val month: String, val requestCount: Int, val totalCostUsd: Double)
+
+data class UsageSummary(
+    val month: String,
+    val requestCount: Int,
+    val totalCostUsd: Double,
+)
+
+data class UsageRequest(
+    val id: String,
+    val createdAt: String,
+    val modelId: String,
+    val styleId: String,
     val status: String,
-    val progress: Int,
-    val cost: Double?,
-    val results: List<AiJobImage>,
-    val error: String?,
+    val priceUnit: String?,
+    val costUsd: Double?,
+    val estimatedCostUsd: Double?,
 )
 
-class AiBackendClient {
+/**
+ * Signed client for the booth server. Enrollment and health are the only
+ * unsigned calls. The OpenRouter key is never sent.
+ */
+class AiBackendClient(
+    private val identityStore: DeviceIdentityStore,
+    private val keys: DeviceKeyStore,
+) {
 
-    fun createSession(baseUrl: String, token: String): String {
-        val body = JSONObject()
-        val response = postJson(baseUrl, "/v1/sessions", token, body)
-        val sessionId = response.optString("sessionId").trim()
-        if (sessionId.isEmpty()) throw AiBackendException("Backend session response is missing sessionId")
-        return sessionId
+    fun health(): Boolean {
+        val code = open("GET", "/healthz", ByteArray(0), null, sign = false).first
+        return code in 200..299
     }
 
-    fun uploadPhoto(baseUrl: String, token: String, sessionId: String, index: Int, jpeg: File) {
-        if (!jpeg.isFile) throw AiBackendException("Styled input photo is missing")
-        val url = endpoint(baseUrl, "/v1/sessions/$sessionId/photos?index=$index")
-        val connection = openConnection(url, token, "POST", "image/jpeg")
-        try {
-            connection.setFixedLengthStreamingMode(jpeg.length())
-            jpeg.inputStream().use { input ->
-                connection.outputStream.use { output -> input.copyTo(output) }
+    fun enroll(code: String): String {
+        val pem = keys.publicKeyPem()
+        val body = """{"password":${jsonString(code.trim())},"publicKeyPem":${jsonString(pem)}}"""
+            .toByteArray(Charsets.UTF_8)
+        val (_, text) = open("POST", "/v1/devices/enroll", body, JSON, sign = false)
+        val deviceId = JSONObject(text).optString("deviceId")
+        if (!deviceId.startsWith("dev_")) {
+            throw AiBackendException("Enrollment did not return a device id")
+        }
+        identityStore.saveDeviceId(deviceId)
+        return deviceId
+    }
+
+    fun styles(): List<BoothStyle> {
+        val (_, text) = open("GET", "/v1/styles", ByteArray(0), null, sign = true)
+        val array = JSONObject(text).optJSONArray("styles") ?: return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val item = array.getJSONObject(index)
+                add(BoothStyle(id = item.getString("id"), name = item.optString("name")))
             }
-            throwOnError(connection, readBody(connection))
-        } finally {
-            connection.disconnect()
         }
     }
 
-    /**
-     * Uploads an exact custom background reference for one photo. Returns the
-     * backend refId when the route exists; throws [AiBackendException] with
-     * httpCode 404/405 when the backend has no such route, so the caller can
-     * fall back to inline base64 in the generate payload.
-     */
-    fun uploadBackground(baseUrl: String, token: String, sessionId: String, index: Int, jpeg: File): String {
-        if (!jpeg.isFile) throw AiBackendException("Custom background reference is missing")
-        val url = endpoint(baseUrl, "/v1/sessions/$sessionId/backgrounds?index=$index")
-        val connection = openConnection(url, token, "POST", "image/jpeg")
-        try {
-            connection.setFixedLengthStreamingMode(jpeg.length())
-            jpeg.inputStream().use { input ->
-                connection.outputStream.use { output -> input.copyTo(output) }
-            }
-            val body = readBody(connection)
-            throwOnError(connection, body)
-            val refId = runCatching { JSONObject(body).optString("refId").trim() }.getOrDefault("")
-            return refId.ifEmpty { "background-$index" }
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    fun requestGenerate(
-        baseUrl: String,
-        token: String,
-        sessionId: String,
-        styleId: String,
-        stylePrompt: String,
-        modelId: String,
-        eventId: String,
-        photos: List<AiGeneratePhoto>,
-        accessoryIds: List<String> = emptyList(),
-        accessoriesPrompt: String = "",
-    ): String {
-        val body = JSONObject().apply {
-            put("styleId", styleId)
-            if (stylePrompt.isNotBlank()) put("stylePrompt", stylePrompt)
-            put("modelId", modelId.ifBlank { DEFAULT_MODEL_ID })
-            put("eventId", eventId)
-            if (accessoryIds.isNotEmpty()) {
-                put("accessories", JSONArray(accessoryIds))
-            }
-            if (accessoriesPrompt.isNotBlank()) put("accessoriesPrompt", accessoriesPrompt)
-            put(
-                "photos",
-                JSONArray().apply {
-                    photos.forEach { photo ->
-                        put(
-                            JSONObject().apply {
-                                put("index", photo.index)
-                                put("backgroundId", photo.backgroundId)
-                                put("backgroundMode", photo.backgroundMode)
-                                if (photo.backgroundPrompt != null) {
-                                    put("backgroundPrompt", photo.backgroundPrompt)
-                                }
-                                if (photo.backgroundRefId != null) {
-                                    put("backgroundRefId", photo.backgroundRefId)
-                                }
-                                if (photo.backgroundDataBase64 != null) {
-                                    put("backgroundData", photo.backgroundDataBase64)
-                                }
-                            },
-                        )
-                    }
-                },
-            )
-        }
-        val response = postJson(baseUrl, "/v1/sessions/$sessionId/generate", token, body)
-        val jobId = response.optString("jobId").trim()
-        if (jobId.isEmpty()) throw AiBackendException("Backend generate response is missing jobId")
-        return jobId
-    }
-
-    /**
-     * Polls the job until it reaches done/error. Cooperative with coroutine
-     * cancellation so the guest can cancel from the UI.
-     */
-    suspend fun awaitJob(
-        baseUrl: String,
-        token: String,
-        jobId: String,
-        expectedPhotos: Int = EXPECTED_PHOTOS,
-        onProgress: (Int) -> Unit,
-    ): AiJobSnapshot {
-        repeat(MAX_POLL_ATTEMPTS) {
-            coroutineContext.ensureActive()
-            val snapshot = fetchJob(baseUrl, token, jobId)
-            onProgress(snapshot.progress.coerceIn(0, 100))
-            when (snapshot.status) {
-                "done" -> {
-                    if (snapshot.results.size < expectedPhotos) {
-                        throw AiBackendException("Backend job finished without all styled photos")
-                    }
-                    return snapshot
-                }
-                "error" -> throw AiBackendException(
-                    "Backend job failed: ${snapshot.error?.take(200) ?: "unknown error"}",
+    fun models(): List<BoothModel> {
+        val (_, text) = open("GET", "/v1/models", ByteArray(0), null, sign = true)
+        val array = JSONObject(text).optJSONArray("models") ?: return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val item = array.getJSONObject(index)
+                add(
+                    BoothModel(
+                        id = item.getString("id"),
+                        name = item.optString("name").ifBlank { item.getString("id") },
+                        priceUsd = if (item.isNull("priceUsd")) null else item.optDouble("priceUsd"),
+                        priceUnit = item.optString("priceUnit").ifBlank { null },
+                        provider = item.optString("provider"),
+                        overBudget = item.optBoolean("overBudget"),
+                        selectable = item.optBoolean("selectable"),
+                    ),
                 )
             }
-            delay(POLL_INTERVAL_MS)
-        }
-        throw AiBackendException("Backend job did not finish in time")
-    }
-
-    fun downloadToFile(baseUrl: String, url: String, token: String, target: File) {
-        val absolute = if (url.startsWith("/")) {
-            baseUrl.trim().trimEnd('/') + url
-        } else {
-            url
-        }
-        val connection = openConnection(URL(absolute), token, "GET")
-        try {
-            val code = connection.responseCode
-            if (code !in 200..299) {
-                throw AiBackendException("Styled photo download failed", httpCode = code)
-            }
-            (connection.inputStream ?: throw AiBackendException("Styled photo download is empty")).use { input ->
-                FileOutputStream(target).use { output -> input.copyTo(output) }
-            }
-            if (!target.isFile || target.length() == 0L) {
-                target.delete()
-                throw AiBackendException("Styled photo download is empty")
-            }
-        } finally {
-            connection.disconnect()
         }
     }
 
-    /**
-     * Connectivity check for the admin screen: GET {baseUrl}/health with a
-     * short timeout. Sends no API key; the provisional backend answers
-     * 200 {"ok":true,...}. Returns the trimmed body on success.
-     */
-    fun testConnection(baseUrl: String): Result<String> {
-        return try {
-            val base = baseUrl.trim().trimEnd('/')
-            if (base.isEmpty()) {
-                return Result.failure(AiBackendException("Backend URL is empty"))
+    fun usageMonths(): List<UsageMonth> {
+        val (_, text) = open("GET", "/v1/usage/months", ByteArray(0), null, sign = true)
+        val array = JSONObject(text).optJSONArray("months") ?: return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val item = array.getJSONObject(index)
+                add(
+                    UsageMonth(
+                        month = item.getString("month"),
+                        requestCount = item.optInt("requestCount"),
+                        totalCostUsd = item.optDouble("totalCostUsd"),
+                    ),
+                )
             }
-            if (!base.startsWith("http://") && !base.startsWith("https://")) {
-                return Result.failure(AiBackendException("Backend URL must start with http:// or https://"))
-            }
-            val connection = (URL("$base/health").openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = HEALTH_TIMEOUT_MS
-                readTimeout = HEALTH_TIMEOUT_MS
-                doInput = true
-                setRequestProperty("Accept", "application/json")
-            }
-            try {
-                val body = readBody(connection)
-                val code = try {
-                    connection.responseCode
-                } catch (error: IOException) {
-                    return Result.failure(AiBackendException("Could not reach the AI backend", cause = error))
-                }
-                if (code !in 200..299) {
-                    Log.w(TAG, "Health check HTTP $code")
-                    return Result.failure(
-                        AiBackendException("Backend request failed (HTTP $code)", httpCode = code),
-                    )
-                }
-                Result.success(body.trim().take(300))
-            } finally {
-                connection.disconnect()
-            }
-        } catch (error: Exception) {
-            Result.failure(error)
         }
     }
 
-    private fun fetchJob(baseUrl: String, token: String, jobId: String): AiJobSnapshot {
-        val url = endpoint(baseUrl, "/v1/jobs/$jobId")
-        val connection = openConnection(url, token, "GET")
-        try {
-            val body = readBody(connection)
-            throwOnError(connection, body)
-            val json = runCatching { JSONObject(body) }.getOrElse {
-                throw AiBackendException("Backend job response is not valid JSON", cause = it)
+    fun usageSummary(month: String): UsageSummary {
+        val path = "/v1/usage/summary?month=$month"
+        val (_, text) = open("GET", path, ByteArray(0), null, sign = true)
+        val json = JSONObject(text)
+        return UsageSummary(
+            month = json.optString("month", month),
+            requestCount = json.optInt("requestCount"),
+            totalCostUsd = json.optDouble("totalCostUsd"),
+        )
+    }
+
+    fun usageRequests(from: String, to: String): List<UsageRequest> {
+        val path = "/v1/usage/requests?from=${query(from)}&to=${query(to)}&limit=50"
+        val (_, text) = open("GET", path, ByteArray(0), null, sign = true)
+        val array = JSONObject(text).optJSONArray("requests") ?: return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val item = array.getJSONObject(index)
+                add(
+                    UsageRequest(
+                        id = item.optString("id"),
+                        createdAt = item.optString("createdAt"),
+                        modelId = item.optString("modelId"),
+                        styleId = item.optString("styleId"),
+                        status = item.optString("status"),
+                        priceUnit = item.optString("priceUnit").ifBlank { null },
+                        costUsd = if (item.isNull("costUsd")) null else item.optDouble("costUsd"),
+                        estimatedCostUsd = if (item.isNull("estimatedCostUsd")) {
+                            null
+                        } else {
+                            item.optDouble("estimatedCostUsd")
+                        },
+                    ),
+                )
             }
-            val results = mutableListOf<AiJobImage>()
-            val array = json.optJSONArray("results")
-            if (array != null) {
-                for (i in 0 until array.length()) {
-                    val item = array.optJSONObject(i) ?: continue
-                    val imageUrl = item.optString("url").trim()
-                    if (imageUrl.isNotEmpty()) {
-                        results += AiJobImage(index = item.optInt("index", i), url = imageUrl)
-                    }
-                }
-            }
-            val cost = json.optDouble("cost", Double.NaN).takeUnless { it.isNaN() }
-            return AiJobSnapshot(
-                status = json.optString("status", "running").trim().lowercase(),
-                progress = json.optInt("progress", 0),
-                cost = cost,
-                results = results,
-                error = json.optString("error").trim().takeIf { it.isNotEmpty() },
-            )
-        } finally {
-            connection.disconnect()
         }
     }
 
-    private fun postJson(baseUrl: String, path: String, token: String, body: JSONObject): JSONObject {
-        val connection = openConnection(endpoint(baseUrl, path), token, "POST", "application/json")
-        try {
-            val bytes = body.toString().toByteArray(Charsets.UTF_8)
-            connection.setFixedLengthStreamingMode(bytes.size)
-            connection.outputStream.use { it.write(bytes) }
-            val responseBody = readBody(connection)
-            throwOnError(connection, responseBody)
-            return runCatching { JSONObject(responseBody) }.getOrElse {
-                throw AiBackendException("Backend response is not valid JSON", cause = it)
-            }
-        } finally {
-            connection.disconnect()
-        }
+    fun createSession(): BoothSession {
+        val body = "{}".toByteArray(Charsets.UTF_8)
+        val (_, text) = open("POST", "/v1/sessions", body, JSON, sign = true)
+        val json = JSONObject(text)
+        return BoothSession(id = json.getString("id"), expiresAt = json.optString("expiresAt"))
     }
 
-    private fun endpoint(baseUrl: String, path: String): URL {
-        val base = baseUrl.trim().trimEnd('/')
-        if (!base.startsWith("http://") && !base.startsWith("https://")) {
-            throw AiBackendException("Backend URL must start with http:// or https://")
-        }
-        return URL("$base$path")
+    fun uploadPhotos(sessionId: String, photo0: File, photo1: File, photo2: File, strip: File) {
+        val boundary = "----Booth${UUID.randomUUID().toString().replace("-", "")}"
+        val body = multipart(
+            boundary,
+            listOf(
+                "photo0" to photo0,
+                "photo1" to photo1,
+                "photo2" to photo2,
+                "strip" to strip,
+            ),
+        )
+        open(
+            "POST",
+            "/v1/sessions/$sessionId/photos",
+            body,
+            "multipart/form-data; boundary=$boundary",
+            sign = true,
+        )
     }
 
-    private fun openConnection(
-        url: URL,
-        token: String,
+    fun stylize(sessionId: String, modelId: String, styleId: String): StylizeResult {
+        val body = """{"modelId":${jsonString(modelId)},"styleId":${jsonString(styleId)},"source":"strip"}"""
+            .toByteArray(Charsets.UTF_8)
+        val (_, text) = open(
+            "POST",
+            "/v1/sessions/$sessionId/stylize",
+            body,
+            JSON,
+            sign = true,
+        )
+        val json = JSONObject(text)
+        return StylizeResult(
+            costUsd = if (json.isNull("costUsd")) null else json.optDouble("costUsd"),
+            estimatedCostUsd = if (json.isNull("estimatedCostUsd")) {
+                null
+            } else {
+                json.optDouble("estimatedCostUsd")
+            },
+            imageBase64 = json.optString("imageBase64"),
+        )
+    }
+
+    fun finalize(sessionId: String): String {
+        val body = "{}".toByteArray(Charsets.UTF_8)
+        val (_, text) = open(
+            "POST",
+            "/v1/sessions/$sessionId/finalize",
+            body,
+            JSON,
+            sign = true,
+        )
+        val shareUrl = JSONObject(text).optString("shareUrl")
+        if (shareUrl.isBlank()) throw AiBackendException("Missing share URL")
+        return shareUrl
+    }
+
+    private fun open(
         method: String,
-        contentType: String? = null,
-    ): HttpURLConnection {
-        val connection = (url.openConnection() as HttpURLConnection).apply {
+        path: String,
+        body: ByteArray,
+        contentType: String?,
+        sign: Boolean,
+    ): Pair<Int, String> {
+        val base = identityStore.load().baseUrl.trimEnd('/')
+        val connection = (URL(base + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-            doInput = true
-            if (method == "POST") doOutput = true
+            connectTimeout = 20_000
+            readTimeout = 120_000
+            instanceFollowRedirects = false
             setRequestProperty("Accept", "application/json")
+            if (sign) applySignature(method, path, body)
             if (contentType != null) setRequestProperty("Content-Type", contentType)
-            if (token.isNotBlank()) setRequestProperty("Authorization", "Bearer $token")
+            if (method != "GET" && method != "HEAD") {
+                doOutput = true
+                setFixedLengthStreamingMode(body.size)
+            }
         }
-        return connection
+        try {
+            if (connection.doOutput) {
+                connection.outputStream.use { it.write(body) }
+            }
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) {
+                val parsed = runCatching { JSONObject(text).optJSONObject("error") }.getOrNull()
+                throw AiBackendException(
+                    message = parsed?.optString("message").orEmpty().ifBlank { "HTTP $code" },
+                    httpCode = code,
+                    code = parsed?.optString("code")?.ifBlank { null },
+                )
+            }
+            return code to text
+        } catch (error: AiBackendException) {
+            throw error
+        } catch (error: Exception) {
+            throw AiBackendException(error.message ?: "network")
+        } finally {
+            connection.disconnect()
+        }
     }
 
-    private fun readBody(connection: HttpURLConnection): String {
-        val stream = try {
-            connection.inputStream
-        } catch (_: IOException) {
-            connection.errorStream
-        } ?: return ""
-        return stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+    private fun HttpURLConnection.applySignature(method: String, path: String, body: ByteArray) {
+        val deviceId = identityStore.load().deviceId
+        if (!deviceId.startsWith("dev_")) {
+            throw AiBackendException("Device is not enrolled", code = "unknown_device")
+        }
+        val timestamp = (System.currentTimeMillis() / 1000L).toString()
+        val nonce = UUID.randomUUID().toString()
+        val canonical = canonicalString(method, path, timestamp, nonce, sha256Hex(body))
+        val signature = keys.sign(canonical.toByteArray(Charsets.UTF_8))
+        setRequestProperty("X-Device-Id", deviceId)
+        setRequestProperty("X-Timestamp", timestamp)
+        setRequestProperty("X-Nonce", nonce)
+        setRequestProperty("X-Signature", signature)
     }
 
-    private fun throwOnError(connection: HttpURLConnection, body: String) {
-        val code = try {
-            connection.responseCode
-        } catch (error: IOException) {
-            throw AiBackendException("Could not reach the AI backend", cause = error)
-        }
-        if (code !in 200..299) {
-            val detail = runCatching { JSONObject(body).optString("error") }.getOrDefault("").trim()
-            Log.w(TAG, "Backend HTTP $code: ${detail.take(200)}")
-            throw AiBackendException(
-                "Backend request failed (HTTP $code)",
-                httpCode = code,
+    private fun multipart(boundary: String, files: List<Pair<String, File>>): ByteArray {
+        val out = ByteArrayOutputStream()
+        for ((name, file) in files) {
+            out.write("--$boundary\r\n".toByteArray(Charsets.UTF_8))
+            out.write(
+                "Content-Disposition: form-data; name=\"$name\"; filename=\"$name.jpg\"\r\n"
+                    .toByteArray(Charsets.UTF_8),
             )
+            out.write("Content-Type: image/jpeg\r\n\r\n".toByteArray(Charsets.UTF_8))
+            out.write(file.readBytes())
+            out.write("\r\n".toByteArray(Charsets.UTF_8))
         }
+        out.write("--$boundary--\r\n".toByteArray(Charsets.UTF_8))
+        return out.toByteArray()
     }
 
     companion object {
-        const val DEFAULT_MODEL_ID = "openai/gpt-image-2.6-sunburst"
-        private const val TAG = "AiBackend"
-        private const val CONNECT_TIMEOUT_MS = 15_000
-        private const val READ_TIMEOUT_MS = 30_000
-        private const val HEALTH_TIMEOUT_MS = 10_000
-        private const val POLL_INTERVAL_MS = 2_000L
-        private const val MAX_POLL_ATTEMPTS = 180
-        private const val EXPECTED_PHOTOS = 3
+        private const val JSON = "application/json; charset=utf-8"
+
+        fun canonicalString(
+            method: String,
+            resource: String,
+            timestamp: String,
+            nonce: String,
+            bodyHash: String,
+        ): String = listOf(method.uppercase(), resource, timestamp, nonce, bodyHash).joinToString("\n")
+
+        fun sha256Hex(body: ByteArray): String {
+            val digest = MessageDigest.getInstance("SHA-256").digest(body)
+            return digest.joinToString("") { "%02x".format(it) }
+        }
+
+        fun jsonString(value: String): String = buildString {
+            append('"')
+            value.forEach { char ->
+                when (char) {
+                    '\\' -> append("\\\\")
+                    '"' -> append("\\\"")
+                    '\n' -> append("\\n")
+                    '\r' -> append("\\r")
+                    else -> append(char)
+                }
+            }
+            append('"')
+        }
+
+        fun query(value: String): String =
+            java.net.URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
     }
 }
+
+/** Kept so call sites can decode the stylized JPEG without importing android.util twice. */
+fun decodeImage(base64: String): ByteArray = Base64.decode(base64, Base64.DEFAULT)
