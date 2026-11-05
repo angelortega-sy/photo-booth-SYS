@@ -61,6 +61,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
@@ -73,6 +74,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -102,12 +104,15 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -116,8 +121,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.photobooth.kiosk.R
 import com.photobooth.kiosk.camera.CameraPreview
 import com.photobooth.kiosk.data.BackgroundOption
+import com.photobooth.kiosk.data.EventBranding
+import com.photobooth.kiosk.delivery.DeliverySession
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoSaver
+import com.photobooth.kiosk.photo.QrCodeGenerator
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.InkSoft
@@ -204,6 +212,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
             )
 
             showAdmin -> AdminGate(
+                viewModel = viewModel,
                 onClose = {
                     showAdmin = false
                     lastInteraction = SystemClock.uptimeMillis()
@@ -212,6 +221,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
 
             showWelcome -> WelcomeScreen(
                 loadThumbnail = viewModel::loadThumbnail,
+                branding = state.customization.eventBranding,
                 onStart = { startSession() },
                 onAdminRequested = {
                     showAdmin = true
@@ -232,6 +242,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
 @Composable
 private fun WelcomeScreen(
     loadThumbnail: (String) -> Bitmap?,
+    branding: EventBranding,
     onStart: () -> Unit,
     onAdminRequested: () -> Unit,
 ) {
@@ -308,7 +319,7 @@ private fun WelcomeScreen(
                         .padding(horizontal = 14.dp, vertical = 7.dp),
                 ) {
                     Text(
-                        text = stringResource(R.string.welcome_brand),
+                        text = branding.brand,
                         color = SyscomBlueLight,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -485,7 +496,7 @@ private fun WelcomeScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "EXPO SYSCOM 2027",
+                        text = branding.badgeHeadline,
                         color = Cream,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -497,7 +508,7 @@ private fun WelcomeScreen(
             Spacer(Modifier.height(24.dp))
 
             Text(
-                text = stringResource(R.string.welcome_title),
+                text = branding.welcomeTitle,
                 color = Cream,
                 fontSize = 46.sp,
                 lineHeight = 50.sp,
@@ -506,7 +517,7 @@ private fun WelcomeScreen(
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                text = stringResource(R.string.welcome_subtitle),
+                text = branding.welcomeSubtitle,
                 color = Cream.copy(alpha = 0.72f),
                 fontSize = 16.sp,
                 lineHeight = 22.sp,
@@ -629,6 +640,166 @@ private fun WelcomeStepPill(text: String) {
 }
 
 @Composable
+private fun DeliveryOptionsDialog(
+    onDismiss: () -> Unit,
+    onQuickShare: () -> Unit,
+    onShowQr: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.9f).widthIn(max = 420.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = InkSoft,
+            border = BorderStroke(1.dp, SyscomBlueLight.copy(alpha = 0.28f)),
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = stringResource(R.string.download_options_title),
+                    color = Cream,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.download_options_subtitle),
+                    color = Cream.copy(alpha = 0.68f),
+                    fontSize = 14.sp,
+                )
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = onQuickShare,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SyscomBlue,
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    Icon(Icons.Rounded.Share, contentDescription = null)
+                    Spacer(Modifier.width(10.dp))
+                    Text(stringResource(R.string.quick_share_option), fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onShowQr,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    border = BorderStroke(1.5.dp, SyscomBlueLight.copy(alpha = 0.7f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
+                ) {
+                    Icon(Icons.Rounded.QrCode2, contentDescription = null)
+                    Spacer(Modifier.width(10.dp))
+                    Text(stringResource(R.string.qr_option), fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(8.dp))
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text(stringResource(R.string.admin_cancel), color = Cream.copy(alpha = 0.7f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QrDeliveryDialog(
+    session: DeliverySession,
+    onDismiss: () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    val qr = remember(session.pageUrl) {
+        QrCodeGenerator.generate(session.pageUrl, 720)
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 420.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = InkSoft,
+            border = BorderStroke(1.dp, SyscomBlueLight.copy(alpha = 0.28f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.qr_title),
+                    color = Cream,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.qr_hint),
+                    color = Cream.copy(alpha = 0.68f),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color.White)
+                        .padding(12.dp),
+                ) {
+                    Image(
+                        bitmap = qr.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.size(260.dp),
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = session.pageUrl,
+                    color = Cream.copy(alpha = 0.58f),
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                )
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(session.pageUrl))
+                            copied = true
+                        },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        border = BorderStroke(1.2.dp, SyscomBlueLight.copy(alpha = 0.6f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
+                    ) {
+                        Text(
+                            text = stringResource(
+                                if (copied) R.string.link_copied else R.string.copy_link,
+                            ),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SyscomBlue,
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Text(stringResource(R.string.close), fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun PhotoBoothScreen(
     viewModel: PhotoBoothViewModel,
     onHome: () -> Unit,
@@ -651,13 +822,11 @@ private fun PhotoBoothScreen(
     var cameraKey by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     var showBackgrounds by remember { mutableStateOf(false) }
+    var showDeliveryOptions by remember { mutableStateOf(false) }
+    var deliverySession by remember { mutableStateOf<DeliverySession?>(null) }
 
-    val selectedOption = viewModel.backgrounds.firstOrNull { it.id == state.selectedBackgroundId }
-    val selectedName = if (selectedOption != null) {
-        stringResource(selectedOption.nameRes)
-    } else {
-        ""
-    }
+    val selectedOption = state.backgrounds.firstOrNull { it.id == state.selectedBackgroundId }
+    val selectedName = selectedOption?.name ?: ""
 
     LaunchedEffect(state.capturedCount) {
         if (state.capturedCount == 0) {
@@ -775,6 +944,25 @@ private fun PhotoBoothScreen(
         }
     }
 
+    fun showQrDelivery() {
+        if (busy || state.isExporting) return
+        scope.launch {
+            busy = true
+            val session = viewModel.startDelivery()
+            busy = false
+            if (session == null) {
+                snackbarHostState.showSnackbar(context.getString(R.string.qr_error))
+            } else {
+                deliverySession = session
+            }
+        }
+    }
+
+    fun closeQrDelivery() {
+        deliverySession = null
+        viewModel.stopDelivery()
+    }
+
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -797,6 +985,7 @@ private fun PhotoBoothScreen(
                     modifier = Modifier.fillMaxSize(),
                     captureRequest = captureRequest,
                     handDetectionEnabled = handDetectionActive,
+                    previewRotationDegrees = state.cameraRotationDegrees,
                     onPalmDetected = {
                         onInteraction()
                         startCapture()
@@ -853,7 +1042,7 @@ private fun PhotoBoothScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = stringResource(R.string.welcome_brand),
+                    text = state.customization.eventBranding.brand,
                     color = SyscomBlueLight,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -1007,7 +1196,7 @@ private fun PhotoBoothScreen(
         if (state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT) {
             StudioWizardScreen(
                 state = state,
-                backgrounds = viewModel.backgrounds,
+                backgrounds = state.backgrounds,
                 loadThumbnail = viewModel::loadThumbnail,
                 enabled = !busy && !state.isExporting,
                 onStepSelected = viewModel::setWizardStep,
@@ -1019,13 +1208,34 @@ private fun PhotoBoothScreen(
                 onSelectBadgePreset = viewModel::selectBadgePreset,
                 onToggleDateStamp = viewModel::toggleDateStamp,
                 onSave = { savePhoto() },
-                onShare = { sharePhoto() },
+                onShare = { showDeliveryOptions = true },
                 onRetake = {
                     autoSequenceActive = false
                     cameraReady = false
                     viewModel.clearResult()
                 },
                 onHome = onHome,
+            )
+        }
+
+        if (showDeliveryOptions) {
+            DeliveryOptionsDialog(
+                onDismiss = { showDeliveryOptions = false },
+                onQuickShare = {
+                    showDeliveryOptions = false
+                    sharePhoto()
+                },
+                onShowQr = {
+                    showDeliveryOptions = false
+                    showQrDelivery()
+                },
+            )
+        }
+
+        deliverySession?.let { session ->
+            QrDeliveryDialog(
+                session = session,
+                onDismiss = { closeQrDelivery() },
             )
         }
 
@@ -1061,6 +1271,7 @@ private fun PhotoBoothScreen(
         if (showBackgrounds) {
             BackgroundSheet(
                 viewModel = viewModel,
+                backgrounds = state.backgrounds,
                 selectedId = state.selectedBackgroundId,
                 onSelect = { id ->
                     if (!state.hasResult) {
@@ -1151,6 +1362,7 @@ private fun CaptureButton(
 @Composable
 private fun BackgroundSheet(
     viewModel: PhotoBoothViewModel,
+    backgrounds: List<BackgroundOption>,
     selectedId: String,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -1216,7 +1428,7 @@ private fun BackgroundSheet(
                 contentPadding = PaddingValues(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(viewModel.backgrounds, key = { it.id }) { option ->
+                items(backgrounds, key = { it.id }) { option ->
                     BackgroundCard(
                         option = option,
                         selected = option.id == selectedId,
@@ -1297,7 +1509,7 @@ private fun BackgroundCard(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            text = stringResource(option.nameRes),
+            text = option.name,
             color = if (selected) Cream else Cream.copy(alpha = 0.62f),
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,

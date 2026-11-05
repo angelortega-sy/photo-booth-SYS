@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,20 +26,24 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Backspace
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Lock
@@ -49,15 +55,19 @@ import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -71,10 +81,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,6 +94,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.photobooth.kiosk.R
+import com.photobooth.kiosk.data.BackgroundOption
+import com.photobooth.kiosk.data.BackgroundRepository
+import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.admin.AdminAuth
 import com.photobooth.kiosk.admin.CameraOption
 import com.photobooth.kiosk.admin.DeviceDiagnostics
@@ -105,11 +120,15 @@ import java.util.Locale
 
 private enum class PinMode { CREATE, VERIFY }
 
-private enum class AdminSection(val titleRes: Int) {
+private enum class AdminSection(
+    val titleRes: Int,
+    val descriptionRes: Int? = null,
+) {
     SUMMARY(R.string.admin_tab_summary),
-    CAMERA(R.string.admin_section_camera),
-    PHOTOS(R.string.admin_section_photos),
-    SYSTEM(R.string.admin_tab_system),
+    CAMERA(R.string.admin_section_camera, R.string.admin_nav_camera_description),
+    PHOTOS(R.string.admin_section_photos, R.string.admin_nav_photos_description),
+    EVENT(R.string.admin_tab_event, R.string.admin_nav_event_description),
+    SYSTEM(R.string.admin_tab_system, R.string.admin_nav_system_description),
 }
 
 private fun photoPermission(): String =
@@ -123,7 +142,10 @@ private fun hasPhotoPermission(context: android.content.Context): Boolean =
     ContextCompat.checkSelfPermission(context, photoPermission()) == PackageManager.PERMISSION_GRANTED
 
 @Composable
-fun AdminGate(onClose: () -> Unit) {
+fun AdminGate(
+    viewModel: PhotoBoothViewModel,
+    onClose: () -> Unit,
+) {
     val context = LocalContext.current
     val auth = remember(context) { AdminAuth(context) }
     var unlocked by remember { mutableStateOf(false) }
@@ -133,6 +155,7 @@ fun AdminGate(onClose: () -> Unit) {
 
     if (unlocked && !changingPin) {
         AdminScreen(
+            viewModel = viewModel,
             onClose = onClose,
             onChangePin = { changingPin = true },
         )
@@ -443,10 +466,12 @@ private fun PinKey(
 
 @Composable
 private fun AdminScreen(
+    viewModel: PhotoBoothViewModel,
     onClose: () -> Unit,
     onChangePin: () -> Unit,
 ) {
     val context = LocalContext.current
+    val appState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -499,7 +524,14 @@ private fun AdminScreen(
         loading = false
     }
 
-    BackHandler { onClose() }
+    BackHandler {
+        if (selectedSection == AdminSection.SUMMARY) onClose()
+        else selectedSection = AdminSection.SUMMARY
+    }
+    val listState = rememberLazyListState()
+    LaunchedEffect(selectedSection) {
+        listState.scrollToItem(0)
+    }
 
     fun deletePhoto(photo: SavedPhoto) {
         scope.launch {
@@ -540,23 +572,42 @@ private fun AdminScreen(
         val photoColumns = if (compact) 2 else 4
         Column(
             modifier = Modifier
+                .widthIn(max = 1100.dp)
                 .fillMaxSize()
+                .align(Alignment.TopCenter)
                 .padding(horizontal = if (compact) 18.dp else 26.dp),
         ) {
-            AdminHeader(onClose = onClose)
-            AdminSectionTabs(
-                selected = selectedSection,
-                compact = compact,
-                onSelect = { selectedSection = it },
+            AdminHeader(
+                section = selectedSection,
+                onBack = {
+                    if (selectedSection == AdminSection.SUMMARY) onClose()
+                    else selectedSection = AdminSection.SUMMARY
+                },
+                onClose = onClose,
             )
 
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
-                contentPadding = PaddingValues(vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                state = listState,
+                contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 when (selectedSection) {
                     AdminSection.SUMMARY -> {
+                        item {
+                            Text(
+                                text = stringResource(R.string.admin_settings_group),
+                                color = Cream.copy(alpha = 0.68f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        item {
+                            AdminSectionNavigationGroup(
+                                onSelect = { selectedSection = it },
+                            )
+                        }
                         item { DeviceCard(summary) }
                         item {
                             AdminCard(
@@ -591,6 +642,8 @@ private fun AdminScreen(
                                     cameraTestError = null
                                 },
                                 onCameraError = { cameraTestError = it },
+                                rotationDegrees = appState.cameraRotationDegrees,
+                                onRotationChange = viewModel::setCameraRotation,
                             )
                         }
                     }
@@ -640,6 +693,46 @@ private fun AdminScreen(
                                     onDelete = { photoToDelete = it },
                                 )
                             }
+                        }
+                    }
+
+                    AdminSection.EVENT -> {
+                        item {
+                            BackgroundsAdminCard(
+                                backgrounds = appState.adminBackgrounds.ifEmpty { viewModel.allBackgrounds },
+                                loadThumbnail = viewModel::loadThumbnail,
+                                onImport = { uri, name ->
+                                    viewModel.importBackground(uri, name) { error ->
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (error == null) {
+                                                    context.getString(R.string.admin_background_imported)
+                                                } else {
+                                                    context.getString(
+                                                        R.string.admin_background_import_error,
+                                                    )
+                                                },
+                                            )
+                                        }
+                                    }
+                                },
+                                onToggle = viewModel::setBackgroundEnabled,
+                                onDelete = viewModel::deleteBackground,
+                                onRename = viewModel::renameBackground,
+                            )
+                        }
+                        item {
+                            EventBrandingAdminCard(
+                                branding = appState.customization.eventBranding,
+                                onSave = {
+                                    viewModel.updateEventBranding(it)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            context.getString(R.string.admin_event_saved),
+                                        )
+                                    }
+                                },
+                            )
                         }
                     }
 
@@ -742,6 +835,259 @@ private fun AdminScreen(
 
 }
 
+@Composable
+private fun BackgroundsAdminCard(
+    backgrounds: List<BackgroundOption>,
+    loadThumbnail: (String) -> Bitmap?,
+    onImport: (Uri, String?) -> Unit,
+    onToggle: (String, Boolean) -> Unit,
+    onDelete: (String) -> Unit,
+    onRename: (String, String) -> Unit,
+) {
+    val context = LocalContext.current
+    var renameTarget by remember { mutableStateOf<BackgroundOption?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        uris.forEach { uri ->
+            val name = runCatching {
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(OpenableColumns.DISPLAY_NAME),
+                    null,
+                    null,
+                    null,
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }
+            }.getOrNull()
+            onImport(uri, name)
+        }
+    }
+
+    AdminCard(
+        title = stringResource(R.string.admin_backgrounds_title),
+        subtitle = stringResource(R.string.admin_backgrounds_subtitle),
+    ) {
+        OutlinedButton(
+            onClick = { picker.launch(arrayOf("image/*")) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.admin_background_upload))
+        }
+        Spacer(Modifier.height(10.dp))
+        backgrounds
+            .filter { it.id != BackgroundRepository.ORIGINAL_ID }
+            .forEach { option ->
+                BackgroundAdminRow(
+                    option = option,
+                    loadThumbnail = loadThumbnail,
+                    onToggle = { enabled -> onToggle(option.id, enabled) },
+                    onDelete = { onDelete(option.id) },
+                    onRename = {
+                        renameTarget = option
+                        renameText = option.name
+                    },
+                )
+            }
+    }
+
+    renameTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text(stringResource(R.string.admin_background_rename)) },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onRename(target.id, renameText)
+                        renameTarget = null
+                    },
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) {
+                    Text(stringResource(R.string.admin_cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun BackgroundAdminRow(
+    option: BackgroundOption,
+    loadThumbnail: (String) -> Bitmap?,
+    onToggle: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+    onRename: () -> Unit,
+) {
+    val thumbnail by produceState<Bitmap?>(initialValue = null, option.id) {
+        value = withContext(Dispatchers.IO) { loadThumbnail(option.id) }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(46.dp)
+                .aspectRatio(9f / 16f)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Ink),
+            contentAlignment = Alignment.Center,
+        ) {
+            val image = thumbnail
+            if (image != null) {
+                Image(
+                    bitmap = image.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.PhotoLibrary,
+                    contentDescription = null,
+                    tint = Cream.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = option.name,
+                color = Cream,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(
+                    if (option.isBuiltIn) {
+                        R.string.admin_background_builtin
+                    } else {
+                        R.string.admin_background_custom
+                    },
+                ),
+                color = Cream.copy(alpha = 0.45f),
+                fontSize = 11.sp,
+            )
+        }
+        if (!option.isBuiltIn) {
+            IconButton(onClick = onRename) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = stringResource(R.string.admin_background_rename),
+                    tint = Cream.copy(alpha = 0.65f),
+                )
+            }
+        }
+        Switch(checked = option.enabled, onCheckedChange = onToggle)
+        if (!option.isBuiltIn) {
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = stringResource(R.string.admin_background_delete),
+                    tint = Color(0xFFFF7A7A),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventBrandingAdminCard(
+    branding: EventBranding,
+    onSave: (EventBranding) -> Unit,
+) {
+    var draft by remember { mutableStateOf(branding) }
+    LaunchedEffect(branding) { draft = branding }
+
+    AdminCard(
+        title = stringResource(R.string.admin_event_title),
+        subtitle = stringResource(R.string.admin_event_subtitle),
+    ) {
+        BrandingField(
+            label = stringResource(R.string.admin_event_brand),
+            value = draft.brand,
+            onValueChange = { draft = draft.copy(brand = it) },
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_tagline),
+            value = draft.tagline,
+            onValueChange = { draft = draft.copy(tagline = it) },
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_welcome_title),
+            value = draft.welcomeTitle,
+            onValueChange = { draft = draft.copy(welcomeTitle = it) },
+            minLines = 2,
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_welcome_subtitle),
+            value = draft.welcomeSubtitle,
+            onValueChange = { draft = draft.copy(welcomeSubtitle = it) },
+            minLines = 2,
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_badge_headline),
+            value = draft.badgeHeadline,
+            onValueChange = { draft = draft.copy(badgeHeadline = it) },
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_badge_subheadline),
+            value = draft.badgeSubheadline,
+            onValueChange = { draft = draft.copy(badgeSubheadline = it) },
+        )
+        BrandingField(
+            label = stringResource(R.string.admin_event_badge_tag),
+            value = draft.badgeTag,
+            onValueChange = { draft = draft.copy(badgeTag = it) },
+        )
+        Button(
+            onClick = { onSave(draft) },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SyscomBlue,
+                contentColor = Color.White,
+            ),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(50.dp),
+        ) {
+            Text(stringResource(R.string.admin_event_save))
+        }
+    }
+}
+
+@Composable
+private fun BrandingField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    minLines: Int = 1,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = minLines == 1,
+        minLines = minLines,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+    )
+}
+
 private data class AdminData(
     val photos: List<SavedPhoto>,
     val cameras: List<CameraOption>,
@@ -752,94 +1098,142 @@ private data class AdminData(
 )
 
 @Composable
-private fun AdminSectionTabs(
-    selected: AdminSection,
-    compact: Boolean,
+private fun AdminSectionNavigationGroup(
     onSelect: (AdminSection) -> Unit,
 ) {
-    val sections = AdminSection.entries
-    if (compact) {
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            items(sections) { section ->
-                AdminSectionTab(
-                    section = section,
-                    selected = selected == section,
-                    onSelect = { onSelect(section) },
-                    modifier = Modifier.widthIn(min = 108.dp),
-                )
-            }
-        }
-    } else {
-        Row(Modifier.fillMaxWidth()) {
-            sections.forEach { section ->
-                AdminSectionTab(
-                    section = section,
-                    selected = selected == section,
-                    onSelect = { onSelect(section) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AdminSectionTab(
-    section: AdminSection,
-    selected: Boolean,
-    onSelect: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    TextButton(onClick = onSelect, modifier = modifier) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = stringResource(section.titleRes),
-                color = if (selected) Cream else Cream.copy(alpha = 0.52f),
-                fontSize = 14.sp,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                maxLines = 1,
-            )
-            Spacer(Modifier.height(8.dp))
-            Box(
-                Modifier
+    val sections = listOf(
+        AdminSection.EVENT,
+        AdminSection.CAMERA,
+        AdminSection.PHOTOS,
+        AdminSection.SYSTEM,
+    )
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(InkSoft)
+            .border(1.dp, Cream.copy(alpha = 0.08f), shape),
+    ) {
+        sections.forEachIndexed { index, section ->
+            Row(
+                modifier = Modifier
                     .fillMaxWidth()
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(if (selected) SyscomBlueLight else Color.Transparent),
-            )
+                    .heightIn(min = 82.dp)
+                    .clickable(role = Role.Button) { onSelect(section) }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(SyscomBlue.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = adminSectionIcon(section),
+                        contentDescription = null,
+                        tint = SyscomBlueLight,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(section.titleRes),
+                        color = Cream,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    section.descriptionRes?.let { descriptionRes ->
+                        Text(
+                            text = stringResource(descriptionRes),
+                            color = Cream.copy(alpha = 0.62f),
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                    contentDescription = null,
+                    tint = Cream.copy(alpha = 0.52f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            if (index < sections.lastIndex) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 76.dp, end = 16.dp)
+                        .height(1.dp)
+                        .background(Cream.copy(alpha = 0.08f)),
+                )
+            }
         }
     }
 }
 
+private fun adminSectionIcon(section: AdminSection): ImageVector = when (section) {
+    AdminSection.SUMMARY -> Icons.Rounded.Settings
+    AdminSection.CAMERA -> Icons.Rounded.CameraAlt
+    AdminSection.PHOTOS -> Icons.Rounded.PhotoLibrary
+    AdminSection.EVENT -> Icons.Rounded.Edit
+    AdminSection.SYSTEM -> Icons.Rounded.Wifi
+}
+
 @Composable
-private fun AdminHeader(onClose: () -> Unit) {
+private fun AdminHeader(
+    section: AdminSection,
+    onBack: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val title = if (section == AdminSection.SUMMARY) {
+        stringResource(R.string.admin_title)
+    } else {
+        stringResource(section.titleRes)
+    }
+    val subtitle = section.descriptionRes?.let { stringResource(it) }
+        ?: stringResource(R.string.admin_subtitle)
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 72.dp)
+            .padding(top = 6.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onClose) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = stringResource(R.string.admin_close),
-                tint = Cream,
-            )
+        if (section == AdminSection.SUMMARY) {
+            Spacer(Modifier.size(48.dp))
+        } else {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = stringResource(R.string.admin_back),
+                    tint = Cream,
+                )
+            }
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = stringResource(R.string.admin_title),
+                text = title,
                 color = Cream,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = 21.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(R.string.admin_subtitle),
-                color = Cream.copy(alpha = 0.50f),
-                fontSize = 12.sp,
+                text = subtitle,
+                color = Cream.copy(alpha = 0.62f),
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         IconButton(onClick = onClose) {
@@ -879,9 +1273,11 @@ private fun CameraCard(
     cameraTestError: String?,
     onToggleTest: () -> Unit,
     onCameraError: (String) -> Unit,
+    rotationDegrees: Int,
+    onRotationChange: (Int) -> Unit,
 ) {
     AdminCard(
-        title = stringResource(R.string.admin_section_camera),
+        title = stringResource(R.string.admin_camera_controls_title),
         subtitle = stringResource(R.string.admin_section_camera_hint),
     ) {
         if (cameras.isEmpty()) {
@@ -934,7 +1330,7 @@ private fun CameraCard(
         if (usbDevices.isEmpty()) {
             Text(
                 text = stringResource(R.string.admin_no_usb),
-                color = Cream.copy(alpha = 0.45f),
+                color = Cream.copy(alpha = 0.55f),
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp),
             )
@@ -986,6 +1382,32 @@ private fun CameraCard(
             )
         }
 
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = stringResource(R.string.admin_camera_rotation),
+            color = Cream,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.admin_camera_rotation_hint),
+            color = Color(0xFF9AC2F4),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Row(
+            modifier = Modifier.padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf(0, 90, 180, 270).forEach { degrees ->
+                FilterChip(
+                    selected = rotationDegrees == degrees,
+                    onClick = { onRotationChange(degrees) },
+                    label = { Text("$degrees°") },
+                )
+            }
+        }
+
         if (showCameraTest) {
             Spacer(Modifier.height(12.dp))
             Box(
@@ -1030,19 +1452,13 @@ private fun PhotosHeader(
             .padding(top = 4.dp),
     ) {
         Text(
-            text = stringResource(R.string.admin_section_photos),
-            color = Cream,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.ExtraBold,
-        )
-        Text(
             text = if (permissionGranted) {
                 "$photoCount foto(s) en la galería"
             } else {
                 stringResource(R.string.admin_permission_photos)
             },
-            color = Cream.copy(alpha = 0.50f),
-            fontSize = 13.sp,
+            color = Cream.copy(alpha = 0.68f),
+            fontSize = 14.sp,
         )
         if (compact) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1259,26 +1675,30 @@ private fun AdminCard(
     subtitle: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val shape = RoundedCornerShape(20.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .clip(shape)
+            .background(InkSoft)
+            .border(1.dp, Cream.copy(alpha = 0.08f), shape)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
     ) {
         Text(
             text = title,
             color = Cream,
-            fontSize = 19.sp,
+            fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
         )
         if (subtitle != null) {
             Text(
                 text = subtitle,
-                color = Cream.copy(alpha = 0.45f),
+                color = Cream.copy(alpha = 0.55f),
                 fontSize = 13.sp,
-                modifier = Modifier.padding(top = 3.dp),
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(14.dp))
         content()
     }
 }

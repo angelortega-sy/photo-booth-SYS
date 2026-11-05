@@ -131,7 +131,7 @@ fun StudioWizardScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = stringResource(R.string.welcome_brand),
+                            text = state.customization.eventBranding.brand,
                             color = SyscomBlueLight,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -474,7 +474,7 @@ private fun StepBackgroundsPanel(
             repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
                 val bgForPhoto = state.photoBackgroundIds.getOrNull(index)
                 val bgOption = backgrounds.firstOrNull { it.id == bgForPhoto }
-                val subtitle = bgOption?.let { stringResource(it.nameRes) } ?: ""
+                val subtitle = bgOption?.name ?: ""
                 TargetScopeChip(
                     text = stringResource(R.string.wizard_photo_tab, index + 1) +
                         if (subtitle.isNotEmpty()) " · $subtitle" else "",
@@ -631,7 +631,7 @@ private fun StudioBackgroundCard(
         }
         Spacer(Modifier.height(5.dp))
         Text(
-            text = stringResource(option.nameRes),
+            text = option.name,
             color = if (selected) Cream else Cream.copy(alpha = 0.65f),
             fontSize = 11.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
@@ -903,6 +903,16 @@ private fun StepBadgeAndDeliveryPanel(
         ) {
             EventBadgePreset.entries.forEach { badge ->
                 val selected = state.customization.badgePreset == badge
+                val headline = if (badge == EventBadgePreset.CUSTOM) {
+                    state.customization.eventBranding.badgeHeadline
+                } else {
+                    badge.headline
+                }
+                val subheadline = if (badge == EventBadgePreset.CUSTOM) {
+                    state.customization.eventBranding.badgeSubheadline
+                } else {
+                    badge.subheadline
+                }
                 Column(
                     modifier = Modifier
                         .clip(RoundedCornerShape(14.dp))
@@ -916,13 +926,13 @@ private fun StepBadgeAndDeliveryPanel(
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 ) {
                     Text(
-                        text = badge.headline,
+                        text = headline,
                         color = Cream,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
                     )
                     Text(
-                        text = badge.subheadline,
+                        text = subheadline,
                         color = Cream.copy(alpha = 0.62f),
                         fontSize = 10.sp,
                     )

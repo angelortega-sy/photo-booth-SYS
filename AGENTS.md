@@ -41,6 +41,16 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 - Fotos: `PhotoLibrary` consulta `MediaStore` en `Pictures/Cabina de Fotos`, usa `READ_MEDIA_IMAGES` en API 33+ y `READ_EXTERNAL_STORAGE` en API ≤32. El borrado directo puede fallar si la app ya no es dueña del archivo; mostrar error, no crashear.
 - El botón de hotspot solo abre los ajustes del sistema. El hotspot programático + QR de descarga es la siguiente fase.
 - Layout admin responsive: header compacto (atrás + título + cerrar), botones de red a ancho completo, fotos en **2 columnas bajo 600 dp** y 4 arriba. No volver a meter dos botones de texto largo en un `Row` angosto.
+- La lista de fondos del admin se lee de `state.adminBackgrounds` (estado observable), no del getter `repository.allOptions`; así importar/borrar/renombrar refresca la lista sin salir de la pestaña.
+
+## Fondos y etiquetas del evento
+
+- **Admin → Evento** permite importar fondos desde el almacenamiento con SAF (`OpenMultipleDocuments("image/*")`), ocultar/mostrar fondos integrados y renombrar/eliminar los personalizados.
+- Los fondos importados se copian a `filesDir/backgrounds/custom_<timestamp>.webp`, normalizados a **1080×1920**. No van a `assets/` ni al repo; se pierden si se borran los datos de la app.
+- El catálogo se persiste en `SharedPreferences("background_catalog")`; los invitados solo ven los fondos habilitados + “Cámara real”.
+- `EventBranding` se persiste en `SharedPreferences("event_branding")`: marca, tagline, título/subtítulo de bienvenida, headline/subheadline/tag del badge. Admin → Evento los edita.
+- La bienvenida y `PhotoFrameComposer` leen `eventBranding`; `EventBadgePreset.CUSTOM` conserva los textos personalizados. **No volver a hardcodear “EXPO SYSCOM 2027”** en la UI.
+- Al cambiar de fondo en el resultado, `requestPreviewUpdate` recompone con el catálogo actual; si el fondo elegido se oculta o borra, el ViewModel cae al primer fondo visible.
 
 ## Descarga / Quick Share
 
@@ -49,6 +59,12 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 - El intent usa `ACTION_SEND_MULTIPLE`, tipo `image/*`, `EXTRA_STREAM` con las 4 URIs de `FileProvider`, `ClipData` y `FLAG_GRANT_READ_URI_PERMISSION`. No volver a `image/jpeg` ni a URIs `file://`.
 - “Guardar” guarda los 4 JPEG en `Pictures/Cabina de Fotos` (MediaStore); no vuelve a bienvenida. Descargar/compartir sí vuelve a bienvenida.
 - En el kiosko sin Quick Share, validar que el share sheet muestre opciones útiles o agregar el servidor QR local como fallback.
+- **Quick Share no existe en iPhone** y Bluetooth no sirve para mandar fotos a iOS. No usar Bluetooth como flujo principal. La solución cross-platform es un **servidor HTTP local + QR** (ver “QR y salida”), pendiente para el final.
+- Mantener Quick Share como opción rápida para Android y ofrecer QR como opción “iPhone / otros”.
+- El CTA “Descargar · 4 fotos” abre un menú con **Quick Share** y **Código QR**. El QR levanta `LocalDeliveryServer`, un servidor HTTP sin dependencias que sirve solo la sesión actual con token aleatorio: página móvil, 4 JPEG y ZIP.
+- `LocalDeliveryServer` usa el IP local real (prefiere wlan/ap/eth), puerto efímero y se detiene al cerrar el QR o terminar la sesión. No expone galería ni rutas arbitrarias.
+- QR generado con ZXing (`com.google.zxing:core`); requiere `INTERNET` en el manifiesto. La página funciona en Safari/Chrome sin app.
+- Probado desde la red local: página 200, imagen 200, ZIP 200; el servidor se apaga al cerrar el diálogo. Falta probar con un iPhone real y con hotspot dedicado.
 
 ## Git
 
@@ -65,7 +81,10 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 
 ## Kiosko
 
-- Equipo objetivo probable: Syscom/Hikvision **DS-D6055UT-D/S**, 55" 4K táctil, Android 13, Cortex-A55, 4 GB RAM, 32 GB eMMC. La ficha **no lista cámara integrada**; validar el equipo prestado antes de asumirla.
+- Dos candidatos Syscom/Hikvision de 55" 4K, Android 13, Cortex-A55, 4 GB RAM, 32 GB eMMC; **ninguna ficha lista cámara integrada**:
+  - **239971 / DS-D6055UN-D/S**: **no táctil**. Si es el equipo, hace falta mouse/touch USB para operar la app, además de webcam USB.
+  - **240573 / DS-D6055UT-D/S**: táctil 10 puntos.
+- Validar el equipo prestado antes de asumir cámara o touch.
 - Panel nativo 3840×2160; en vertical son 2160×3840, así que 1080×1920 es exactamente la mitad. Mantener ese tamaño por RAM.
 - Validar en el equipo real: instalación de APK, cámara integrada, UVC, Play Services, device owner/LockTask y escala de la UI en 55".
 - Pantalla completa inmersiva, sin barras del sistema; mantener pantalla encendida.
@@ -74,7 +93,7 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 
 ## QR y salida
 
-- Flujo de dos QR: (1) unirse al hotspot con `WIFI:T:WPA;S:<ssid>;P:<pass>;;`; (2) descargar la foto con `http://<ip-del-kiosko>:<puerto>/p/<token>`.
+- Flujo de dos QR: (1) unirse al hotspot con `WIFI:T:WPA;S:<ssid>;P:<pass>;;`; (2) descargar la foto con `http://<ip-del-kiosko>:<puerto>/p/<token>`. Es la ruta recomendada para **iPhone**, sin app ni internet; implementar al final.
 - El kiosko corre un servidor HTTP local (NanoHTTPD/Ktor) y funciona sin internet, con hotspot propio o con el Wi-Fi del lugar.
 - Leer el IP real del hotspot en runtime; no hardcodear `192.168.43.1`.
 - Android avisa "sin internet" y puede saltar a datos móviles: indicar en pantalla que el invitado elija "mantener conexión" y desactive el cambio automático.
@@ -110,14 +129,15 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 
 ## Estado de build (2026-11-04)
 
-- `assembleDebug` compila correctamente con el flujo de 3 fotos/tira, el wizard, el modo administrador y Quick Share.
+- `assembleDebug` compila correctamente con el flujo de 3 fotos/tira, el wizard, el modo administrador, eventos personalizables y Quick Share.
 - APK debug: ~96.9 MB (MediaPipe + modelos de segmentación/gesto + fondos).
-- Probado en un Samsung A55: flujo de bienvenida, cámara, captura, resultado, guardado, modo administrador, PIN, borrado de fotos y layout responsive. Falta validar Quick Share, el gesto de palma y el cutout con buena luz en el A55; también la escala en la pantalla de 55".
-- Rama `angel-ortega` pusheada; el gesto de palma está en el commit `2c9b619` y el merge de `origin/main` en `94ee19d`.
+- Probado en un Samsung A55: flujo de bienvenida, cámara, captura, resultado, guardado, modo administrador, PIN, borrado de fotos, layout responsive, pestaña Evento y edición de marca en vivo. Hay un fondo personalizado persistido de prueba en el catálogo.
+- Falta validar Quick Share, el gesto de palma, la importación/ocultado de fondos y el cutout con buena luz en el A55; también la escala en la pantalla de 55".
+- Rama `angel-ortega`; el gesto de palma está en `2c9b619`, el merge de `origin/main` en `94ee19d` y Quick Share en `989af84`. Los cambios de eventos/fondos aún no se commitean.
 
 ## Pendientes
 
-- Probar Quick Share y el gesto de palma en el A55 desbloqueado.
+- Probar Quick Share, el gesto de palma, la importación de fondos y el guardado de etiquetas en el A55 desbloqueado.
 - Probar la UI en la pantalla de 55" y ajustar escala/tamaños táctiles.
 - Agregar `UvcSource` cuando llegue el kiosko (validar UVC y ausencia de Play Services).
 - Validar `startLocalOnlyHotspot` en el equipo; fallback: router de viaje sin internet.

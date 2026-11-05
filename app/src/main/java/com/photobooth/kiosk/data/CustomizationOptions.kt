@@ -99,6 +99,26 @@ enum class PhotoBorderStyle(
     ),
 }
 
+data class EventBranding(
+    val brand: String = "SYSCOM",
+    val tagline: String = "PHOTO BOOTH",
+    val welcomeTitle: String = "Tu momento.\nEn grande.",
+    val welcomeSubtitle: String = "Tres poses, tu fondo favorito y cuatro recuerdos para llevar.",
+    val badgeHeadline: String = "EXPO SYSCOM 2027",
+    val badgeSubheadline: String = "CABINA DE FOTOS OFICIAL",
+    val badgeTag: String = "SYSCOM · 2027",
+) {
+    fun withBadge(preset: EventBadgePreset): EventBranding = if (preset == EventBadgePreset.CUSTOM) {
+        this
+    } else {
+        copy(
+            badgeHeadline = preset.headline,
+            badgeSubheadline = preset.subheadline,
+            badgeTag = preset.tagChip,
+        )
+    }
+}
+
 enum class EventBadgePreset(
     val id: String,
     @param:StringRes val labelRes: Int,
@@ -141,6 +161,13 @@ enum class EventBadgePreset(
         subheadline = "VIVIENDO LA EXPERIENCIA SYSCOM",
         tagChip = "MOMENTO SYSCOM",
     ),
+    CUSTOM(
+        id = "custom",
+        labelRes = R.string.badge_custom,
+        headline = "",
+        subheadline = "",
+        tagChip = "",
+    ),
 }
 
 data class CollageCustomization(
@@ -148,5 +175,6 @@ data class CollageCustomization(
     val frameStyle: CollageFrameStyle = CollageFrameStyle.SYSCOM_DARK,
     val photoBorderStyle: PhotoBorderStyle = PhotoBorderStyle.CLEAN_ROUNDED,
     val badgePreset: EventBadgePreset = EventBadgePreset.EXPO_2027,
+    val eventBranding: EventBranding = EventBranding(),
     val showDateStamp: Boolean = true,
 )

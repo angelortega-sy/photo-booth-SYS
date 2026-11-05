@@ -20,6 +20,15 @@
     <string name="close">Cerrar</string>
     <string name="save_photo">Descargar · 4 fotos</string>
     <string name="share_chooser">Descargar tus fotos</string>
+    <string name="download_options_title">Descargar tus fotos</string>
+    <string name="download_options_subtitle">Elige cómo quieres llevarte las 4 imágenes.</string>
+    <string name="quick_share_option">Quick Share · Android</string>
+    <string name="qr_option">Código QR · iPhone y otros</string>
+    <string name="qr_title">Escanea para descargar</string>
+    <string name="qr_hint">Abre la cámara de tu iPhone o Android y escanea el código. Ambos dispositivos deben estar en el mismo Wi-Fi.</string>
+    <string name="copy_link">Copiar enlace</string>
+    <string name="link_copied">Enlace copiado</string>
+    <string name="qr_error">No se pudo iniciar la descarga por QR. Revisa que el tótem esté conectado por Wi-Fi o Ethernet.</string>
 
     <string name="permission_title">Necesitamos la cámara</string>
     <string name="permission_message">Para tomar tu foto, permite el acceso a la cámara.</string>
@@ -37,6 +46,7 @@
     <string name="background_retro80s">Retro 80s</string>
     <string name="background_jardin">Jardín</string>
     <string name="background_original">Cámara real</string>
+    <string name="background_custom_default">Fondo personalizado</string>
 
     <string name="layout_poster_hero">Póster 1+2</string>
     <string name="layout_poster_hero_sub">1 grande + 2 debajo</string>
@@ -60,6 +70,7 @@
     <string name="badge_vip_guest">Invitado VIP</string>
     <string name="badge_team_power">Equipo Syscom</string>
     <string name="badge_memories">Recuerdo Oficial</string>
+    <string name="badge_custom">Personalizado</string>
 
     <string name="wizard_step_backgrounds">1. Fondos</string>
     <string name="wizard_step_collage">2. Collage y Marco</string>
@@ -103,6 +114,7 @@
 
     <string name="admin_title">Modo administrador</string>
     <string name="admin_subtitle">Solo para personal autorizado</string>
+    <string name="admin_back">Volver</string>
     <string name="admin_close">Cerrar</string>
     <string name="admin_cancel">Cancelar</string>
     <string name="admin_change_pin">Cambiar PIN</string>
@@ -114,12 +126,41 @@
     <string name="admin_pin_hint_enter">Acceso exclusivo para administradores.</string>
     <string name="admin_section_camera">Cámara</string>
     <string name="admin_section_camera_hint">Hardware detectado por el sistema</string>
+    <string name="admin_camera_rotation">Orientación de la cámara USB</string>
+    <string name="admin_camera_rotation_hint">Si la webcam se ve acostada, gírala 90° o 270°.</string>
     <string name="admin_section_photos">Fotos</string>
     <string name="admin_section_network">Red y descarga</string>
     <string name="admin_section_network_hint">Conexión del kiosko</string>
     <string name="admin_section_device">Dispositivo</string>
     <string name="admin_tab_summary">Resumen</string>
     <string name="admin_tab_system">Sistema y red</string>
+    <string name="admin_tab_event">Evento</string>
+    <string name="admin_settings_group">Configuración</string>
+    <string name="admin_nav_camera_description">Cámaras, orientación y prueba en vivo</string>
+    <string name="admin_nav_photos_description">Galería de la cabina y administración de fotos</string>
+    <string name="admin_nav_event_description">Fondos y etiquetas visibles para los invitados</string>
+    <string name="admin_nav_system_description">Conexión, hotspot y seguridad</string>
+    <string name="admin_camera_controls_title">Cámaras y controles</string>
+    <string name="admin_backgrounds_title">Fondos del evento</string>
+    <string name="admin_backgrounds_subtitle">Sube imágenes del almacenamiento y elige cuáles ve el invitado.</string>
+    <string name="admin_background_upload">Subir fondos</string>
+    <string name="admin_background_builtin">Integrado</string>
+    <string name="admin_background_custom">Personalizado</string>
+    <string name="admin_background_delete">Eliminar fondo</string>
+    <string name="admin_background_rename">Nombre del fondo</string>
+    <string name="admin_background_imported">Fondo agregado</string>
+    <string name="admin_background_import_error">No se pudo agregar el fondo</string>
+    <string name="admin_event_title">Etiquetas del evento</string>
+    <string name="admin_event_subtitle">Estos textos aparecen en la bienvenida y en la tira.</string>
+    <string name="admin_event_brand">Marca</string>
+    <string name="admin_event_tagline">Tagline</string>
+    <string name="admin_event_welcome_title">Título de bienvenida</string>
+    <string name="admin_event_welcome_subtitle">Subtítulo de bienvenida</string>
+    <string name="admin_event_badge_headline">Título del evento en la foto</string>
+    <string name="admin_event_badge_subheadline">Subtítulo del evento</string>
+    <string name="admin_event_badge_tag">Etiqueta corta</string>
+    <string name="admin_event_save">Guardar etiquetas</string>
+    <string name="admin_event_saved">Etiquetas guardadas</string>
     <string name="admin_status_title">Estado de la cabina</string>
     <string name="admin_status_subtitle">Resumen rápido del equipo y sus conexiones</string>
     <string name="admin_security_title">Seguridad</string>
