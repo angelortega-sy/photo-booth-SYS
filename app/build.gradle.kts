@@ -17,6 +17,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            ndk {
+                // Phone + kiosk are arm64; skip x86_64/armeabi .so copies in dev builds.
+                abiFilters += "arm64-v8a"
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
