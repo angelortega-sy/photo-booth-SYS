@@ -30,12 +30,36 @@ class BackgroundRepository(private val context: Context) {
 
     companion object {
         const val ORIGINAL_ID = "original"
+        const val NO_BACKGROUND_ID = "none"
         private const val PREFS_NAME = "background_catalog"
         private const val KEY_CATALOG = "catalog"
         private const val KEY_BUILTIN = "builtin"
         private const val KEY_CUSTOM = "custom"
         private const val OUTPUT_WIDTH = 1080
         private const val OUTPUT_HEIGHT = 1920
+
+        /**
+         * English scene descriptions for the six bundled backgrounds. The app
+         * sends the matching prompt to the backend so it can generate the full
+         * scene (person + background) without guessing the backdrop.
+         */
+        private val BUILTIN_BACKGROUND_PROMPTS: Map<String, String> = mapOf(
+            "gala" to "Elegant gala ballroom at night: marble floor, warm chandeliers, " +
+                "gold and deep-blue drapery, soft spotlight on the guest, blurred silhouettes " +
+                "of other attendees far behind, no readable text.",
+            "neon" to "Cyberpunk neon rooftop at night: glowing pink and cyan signs (abstract, " +
+                "no readable text), wet reflective floor, city lights bokeh behind the guest, " +
+                "cinematic haze.",
+            "playa" to "Tropical beach at golden hour: turquoise sea, palm trees, warm sunset glow, " +
+                "soft sand, distant sailboat, relaxed holiday mood, no readable text.",
+            "estudio" to "Clean professional photo studio: seamless dark gradient backdrop, soft " +
+                "key light and rim light on the guest, subtle floor reflection, no people, " +
+                "no props, no text.",
+            "retro80s" to "Retro 80s synthwave scene: sunset grid horizon, neon palm silhouettes, " +
+                "chrome and pastel tones, arcade glow, nostalgic mood, no readable text.",
+            "jardin" to "Sunlit Mediterranean garden: blooming flowers, stone fountain softly blurred, " +
+                "green hedges, floating petals, daylight bokeh, no readable text.",
+        )
     }
 
     private val prefs = context.applicationContext
@@ -77,6 +101,22 @@ class BackgroundRepository(private val context: Context) {
     /** Backgrounds the guest can choose, always including "Sin fondo". */
     val visibleOptions: List<BackgroundOption>
         get() = allOptions.filter { it.enabled } + original
+
+    /** True for admin-imported images (exact-image "custom" AI mode). */
+    fun isCustom(id: String): Boolean = customOptions.any { it.id == id }
+
+    /** English scene description for a bundled background, or null. */
+    fun backgroundPrompt(id: String): String? = BUILTIN_BACKGROUND_PROMPTS[id]
+
+    /**
+     * File backing an admin-imported background, for the optional AI reference
+     * upload. Bundled assets have no file; the backend uses the prompt instead.
+     */
+    fun customBackgroundFile(id: String): File? {
+        val option = customOptions.firstOrNull { it.id == id } ?: return null
+        val file = option.filePath?.let(::File) ?: return null
+        return file.takeIf { it.isFile }
+    }
 
     fun loadThumbnail(id: String): Bitmap? {
         if (id == ORIGINAL_ID) return null

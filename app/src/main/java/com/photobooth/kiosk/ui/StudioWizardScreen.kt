@@ -42,18 +42,21 @@ import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +72,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photobooth.kiosk.R
+import com.photobooth.kiosk.data.AiStatus
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CollageFrameStyle
@@ -93,24 +97,23 @@ fun StudioWizardScreen(
     enabled: Boolean,
     onStepSelected: (Int) -> Unit,
     onSelectPhotoTarget: (Int?) -> Unit,
-    onSelectBackground: (String) -> Unit,
+    onSelectAiBackground: (Int, String) -> Unit,
     onSelectLayout: (CollageLayout) -> Unit,
     onSelectFrameStyle: (CollageFrameStyle) -> Unit,
     onSelectBorderStyle: (PhotoBorderStyle) -> Unit,
     onSelectBadgePreset: (EventBadgePreset) -> Unit,
     onToggleDateStamp: (Boolean) -> Unit,
-    onSave: () -> Unit,
+    onSelectAiStyle: (String) -> Unit,
+    onToggleAiAccessory: (String) -> Unit,
+    onGenerateAi: () -> Unit,
+    onCancelAi: () -> Unit,
     onShare: () -> Unit,
     onRetake: () -> Unit,
     onHome: () -> Unit,
 ) {
-    val activeBitmap = if (state.wizardStep == 0 && !state.applyBackgroundToAll && state.selectedPhotoIndex != null) {
-        state.photoPreviews.getOrNull(state.selectedPhotoIndex) ?: state.stripPreview
-    } else if (state.wizardStep == 2 && state.selectedPhotoIndex != null) {
-        state.photoPreviews.getOrNull(state.selectedPhotoIndex) ?: state.stripPreview
-    } else {
-        state.stripPreview
-    }
+    val activeBitmap = state.selectedPhotoIndex
+        ?.let { state.photoPreviews.getOrNull(it) }
+        ?: state.stripPreview
 
     Box(
         modifier = Modifier
@@ -207,6 +210,7 @@ fun StudioWizardScreen(
             // 3-Step Interactive Wizard Stepper
             WizardStepperBar(
                 currentStep = state.wizardStep,
+                hasAiResult = state.hasAiResult,
                 onStepSelected = onStepSelected,
             )
 
@@ -282,29 +286,31 @@ fun StudioWizardScreen(
                 }
 
                 // Floating preview mode switcher (Collage vs Individual Photos)
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 10.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Ink.copy(alpha = 0.86f))
-                        .border(1.dp, Cream.copy(alpha = 0.16f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 6.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val collageSelected = state.selectedPhotoIndex == null
-                    PreviewTargetChip(
-                        label = stringResource(R.string.result_strip_short),
-                        selected = collageSelected,
-                        onClick = { onSelectPhotoTarget(null) },
-                    )
-                    repeat(PhotoBoothUiState.PHOTO_COUNT) { idx ->
+                if (state.customization.layout != CollageLayout.STRIP_CLASSIC) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 10.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Ink.copy(alpha = 0.86f))
+                            .border(1.dp, Cream.copy(alpha = 0.16f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val collageSelected = state.selectedPhotoIndex == null
                         PreviewTargetChip(
-                            label = stringResource(R.string.result_photo_short, idx + 1),
-                            selected = state.selectedPhotoIndex == idx,
-                            onClick = { onSelectPhotoTarget(idx) },
+                            label = stringResource(R.string.result_strip_short),
+                            selected = collageSelected,
+                            onClick = { onSelectPhotoTarget(null) },
                         )
+                        repeat(PhotoBoothUiState.PHOTO_COUNT) { idx ->
+                            PreviewTargetChip(
+                                label = stringResource(R.string.result_photo_short, idx + 1),
+                                selected = state.selectedPhotoIndex == idx,
+                                onClick = { onSelectPhotoTarget(idx) },
+                            )
+                        }
                     }
                 }
             }
@@ -331,13 +337,16 @@ fun StudioWizardScreen(
                     .padding(14.dp),
             ) {
                 when (state.wizardStep) {
-                    0 -> StepBackgroundsPanel(
+                    0 -> AiConfigPanel(
                         state = state,
                         backgrounds = backgrounds,
                         loadThumbnail = loadThumbnail,
-                        onSelectPhotoTarget = onSelectPhotoTarget,
-                        onSelectBackground = onSelectBackground,
-                        onNext = { onStepSelected(1) },
+                        enabled = enabled,
+                        onSelectAiStyle = onSelectAiStyle,
+                        onSelectAiBackground = onSelectAiBackground,
+                        onToggleAiAccessory = onToggleAiAccessory,
+                        onGenerateAi = onGenerateAi,
+                        onCancelAi = onCancelAi,
                     )
 
                     1 -> StepCollageAndFramePanel(
@@ -355,7 +364,6 @@ fun StudioWizardScreen(
                         onSelectBadgePreset = onSelectBadgePreset,
                         onToggleDateStamp = onToggleDateStamp,
                         onPrev = { onStepSelected(1) },
-                        onSave = onSave,
                         onShare = onShare,
                     )
                 }
@@ -367,6 +375,7 @@ fun StudioWizardScreen(
 @Composable
 private fun WizardStepperBar(
     currentStep: Int,
+    hasAiResult: Boolean,
     onStepSelected: (Int) -> Unit,
 ) {
     val steps = listOf(
@@ -403,7 +412,7 @@ private fun WizardStepperBar(
                         color = if (isSelected) SyscomBlueLight else Color.Transparent,
                         shape = RoundedCornerShape(14.dp),
                     )
-                    .clickable { onStepSelected(index) },
+                    .clickable(enabled = index < currentStep || (hasAiResult && index <= 2)) { onStepSelected(index) },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -443,87 +452,316 @@ private fun PreviewTargetChip(
 }
 
 @Composable
-private fun StepBackgroundsPanel(
+private fun AiConfigPanel(
     state: PhotoBoothUiState,
     backgrounds: List<BackgroundOption>,
     loadThumbnail: (String) -> Bitmap?,
-    onSelectPhotoTarget: (Int?) -> Unit,
-    onSelectBackground: (String) -> Unit,
-    onNext: () -> Unit,
+    enabled: Boolean,
+    onSelectAiStyle: (String) -> Unit,
+    onSelectAiBackground: (Int, String) -> Unit,
+    onToggleAiAccessory: (String) -> Unit,
+    onGenerateAi: () -> Unit,
+    onCancelAi: () -> Unit,
 ) {
-    val activeBgId = if (state.applyBackgroundToAll || state.selectedPhotoIndex == null) {
-        state.selectedBackgroundId
-    } else {
-        state.photoBackgroundIds.getOrElse(state.selectedPhotoIndex) { state.selectedBackgroundId }
-    }
+    val running = state.aiStatus == AiStatus.UPLOADING || state.aiStatus == AiStatus.GENERATING
+    val locked = state.hasAiResult || running
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // Target selector: Apply to all 3 vs individual photo
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        // Header: title + cost
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.AutoAwesome,
+                contentDescription = null,
+                tint = SyscomBlueLight,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = stringResource(R.string.ai_title),
+                color = Cream,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.weight(1f))
+            state.aiCost?.let { cost ->
+                Text(
+                    text = stringResource(
+                        R.string.ai_cost,
+                        String.format(java.util.Locale.US, "%.2f", cost),
+                    ),
+                    color = SyscomBlueLight,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = stringResource(R.string.ai_subtitle),
+            color = Cream.copy(alpha = 0.60f),
+            fontSize = 11.sp,
+        )
+
+        if (state.hasAiResult) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.ai_backgrounds_locked),
+                color = SyscomBlueLight,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+
+        // 1 - Global AI style (one for all 3 photos)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = stringResource(R.string.ai_section_style),
+            color = Cream.copy(alpha = 0.85f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(6.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            TargetScopeChip(
-                text = stringResource(R.string.wizard_apply_all),
-                selected = state.applyBackgroundToAll || state.selectedPhotoIndex == null,
-                onClick = { onSelectPhotoTarget(null) },
-            )
-            repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
-                val bgForPhoto = state.photoBackgroundIds.getOrNull(index)
-                val bgOption = backgrounds.firstOrNull { it.id == bgForPhoto }
-                val subtitle = bgOption?.name ?: ""
+            state.aiStyles.forEach { style ->
                 TargetScopeChip(
-                    text = stringResource(R.string.wizard_photo_tab, index + 1) +
-                        if (subtitle.isNotEmpty()) " · $subtitle" else "",
-                    selected = !state.applyBackgroundToAll && state.selectedPhotoIndex == index,
-                    onClick = { onSelectPhotoTarget(index) },
+                    text = stringResource(style.labelRes),
+                    selected = state.selectedAiStyleId == style.id,
+                    onClick = { if (!locked) onSelectAiStyle(style.id) },
                 )
             }
         }
 
+        // 2 - Per-photo backdrop: none, built-in (prompt mode) or custom (exact reference)
         Spacer(Modifier.height(10.dp))
+        Text(
+            text = stringResource(R.string.ai_section_background),
+            color = Cream.copy(alpha = 0.85f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
+            Spacer(Modifier.height(6.dp))
+            AiBackdropSelector(
+                index = index,
+                backgrounds = backgrounds,
+                selectedId = state.aiBackgroundIds.getOrNull(index)
+                    ?: BackgroundRepository.NO_BACKGROUND_ID,
+                locked = locked,
+                loadThumbnail = loadThumbnail,
+                onSelectAiBackground = onSelectAiBackground,
+            )
+        }
 
-        LazyRow(
-            modifier = Modifier.fillMaxWidth().height(136.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(horizontal = 2.dp),
+        // 3 - Accessories (multi-select)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = stringResource(R.string.ai_section_accessories),
+            color = Cream.copy(alpha = 0.85f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = stringResource(R.string.ai_accessory_none_hint),
+            color = Cream.copy(alpha = 0.55f),
+            fontSize = 11.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(backgrounds, key = { it.id }) { option ->
+            com.photobooth.kiosk.data.AiAccessories.ALL.forEach { accessory ->
+                TargetScopeChip(
+                    text = stringResource(accessory.labelRes),
+                    selected = accessory.id in state.selectedAiAccessories,
+                    onClick = { if (!locked) onToggleAiAccessory(accessory.id) },
+                )
+            }
+        }
+
+        // Generate + progress
+        Spacer(Modifier.height(12.dp))
+        if (running) {
+            val label = if (state.aiStatus == AiStatus.UPLOADING) {
+                stringResource(
+                    R.string.ai_uploading,
+                    (state.aiUploadedCount + 1).coerceAtMost(PhotoBoothUiState.PHOTO_COUNT),
+                )
+            } else {
+                stringResource(R.string.ai_generating, state.aiProgress.coerceIn(0, 100))
+            }
+            Text(
+                text = label,
+                color = Cream.copy(alpha = 0.85f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(6.dp))
+            val progress = if (state.aiStatus == AiStatus.UPLOADING) {
+                state.aiUploadedCount / PhotoBoothUiState.PHOTO_COUNT.toFloat()
+            } else {
+                state.aiProgress.coerceIn(0, 100) / 100f
+            }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                color = SyscomBlueLight,
+                trackColor = Cream.copy(alpha = 0.14f),
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onCancelAi,
+                modifier = Modifier.fillMaxWidth().height(44.dp),
+                shape = RoundedCornerShape(22.dp),
+                border = BorderStroke(1.dp, Cream.copy(alpha = 0.24f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
+            ) {
+                Text(stringResource(R.string.ai_cancel), fontSize = 13.sp)
+            }
+        } else {
+            Button(
+                onClick = onGenerateAi,
+                enabled = enabled && !state.isExporting,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(26.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SyscomBlue,
+                    contentColor = Color.White,
+                ),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.AutoAwesome,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(
+                        if (state.hasAiResult) R.string.ai_regenerate else R.string.ai_generate,
+                    ),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+
+        if (state.aiStatus == AiStatus.READY && !running) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.ai_ready),
+                color = SyscomBlueLight,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        state.aiError?.let { error ->
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = error,
+                color = Color(0xFFFF7A7A),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AiBackdropSelector(
+    index: Int,
+    backgrounds: List<BackgroundOption>,
+    selectedId: String,
+    locked: Boolean,
+    loadThumbnail: (String) -> Bitmap?,
+    onSelectAiBackground: (Int, String) -> Unit,
+) {
+    // Built-in catalog entries (plus "Sin fondo") are text-only chips: titles
+    // are enough and thumbnails would waste memory. Admin-imported images stay
+    // visible as thumbnails, but only after the guest picks Personalizado.
+    val noneOption = rememberNoBackgroundOption()
+    val textOptions = remember(backgrounds) {
+        backgrounds.filter { it.filePath == null }
+    }
+    val customOptions = remember(backgrounds) {
+        backgrounds.filter { it.filePath != null }
+    }
+    val customSelected = customOptions.any { it.id == selectedId }
+    var customExpanded by remember(index, selectedId) {
+        mutableStateOf(customSelected)
+    }
+
+    Text(
+        text = stringResource(R.string.ai_background_photo_label, index + 1),
+        color = Cream.copy(alpha = 0.62f),
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Spacer(Modifier.height(4.dp))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TargetScopeChip(
+            text = noneOption.name,
+            selected = selectedId == BackgroundRepository.NO_BACKGROUND_ID,
+            onClick = {
+                if (!locked) onSelectAiBackground(index, BackgroundRepository.NO_BACKGROUND_ID)
+            },
+        )
+        textOptions.forEach { option ->
+            TargetScopeChip(
+                text = option.name,
+                selected = selectedId == option.id,
+                onClick = { if (!locked) onSelectAiBackground(index, option.id) },
+            )
+        }
+        if (customOptions.isNotEmpty()) {
+            TargetScopeChip(
+                text = stringResource(R.string.ai_background_custom),
+                selected = customSelected,
+                onClick = { if (!locked) customExpanded = true },
+            )
+        }
+    }
+    if (customExpanded && customOptions.isNotEmpty()) {
+        Spacer(Modifier.height(6.dp))
+        LazyRow(
+            modifier = Modifier.fillMaxWidth().height(118.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 2.dp),
+            userScrollEnabled = !locked,
+        ) {
+            items(customOptions, key = { "${it.id}_$index" }) { option ->
                 StudioBackgroundCard(
                     option = option,
-                    selected = option.id == activeBgId,
+                    selected = selectedId == option.id,
                     loadThumbnail = loadThumbnail,
-                    onClick = { onSelectBackground(option.id) },
+                    onClick = { if (!locked) onSelectAiBackground(index, option.id) },
                 )
             }
         }
+    }
+}
 
-        Spacer(Modifier.height(10.dp))
-
-        Button(
-            onClick = onNext,
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(25.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SyscomBlue,
-                contentColor = Color.White,
-            ),
-        ) {
-            Text(
-                text = stringResource(R.string.wizard_next_step) + ": " + stringResource(R.string.wizard_step_collage),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(Modifier.width(8.dp))
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-        }
+@Composable
+private fun rememberNoBackgroundOption(): BackgroundOption {
+    val name = stringResource(R.string.ai_background_none)
+    return androidx.compose.runtime.remember(name) {
+        BackgroundOption(id = BackgroundRepository.NO_BACKGROUND_ID, name = name)
     }
 }
 
@@ -561,7 +799,8 @@ private fun StudioBackgroundCard(
     loadThumbnail: (String) -> Bitmap?,
     onClick: () -> Unit,
 ) {
-    val isOriginal = option.id == BackgroundRepository.ORIGINAL_ID
+    val isOriginal = option.id == BackgroundRepository.ORIGINAL_ID ||
+        option.id == BackgroundRepository.NO_BACKGROUND_ID
     val thumbnail by produceState<Bitmap?>(initialValue = null, option.id) {
         value = if (isOriginal) null else withContext(Dispatchers.IO) { loadThumbnail(option.id) }
     }
@@ -845,10 +1084,13 @@ private fun StepBadgeAndDeliveryPanel(
     onSelectBadgePreset: (EventBadgePreset) -> Unit,
     onToggleDateStamp: (Boolean) -> Unit,
     onPrev: () -> Unit,
-    onSave: () -> Unit,
     onShare: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -973,47 +1215,21 @@ private fun StepBadgeAndDeliveryPanel(
 
         Spacer(Modifier.height(8.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        OutlinedButton(
+            onClick = onPrev,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, Cream.copy(alpha = 0.24f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
         ) {
-            OutlinedButton(
-                onClick = onPrev,
-                enabled = enabled,
-                modifier = Modifier.weight(0.38f).height(48.dp),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.dp, Cream.copy(alpha = 0.24f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = null,
-                    modifier = Modifier.size(17.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(stringResource(R.string.wizard_prev_step), fontSize = 13.sp)
-            }
-            OutlinedButton(
-                onClick = onSave,
-                enabled = enabled,
-                modifier = Modifier.weight(0.62f).height(48.dp),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.5.dp, SyscomBlueLight.copy(alpha = 0.65f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Save,
-                    contentDescription = null,
-                    tint = SyscomBlueLight,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.save),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = null,
+                modifier = Modifier.size(17.dp),
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(stringResource(R.string.wizard_prev_step), fontSize = 13.sp)
         }
     }
 }
