@@ -12,6 +12,8 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
+import android.text.TextPaint
+import android.text.TextUtils
 import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
@@ -303,7 +305,7 @@ object PhotoFrameComposer {
             letterSpacing = 0.18f
         }
         canvas.drawText(
-            "SYSCOM",
+            customization.eventBranding.brand.uppercase().ifBlank { "SYSCOM" },
             pillRect.centerX(),
             pillRect.centerY() + 9f * scale,
             brandTextPaint,
@@ -527,8 +529,20 @@ object PhotoFrameComposer {
         }
 
         val padX = rect.left + 26f * scale
-        canvas.drawText("EXPO", padX, rect.top + 68f * scale, titlePaint)
-        canvas.drawText("SYSCOM", padX, rect.top + 106f * scale, titlePaint)
+        val availableWidth = rect.width() - 52f * scale
+        val branding = customization.eventBranding
+        canvas.drawText(
+            ellipsized(branding.brand.uppercase().ifBlank { "SYSCOM" }, titlePaint, availableWidth),
+            padX,
+            rect.top + 68f * scale,
+            titlePaint,
+        )
+        canvas.drawText(
+            ellipsized(branding.badgeTag.ifBlank { branding.hashtag }, titlePaint, availableWidth),
+            padX,
+            rect.top + 106f * scale,
+            titlePaint,
+        )
 
         val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
@@ -536,9 +550,29 @@ object PhotoFrameComposer {
         }
         canvas.drawLine(padX, rect.top + 132f * scale, rect.right - 26f * scale, rect.top + 132f * scale, linePaint)
 
-        canvas.drawText("EDICIÓN", padX, rect.top + 178f * scale, subPaint)
-        canvas.drawText("ESPECIAL 2027", padX, rect.top + 208f * scale, subPaint)
-        canvas.drawText("#SYSCOMEXPO", padX, rect.bottom - 30f * scale, subPaint)
+        canvas.drawText(
+            ellipsized(branding.badgeHeadline, subPaint, availableWidth),
+            padX,
+            rect.top + 178f * scale,
+            subPaint,
+        )
+        canvas.drawText(
+            ellipsized(branding.badgeSubheadline, subPaint, availableWidth),
+            padX,
+            rect.top + 208f * scale,
+            subPaint,
+        )
+        canvas.drawText(
+            ellipsized(branding.hashtag.ifBlank { "#SYSCOM" }, subPaint, availableWidth),
+            padX,
+            rect.bottom - 30f * scale,
+            subPaint,
+        )
+    }
+
+    private fun ellipsized(text: String, paint: Paint, maxWidth: Float): String {
+        val probe = TextPaint(paint)
+        return TextUtils.ellipsize(text, probe, maxWidth, TextUtils.TruncateAt.END).toString()
     }
 
     private fun drawFooter(
@@ -599,7 +633,13 @@ object PhotoFrameComposer {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             letterSpacing = 0.12f
         }
-        canvas.drawText(badge.badgeSubheadline, textLeft, centerY + 34f * scale, subtitlePaint)
+        val hashtag = badge.hashtag.trim()
+        val footerSub = if (hashtag.isNotEmpty()) {
+            "${badge.badgeSubheadline}  •  $hashtag"
+        } else {
+            badge.badgeSubheadline
+        }
+        canvas.drawText(footerSub, textLeft, centerY + 34f * scale, subtitlePaint)
 
         // Right emblem seal
         val sealRadius = 46f * scale

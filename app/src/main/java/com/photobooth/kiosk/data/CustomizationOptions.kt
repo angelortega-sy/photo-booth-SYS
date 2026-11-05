@@ -107,6 +107,7 @@ data class EventBranding(
     val badgeHeadline: String = "EXPO SYSCOM 2027",
     val badgeSubheadline: String = "CABINA DE FOTOS OFICIAL",
     val badgeTag: String = "SYSCOM · 2027",
+    val hashtag: String = "#SYSCOM",
 ) {
     fun withBadge(preset: EventBadgePreset): EventBranding = if (preset == EventBadgePreset.CUSTOM) {
         this

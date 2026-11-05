@@ -186,4 +186,31 @@
     <string name="admin_photos_deleted">Fotos eliminadas: %1$d</string>
     <string name="admin_delete_error">No se pudo borrar la foto</string>
     <string name="admin_camera_test_error">No se pudo abrir la cámara: %1$s</string>
+
+    <string name="ai_title">Estilo IA</string>
+    <string name="ai_subtitle">Un estilo para las 3 fotos. Elige los fondos antes de generar.</string>
+    <string name="ai_style_ghibli">Estudio Ghibli</string>
+    <string name="ai_style_anime">Anime</string>
+    <string name="ai_style_pixar">Pixar 3D</string>
+    <string name="ai_style_cyberpunk">Cyberpunk</string>
+    <string name="ai_style_comic">Cómic pop</string>
+    <string name="ai_generate">Generar con IA</string>
+    <string name="ai_regenerate">Generar de nuevo</string>
+    <string name="ai_cancel">Cancelar</string>
+    <string name="ai_uploading">Subiendo foto %1$d de 3…</string>
+    <string name="ai_generating">Creando estilo… %1$d%%</string>
+    <string name="ai_cost">Costo aprox.: $%1$s</string>
+    <string name="ai_ready">Estilo aplicado. Los fondos quedaron fijos.</string>
+    <string name="ai_error_no_server">Configura la URL del servidor en Modo administrador.</string>
+    <string name="ai_error_network">No se pudo conectar con el servidor de IA. Revisa la red.</string>
+    <string name="ai_error_server">El servidor de IA devolvió un error. Intenta de nuevo.</string>
+    <string name="ai_backgrounds_locked">Fondos fijos: ya aplicaste el estilo IA.</string>
+    <string name="admin_ai_title">IA y servidor</string>
+    <string name="admin_ai_subtitle">Backend que genera el estilo. La llave de OpenRouter vive solo en el servidor.</string>
+    <string name="admin_ai_url">URL del backend (https://…)</string>
+    <string name="admin_ai_token">Token del kiosko (opcional)</string>
+    <string name="admin_ai_model">Modelo (modelId)</string>
+    <string name="admin_ai_save">Guardar servidor</string>
+    <string name="admin_ai_saved">Servidor guardado</string>
+    <string name="admin_event_hashtag">Hashtag del evento</string>
 </resources>

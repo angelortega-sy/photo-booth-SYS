@@ -343,7 +343,7 @@ private fun WelcomeScreen(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = stringResource(R.string.welcome_tagline),
+                        text = branding.tagline.uppercase(),
                         color = Cream.copy(alpha = 0.78f),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -405,7 +405,7 @@ private fun WelcomeScreen(
                                 .padding(horizontal = 7.dp, vertical = 2.dp),
                         ) {
                             Text(
-                                text = "SYSCOM",
+                                text = branding.brand,
                                 color = Color.White,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Black,
@@ -524,6 +524,17 @@ private fun WelcomeScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.widthIn(max = 460.dp),
             )
+            if (branding.hashtag.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = branding.hashtag,
+                    color = SyscomBlueLight,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
 
             Spacer(Modifier.height(18.dp))
             Row(
@@ -887,30 +898,6 @@ private fun PhotoBoothScreen(
         autoSequenceActive = true
     }
 
-    fun savePhoto() {
-        if (busy || state.isExporting) return
-        scope.launch {
-            busy = true
-            val files = viewModel.ensureExportedFiles()
-            if (files == null || files.size != 4) {
-                busy = false
-                snackbarHostState.showSnackbar(context.getString(R.string.save_error))
-                return@launch
-            }
-            val results = withContext(Dispatchers.IO) {
-                files.map { PhotoSaver.saveFileToGallery(context, it) }
-            }
-            busy = false
-            val savedCount = results.count { it.isSuccess }
-            val message = when (savedCount) {
-                files.size -> context.getString(R.string.photos_saved)
-                0 -> context.getString(R.string.save_error)
-                else -> context.getString(R.string.photos_saved_partial, savedCount, files.size)
-            }
-            snackbarHostState.showSnackbar(message)
-        }
-    }
-
     fun sharePhoto() {
         if (busy || state.isExporting) return
         scope.launch {
@@ -1207,7 +1194,9 @@ private fun PhotoBoothScreen(
                 onSelectBorderStyle = viewModel::selectPhotoBorderStyle,
                 onSelectBadgePreset = viewModel::selectBadgePreset,
                 onToggleDateStamp = viewModel::toggleDateStamp,
-                onSave = { savePhoto() },
+                onSelectAiStyle = viewModel::selectAiStyle,
+                onGenerateAi = { viewModel.generateWithAi() },
+                onCancelAi = { viewModel.cancelAi() },
                 onShare = { showDeliveryOptions = true },
                 onRetake = {
                     autoSequenceActive = false

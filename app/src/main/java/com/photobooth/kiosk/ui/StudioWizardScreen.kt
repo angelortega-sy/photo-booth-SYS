@@ -42,12 +42,12 @@ import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -69,6 +69,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photobooth.kiosk.R
+import com.photobooth.kiosk.data.AiStatus
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CollageFrameStyle
@@ -99,7 +100,9 @@ fun StudioWizardScreen(
     onSelectBorderStyle: (PhotoBorderStyle) -> Unit,
     onSelectBadgePreset: (EventBadgePreset) -> Unit,
     onToggleDateStamp: (Boolean) -> Unit,
-    onSave: () -> Unit,
+    onSelectAiStyle: (String) -> Unit,
+    onGenerateAi: () -> Unit,
+    onCancelAi: () -> Unit,
     onShare: () -> Unit,
     onRetake: () -> Unit,
     onHome: () -> Unit,
@@ -354,8 +357,10 @@ fun StudioWizardScreen(
                         enabled = enabled,
                         onSelectBadgePreset = onSelectBadgePreset,
                         onToggleDateStamp = onToggleDateStamp,
+                        onSelectAiStyle = onSelectAiStyle,
+                        onGenerateAi = onGenerateAi,
+                        onCancelAi = onCancelAi,
                         onPrev = { onStepSelected(1) },
-                        onSave = onSave,
                         onShare = onShare,
                     )
                 }
@@ -458,6 +463,17 @@ private fun StepBackgroundsPanel(
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
+        if (state.hasAiResult) {
+            Text(
+                text = stringResource(R.string.ai_backgrounds_locked),
+                color = SyscomBlueLight,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+        }
         // Target selector: Apply to all 3 vs individual photo
         Row(
             modifier = Modifier
@@ -469,7 +485,7 @@ private fun StepBackgroundsPanel(
             TargetScopeChip(
                 text = stringResource(R.string.wizard_apply_all),
                 selected = state.applyBackgroundToAll || state.selectedPhotoIndex == null,
-                onClick = { onSelectPhotoTarget(null) },
+                onClick = { if (!state.hasAiResult) onSelectPhotoTarget(null) },
             )
             repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
                 val bgForPhoto = state.photoBackgroundIds.getOrNull(index)
@@ -479,7 +495,7 @@ private fun StepBackgroundsPanel(
                     text = stringResource(R.string.wizard_photo_tab, index + 1) +
                         if (subtitle.isNotEmpty()) " · $subtitle" else "",
                     selected = !state.applyBackgroundToAll && state.selectedPhotoIndex == index,
-                    onClick = { onSelectPhotoTarget(index) },
+                    onClick = { if (!state.hasAiResult) onSelectPhotoTarget(index) },
                 )
             }
         }
@@ -496,7 +512,7 @@ private fun StepBackgroundsPanel(
                     option = option,
                     selected = option.id == activeBgId,
                     loadThumbnail = loadThumbnail,
-                    onClick = { onSelectBackground(option.id) },
+                    onClick = { if (!state.hasAiResult) onSelectBackground(option.id) },
                 )
             }
         }
@@ -844,11 +860,17 @@ private fun StepBadgeAndDeliveryPanel(
     enabled: Boolean,
     onSelectBadgePreset: (EventBadgePreset) -> Unit,
     onToggleDateStamp: (Boolean) -> Unit,
+    onSelectAiStyle: (String) -> Unit,
+    onGenerateAi: () -> Unit,
+    onCancelAi: () -> Unit,
     onPrev: () -> Unit,
-    onSave: () -> Unit,
     onShare: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -942,6 +964,16 @@ private fun StepBadgeAndDeliveryPanel(
 
         Spacer(Modifier.height(12.dp))
 
+        AiStyleCard(
+            state = state,
+            enabled = enabled,
+            onSelectAiStyle = onSelectAiStyle,
+            onGenerateAi = onGenerateAi,
+            onCancelAi = onCancelAi,
+        )
+
+        Spacer(Modifier.height(12.dp))
+
         // Primary download CTA: opens the system share sheet, where Quick Share appears.
         Button(
             onClick = onShare,
@@ -973,47 +1005,176 @@ private fun StepBadgeAndDeliveryPanel(
 
         Spacer(Modifier.height(8.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        OutlinedButton(
+            onClick = onPrev,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, Cream.copy(alpha = 0.24f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
         ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = null,
+                modifier = Modifier.size(17.dp),
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(stringResource(R.string.wizard_prev_step), fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+private fun AiStyleCard(
+    state: PhotoBoothUiState,
+    enabled: Boolean,
+    onSelectAiStyle: (String) -> Unit,
+    onGenerateAi: () -> Unit,
+    onCancelAi: () -> Unit,
+) {
+    val running = state.aiStatus == AiStatus.UPLOADING || state.aiStatus == AiStatus.GENERATING
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Ink)
+            .border(1.dp, SyscomBlueLight.copy(alpha = 0.30f), RoundedCornerShape(18.dp))
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.AutoAwesome,
+                contentDescription = null,
+                tint = SyscomBlueLight,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = stringResource(R.string.ai_title),
+                color = Cream,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.weight(1f))
+            state.aiCost?.let { cost ->
+                Text(
+                    text = stringResource(
+                        R.string.ai_cost,
+                        String.format(java.util.Locale.US, "%.2f", cost),
+                    ),
+                    color = SyscomBlueLight,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.ai_subtitle),
+            color = Cream.copy(alpha = 0.60f),
+            fontSize = 11.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            state.aiStyles.forEach { style ->
+                TargetScopeChip(
+                    text = stringResource(style.labelRes),
+                    selected = state.selectedAiStyleId == style.id,
+                    onClick = { if (!running) onSelectAiStyle(style.id) },
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        if (running) {
+            val label = if (state.aiStatus == AiStatus.UPLOADING) {
+                stringResource(
+                    R.string.ai_uploading,
+                    (state.aiUploadedCount + 1).coerceAtMost(PhotoBoothUiState.PHOTO_COUNT),
+                )
+            } else {
+                stringResource(R.string.ai_generating, state.aiProgress.coerceIn(0, 100))
+            }
+            Text(
+                text = label,
+                color = Cream.copy(alpha = 0.85f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(6.dp))
+            val progress = if (state.aiStatus == AiStatus.UPLOADING) {
+                state.aiUploadedCount / PhotoBoothUiState.PHOTO_COUNT.toFloat()
+            } else {
+                state.aiProgress.coerceIn(0, 100) / 100f
+            }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                color = SyscomBlueLight,
+                trackColor = Cream.copy(alpha = 0.14f),
+            )
+            Spacer(Modifier.height(8.dp))
             OutlinedButton(
-                onClick = onPrev,
-                enabled = enabled,
-                modifier = Modifier.weight(0.38f).height(48.dp),
-                shape = RoundedCornerShape(24.dp),
+                onClick = onCancelAi,
+                modifier = Modifier.fillMaxWidth().height(44.dp),
+                shape = RoundedCornerShape(22.dp),
                 border = BorderStroke(1.dp, Cream.copy(alpha = 0.24f)),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = null,
-                    modifier = Modifier.size(17.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(stringResource(R.string.wizard_prev_step), fontSize = 13.sp)
+                Text(stringResource(R.string.ai_cancel), fontSize = 13.sp)
             }
-            OutlinedButton(
-                onClick = onSave,
-                enabled = enabled,
-                modifier = Modifier.weight(0.62f).height(48.dp),
+        } else {
+            Button(
+                onClick = onGenerateAi,
+                enabled = enabled && !state.isExporting,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.5.dp, SyscomBlueLight.copy(alpha = 0.65f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SyscomBlue,
+                    contentColor = Color.White,
+                ),
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Save,
+                    imageVector = Icons.Rounded.AutoAwesome,
                     contentDescription = null,
-                    tint = SyscomBlueLight,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.save),
+                    text = stringResource(
+                        if (state.hasAiResult) R.string.ai_regenerate else R.string.ai_generate,
+                    ),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                 )
             }
+        }
+
+        if (state.aiStatus == AiStatus.READY && !running) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.ai_ready),
+                color = SyscomBlueLight,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        state.aiError?.let { error ->
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = error,
+                color = Color(0xFFFF7A7A),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }

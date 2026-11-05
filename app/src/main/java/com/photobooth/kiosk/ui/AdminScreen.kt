@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.photobooth.kiosk.R
+import com.photobooth.kiosk.data.AiSettings
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.EventBranding
@@ -758,6 +759,19 @@ private fun AdminScreen(
                             )
                         }
                         item {
+                            AiServerAdminCard(
+                                initial = viewModel.loadAiSettings(),
+                                onSave = { settings ->
+                                    viewModel.saveAiSettings(settings)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            context.getString(R.string.admin_ai_saved),
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                        item {
                             AdminCard(
                                 title = stringResource(R.string.admin_security_title),
                                 subtitle = stringResource(R.string.admin_security_subtitle),
@@ -1058,6 +1072,11 @@ private fun EventBrandingAdminCard(
             value = draft.badgeTag,
             onValueChange = { draft = draft.copy(badgeTag = it) },
         )
+        BrandingField(
+            label = stringResource(R.string.admin_event_hashtag),
+            value = draft.hashtag,
+            onValueChange = { draft = draft.copy(hashtag = it) },
+        )
         Button(
             onClick = { onSave(draft) },
             colors = ButtonDefaults.buttonColors(
@@ -1067,6 +1086,61 @@ private fun EventBrandingAdminCard(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(50.dp),
         ) {
             Text(stringResource(R.string.admin_event_save))
+        }
+    }
+}
+
+@Composable
+private fun AiServerAdminCard(
+    initial: AiSettings,
+    onSave: (AiSettings) -> Unit,
+) {
+    var baseUrl by remember { mutableStateOf(initial.baseUrl) }
+    var token by remember { mutableStateOf(initial.kioskToken) }
+    var modelId by remember { mutableStateOf(initial.modelId) }
+
+    AdminCard(
+        title = stringResource(R.string.admin_ai_title),
+        subtitle = stringResource(R.string.admin_ai_subtitle),
+    ) {
+        OutlinedTextField(
+            value = baseUrl,
+            onValueChange = { baseUrl = it },
+            label = { Text(stringResource(R.string.admin_ai_url)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
+        OutlinedTextField(
+            value = token,
+            onValueChange = { token = it },
+            label = { Text(stringResource(R.string.admin_ai_token)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
+        OutlinedTextField(
+            value = modelId,
+            onValueChange = { modelId = it },
+            label = { Text(stringResource(R.string.admin_ai_model)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
+        Button(
+            onClick = {
+                onSave(
+                    AiSettings(
+                        baseUrl = baseUrl.trim(),
+                        kioskToken = token.trim(),
+                        modelId = modelId.trim().ifEmpty { AiSettings.DEFAULT_MODEL_ID },
+                    ),
+                )
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SyscomBlue,
+                contentColor = Color.White,
+            ),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(50.dp),
+        ) {
+            Text(stringResource(R.string.admin_ai_save))
         }
     }
 }

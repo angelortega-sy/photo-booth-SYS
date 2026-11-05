@@ -10,9 +10,9 @@ Paquete: `com.photobooth.kiosk`. App visible: “Cabina de Fotos”.
 - No subas core/compose/lifecycle a versiones que exijan `compileSdk 37` o AGP 9.1 sin actualizar AGP y Gradle primero.
 - Pantalla kiosko en **vertical (portrait)**; salida y fondos a 1080×1920. En producción la cámara es una **webcam USB**, no una cámara integrada. Para pruebas en teléfono, CameraX usa la cámara frontal si existe (selfie) y la trasera como fallback.
 - Segmentación de la persona **en el dispositivo** (preferir MediaPipe Image Segmenter; ML Kit solo si el equipo tiene Google Play Services) y composición sobre un fondo predefinido.
-- Fondos **locales** incluidos como assets. **Sin IA, sin OpenRouter, sin backend ni API key en runtime.** No agregues generación de imágenes por red a la app.
-- Salida: guardar la foto + compartir/QR.
-- Todo debe funcionar **offline**.
+- Fondos locales como fallback/offline. El flujo nuevo usa **IA vía backend propio**; OpenRouter se llama solo desde el servidor y la app nunca lleva la API key.
+- Salida: QR para iPhone/Android + Quick Share Android. El flujo nuevo quita “Guardar”.
+- Offline: fallback local (fondos + QR local); la generación IA requiere red.
 
 ## Convenciones de código
 
@@ -21,7 +21,7 @@ Paquete: `com.photobooth.kiosk`. App visible: “Cabina de Fotos”.
 
 ## Flujo
 
-captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte con alfa → componer sobre el fondo elegido → bitmap final → guardar + QR/share.
+captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo global + fondo por foto → backend IA (OpenRouter) → tira local con marca/hashtag/fecha → QR cross-platform + Quick Share Android.
 
 ## Experiencia de uso
 
@@ -51,6 +51,19 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 - `EventBranding` se persiste en `SharedPreferences("event_branding")`: marca, tagline, título/subtítulo de bienvenida, headline/subheadline/tag del badge. Admin → Evento los edita.
 - La bienvenida y `PhotoFrameComposer` leen `eventBranding`; `EventBadgePreset.CUSTOM` conserva los textos personalizados. **No volver a hardcodear “EXPO SYSCOM 2027”** en la UI.
 - Al cambiar de fondo en el resultado, `requestPreviewUpdate` recompone con el catálogo actual; si el fondo elegido se oculta o borra, el ViewModel cae al primer fondo visible.
+
+## IA y servidor (MVP aprobado)
+
+- **La API key de OpenRouter vive solo en el backend** (`.env`/secret manager). No en el APK, ni “encriptada”; cualquier llave embebida se puede extraer.
+- Hosting: servidor de la empresa si tiene HTTPS público; **Supabase** como MVP gestionado (Postgres + Storage + Edge Functions); Cloudflare Workers + R2 para escala; Vercel solo no sirve para jobs largos de imágenes.
+- Modelo objetivo: `openai/gpt-image-2.6-sunburst` vía `POST https://openrouter.ai/api/v1/images`, `aspect_ratio=9:16`, `quality=medium`, `output_format=png`, `background=opaque`, `n=1`.
+- **Dos referencias validadas** (persona + fondo exacto) con `input_references: [{type:"image_url", image_url:{url:"data:image/jpeg;base64,..."}}]`. Prueba real: 25.9 s, **$0.047035/foto**, fondo Gala preservado y persona transformada a Ghibli. Usar dos referencias también para fondos integrados; una sola si no hay fondo.
+- Flujo backend: `POST /v1/sessions` → subir 3 originales → `POST /generate {styleId, modelId, eventId, photos:[{index, backgroundId, backgroundMode, backgroundPrompt?, backgroundAssetId?}]}` → poll job → URLs de las 3 imágenes + `usage.cost`. La app arma la tira localmente.
+- El fondo se elige **antes** de generar; no hay “cambiar fondo” después porque cada llamada cuesta. La tira lleva marca, título, hashtag y fecha del evento.
+- Pendiente: URL/token del backend del compañero; el backend provisional de pruebas vive fuera del repo y usa la key de `tools/generate-backgrounds/.env`.
+- La app envía `stylePrompt` además de `styleId`; el backend no debe depender de prompts hardcodeados.
+- `app/src/debug/AndroidManifest.xml` permite HTTP en debug para el backend provisional local. **Producción debe usar HTTPS** y no habilitar cleartext.
+- MVP app-side: estilos globales, tarjeta “Generar con IA”, progreso/costo, hashtag editable, sin “Guardar”; el fondo se elige antes y se bloquea durante/después de generar.
 
 ## Descarga / Quick Share
 
@@ -102,7 +115,7 @@ captura (webcam USB; CameraX en teléfono) → máscara de persona → recorte c
 
 ## Fondos (contenido, no runtime)
 
-- La app **nunca** llama a OpenRouter. Los fondos se generan una sola vez con `tools/generate-backgrounds/` (Node 18+, `POST https://openrouter.ai/api/v1/images`).
+- La app **nunca** llama a OpenRouter directamente; el backend sí. Los fondos del pack se generan una sola vez con `tools/generate-backgrounds/` (Node 18+, `POST https://openrouter.ai/api/v1/images`).
 - La key va en `tools/generate-backgrounds/.env`, que está gitignored. No debe terminar en el APK ni en el repo.
 - `out/` está gitignored: se revisan las imágenes y solo las aprobadas se copian a `app/src/main/assets/backgrounds/`.
 - **Pack aprobado:** 6 temas verticales generados con Grok Imagine 2.0 (`x-ai/grok-imagine-image-2.0`), 9:16 a 2K, ~$0.08/imagen, en `out/grok-pack-portrait/`: `gala`, `neon`, `playa`, `estudio`, `retro80s`, `jardin`.

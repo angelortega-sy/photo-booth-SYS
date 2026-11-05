@@ -27,6 +27,7 @@ class EventBrandingStore(context: Context) {
                     "CABINA DE FOTOS OFICIAL",
                 ),
                 badgeTag = json.optString("badgeTag", "SYSCOM · 2027"),
+                hashtag = json.optString("hashtag", "#SYSCOM"),
             )
         }.getOrDefault(EventBranding())
     }
@@ -42,6 +43,7 @@ class EventBrandingStore(context: Context) {
             put("badgeHeadline", branding.badgeHeadline)
             put("badgeSubheadline", branding.badgeSubheadline)
             put("badgeTag", branding.badgeTag)
+            put("hashtag", branding.hashtag)
         }
         prefs.edit().putString(KEY_BRANDING, json.toString()).apply()
     }
