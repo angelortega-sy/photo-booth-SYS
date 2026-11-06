@@ -306,16 +306,11 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
             showError(app.getString(R.string.ai_error_no_model))
             return
         }
-        // Imported backgrounds are uploaded as a second reference so the server keeps
-        // that exact image and restyles only the person.
-        val customBackground = if (repository.isCustom(snapshot.backgroundId)) {
-            repository.customBackgroundFile(snapshot.backgroundId)
-        } else {
+        // A background is a text prompt. The model receives only the guest photo.
+        val backgroundForPrompt = if (repository.isCustom(snapshot.backgroundId)) {
             null
-        }
-        if (repository.isCustom(snapshot.backgroundId) && customBackground?.isFile != true) {
-            showError(app.getString(R.string.ai_error_custom_background))
-            return
+        } else {
+            snapshot.backgroundId
         }
         aiJob?.cancel()
         aiJob = viewModelScope.launch {
@@ -326,9 +321,6 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 val session = withContext(Dispatchers.IO) { aiClient.createSession() }
                 remoteSessionId = session.id
                 withContext(Dispatchers.IO) { aiClient.uploadPhoto(session.id, source) }
-                if (customBackground != null) {
-                    withContext(Dispatchers.IO) { aiClient.uploadBackground(session.id, customBackground) }
-                }
                 ensureActive()
                 _uiState.update { it.copy(status = AiStatus.GENERATING, uploadProgress = 1, progress = 45) }
                 val styled = withContext(Dispatchers.IO) {
@@ -337,9 +329,8 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                         modelId = modelId,
                         styleId = snapshot.selectedStyleId,
                         source = "0",
-                        backgroundId = snapshot.backgroundId,
+                        backgroundId = backgroundForPrompt,
                         accessoryIds = snapshot.accessories.toList(),
-                        useCustomBackground = customBackground != null,
                     )
                 }
                 ensureActive()
