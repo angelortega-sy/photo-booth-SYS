@@ -25,8 +25,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AcUnit
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Celebration
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Checkroom
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Face
+import androidx.compose.material.icons.rounded.FilterVintage
+import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.LocalFlorist
+import androidx.compose.material.icons.rounded.Pets
+import androidx.compose.material.icons.rounded.Spa
+import androidx.compose.material.icons.rounded.Style
+import androidx.compose.material.icons.rounded.TheaterComedy
+import androidx.compose.material.icons.rounded.WbSunny
+import androidx.compose.material.icons.rounded.Waves
+import androidx.compose.material.icons.rounded.Whatshot
+import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ImageNotSupported
 import androidx.compose.material.icons.rounded.QrCode2
@@ -55,7 +73,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
@@ -106,19 +126,43 @@ private enum class AiStep(val index: Int, val title: String) {
 
 private const val TOTAL_STEPS = 6
 
-/** Emoji icon per accessory: no new assets, always renders. */
-private fun accessoryEmoji(id: String): String = when (id) {
-    "cap" -> "🧢"
-    "headband" -> "🎀"
-    "crown" -> "👑"
-    "party_hat" -> "🎉"
-    "bunny_ears" -> "🐰"
-    "sunglasses" -> "😎"
-    "mask" -> "🎭"
-    "flowers" -> "🌸"
-    "scarf" -> "🧣"
-    "lei" -> "🌺"
-    else -> "✨"
+private fun accessoryIcon(id: String?): ImageVector = when (id) {
+    null -> Icons.Rounded.Block
+    "cap" -> Icons.Rounded.Checkroom
+    "headband" -> Icons.Rounded.Face
+    "crown" -> Icons.Rounded.WorkspacePremium
+    "party_hat" -> Icons.Rounded.Celebration
+    "bunny_ears" -> Icons.Rounded.Pets
+    "sunglasses" -> Icons.Rounded.DarkMode
+    "mask" -> Icons.Rounded.TheaterComedy
+    "flowers" -> Icons.Rounded.LocalFlorist
+    "scarf" -> Icons.Rounded.Waves
+    "lei" -> Icons.Rounded.FilterVintage
+    "ssj_yellow" -> Icons.Rounded.WbSunny
+    "ssj_red" -> Icons.Rounded.Whatshot
+    "ssj_blue" -> Icons.Rounded.AcUnit
+    "ssj_rose" -> Icons.Rounded.Spa
+    "gi_syscom" -> Icons.Rounded.FitnessCenter
+    "bulma_style" -> Icons.Rounded.Style
+    else -> Icons.Rounded.Category
+}
+
+private fun accessoryTint(id: String?): Color = when (id) {
+    "ssj_yellow" -> Color(0xFFFFD54F)
+    "ssj_red" -> Color(0xFFEF5350)
+    "ssj_blue" -> Color(0xFF42A5F5)
+    "ssj_rose" -> Color(0xFFF48FB1)
+    null -> Cream.copy(alpha = 0.55f)
+    else -> Cream
+}
+
+private fun accessoryGroupTitle(id: String): String = when (id) {
+    "head" -> "Cabeza"
+    "face" -> "Cara"
+    "extra" -> "Extra"
+    "hair" -> "Cabello"
+    "outfit" -> "Ropa"
+    else -> "Accesorio"
 }
 
 /**
@@ -155,8 +199,6 @@ fun AiSingleFlow(
     var bgPreviews by remember { mutableStateOf(mapOf<String, Bitmap>()) }
     var previewTitle by remember { mutableStateOf<String?>(null) }
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var showGenerationReview by remember { mutableStateOf(false) }
-
     val hPad = if (compact) 18.dp else 32.dp
     val maxWidth = if (compact) 560.dp else 680.dp
 
@@ -474,7 +516,7 @@ fun AiSingleFlow(
                         AiStep.STYLE -> AiStep.BACKGROUND
                         AiStep.BACKGROUND -> AiStep.ACCESSORIES
                         AiStep.ACCESSORIES -> {
-                            showGenerationReview = true
+                            viewModel.generate()
                             step
                         }
                         AiStep.FRAMED -> AiStep.SHARE
@@ -488,28 +530,6 @@ fun AiSingleFlow(
                 status = state.status,
                 photoPreview = state.photoPreview,
                 onCancel = viewModel::cancel,
-            )
-        }
-        if (showGenerationReview) {
-            val styleName = state.serverStyles.firstOrNull { it.id == state.selectedStyleId }?.name
-                ?: AiStyles.ALL.firstOrNull { it.id == state.selectedStyleId }
-                    ?.let { context.getString(it.labelRes) }
-                ?: state.selectedStyleId
-            val backgroundName = viewModel.backgrounds.firstOrNull { it.id == state.backgroundId }?.name
-                ?: context.getString(R.string.ai_background_none)
-            val accessoryNames = AiAccessories.ALL
-                .filter { it.id in state.accessories }
-                .map { context.getString(it.labelRes) }
-            GenerationReviewDialog(
-                styleName = styleName,
-                backgroundName = backgroundName,
-                accessoryNames = accessoryNames,
-                onEdit = { showGenerationReview = false },
-                onConfirm = {
-                    showGenerationReview = false
-                    viewModel.generate()
-                    onInteraction()
-                },
             )
         }
         previewTitle?.let { title ->
@@ -543,13 +563,13 @@ private fun CaptureContent(
     onPalm: () -> Unit,
 ) {
     var showPreview by remember { mutableStateOf(false) }
-    Text(
-        if (hasPhoto) "Foto lista. Revisa y continúa."
-        else if (gestureActive) "Muestra la palma o toca el botón."
-        else "Toca el botón para tomar tu foto.",
-        color = Cream.copy(alpha = 0.8f),
-        fontSize = 16.sp,
-    )
+    if (!hasPhoto) {
+        Text(
+            if (gestureActive) "Palma o botón" else "Toca para tomar la foto",
+            color = Cream.copy(alpha = 0.8f),
+            fontSize = 16.sp,
+        )
+    }
     Box(
         Modifier
             .fillMaxWidth()
@@ -647,7 +667,7 @@ private fun StyleContent(
     onSelect: (String) -> Unit,
     onPreview: (String, Bitmap?) -> Unit,
 ) {
-    SectionTitle("Elige el estilo", "Los estilos salen del servidor.")
+    SectionTitle("Estilo")
     if (!modelReady) {
         Text(
             "El modelo se configura en el administrador.",
@@ -762,69 +782,6 @@ private fun StyleCard(
                 maxLines = 1,
             )
         }
-    }
-}
-
-@Composable
-private fun GenerationReviewDialog(
-    styleName: String,
-    backgroundName: String,
-    accessoryNames: List<String>,
-    onEdit: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    Dialog(onDismissRequest = onEdit) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
-                .background(InkSoft)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("Revisa tu foto", color = Cream, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
-            Text(
-                "Confirma tu selección antes de generar.",
-                color = Cream.copy(alpha = 0.72f),
-                fontSize = 15.sp,
-            )
-            ReviewSelectionRow("Estilo", styleName)
-            ReviewSelectionRow("Fondo", backgroundName)
-            ReviewSelectionRow(
-                "Accesorios",
-                accessoryNames.takeIf { it.isNotEmpty() }?.joinToString() ?: "Sin accesorios",
-            )
-            Spacer(Modifier.height(4.dp))
-            OutlinedButton(
-                onClick = onEdit,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(18.dp),
-            ) {
-                Text("Volver a editar", fontSize = 16.sp)
-            }
-            Button(
-                onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth().height(60.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
-            ) {
-                Text("Confirmar y generar", fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReviewSelectionRow(label: String, value: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Ink)
-            .padding(14.dp),
-    ) {
-        Text(label, color = Cream.copy(alpha = 0.62f), fontSize = 13.sp)
-        Text(value, color = Cream, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -1040,7 +997,7 @@ private fun BackgroundContent(
     onSelect: (String) -> Unit,
     onPreview: (String, Bitmap?) -> Unit,
 ) {
-    SectionTitle("Fondo (opcional)", "Sin fondo = la IA crea toda la escena.")
+    SectionTitle("Fondo")
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         BackgroundOptionGrid(
             options = listOf(
@@ -1063,18 +1020,10 @@ private fun BackgroundContent(
         val builtin = iaOptions.filter { it.filePath == null }
         val custom = iaOptions.filter { it.filePath != null }
         if (builtin.isNotEmpty()) {
-            Text("Integrados · la IA recrea la escena", color = Cream.copy(alpha = 0.7f), fontSize = 14.sp)
             BackgroundOptionGrid(builtin, previews, selectedId, onSelect, onPreview)
         }
         if (custom.isNotEmpty()) {
-            Text("Fondos personalizados", color = Cream.copy(alpha = 0.7f), fontSize = 14.sp)
             BackgroundOptionGrid(custom, previews, selectedId, onSelect, onPreview)
-        } else {
-            Text(
-                "Aún no hay. Impórtalos en Admin → Evento.",
-                color = Cream.copy(alpha = 0.55f),
-                fontSize = 14.sp,
-            )
         }
     }
 }
@@ -1197,22 +1146,15 @@ private fun AccessoriesContent(
     onClearGroup: (String) -> Unit,
     onResetPersonalization: () -> Unit,
 ) {
-    SectionTitle("Accesorios", "Combina uno de cada categoría para hacer tu foto única.")
+    SectionTitle("Accesorios")
     AiAccessories.GROUPS.forEach { group ->
         val selectedOption = group.options.firstOrNull { it.id in selected }
         Text(
-            stringResource(group.labelRes),
+            accessoryGroupTitle(group.id),
             color = Cream,
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
         )
-        Text(
-            selectedOption?.let { "Elegiste: ${stringResource(it.labelRes)}" }
-                ?: "Sin accesorio seleccionado",
-            color = Cream.copy(alpha = 0.62f),
-            fontSize = 13.sp,
-        )
-        Spacer(Modifier.height(2.dp))
         val choices = listOf<AiAccessoryChoice?>(null) +
             group.options.map { AiAccessoryChoice(it.id, stringResource(it.labelRes)) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1225,7 +1167,8 @@ private fun AccessoriesContent(
                         val isNone = choice == null
                         AccessoryCard(
                             title = choice?.name ?: stringResource(R.string.ai_accessory_none),
-                            emoji = if (isNone) "✨" else accessoryEmoji(choice.id),
+                            icon = accessoryIcon(choice?.id),
+                            tint = accessoryTint(choice?.id),
                             selected = if (isNone) selectedOption == null else choice.id in selected,
                             onClick = {
                                 if (isNone) onClearGroup(group.id) else onToggle(choice.id)
@@ -1239,19 +1182,12 @@ private fun AccessoriesContent(
         }
         Spacer(Modifier.height(8.dp))
     }
-    Text(
-        "Al continuar, la IA combinará tus accesorios con el estilo y el fondo elegidos.",
-        color = Cream.copy(alpha = 0.62f),
-        fontSize = 14.sp,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
-    )
     OutlinedButton(
         onClick = onResetPersonalization,
         modifier = Modifier.fillMaxWidth().height(56.dp),
         shape = RoundedCornerShape(18.dp),
     ) {
-        Text("Restablecer personalización", fontSize = 16.sp)
+        Text("Reiniciar", fontSize = 16.sp)
     }
 }
 
@@ -1263,7 +1199,8 @@ private data class AiAccessoryChoice(
 @Composable
 private fun AccessoryCard(
     title: String,
-    emoji: String,
+    icon: ImageVector,
+    tint: Color,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1282,10 +1219,13 @@ private fun AccessoryCard(
                 .height(118.dp)
                 .padding(10.dp),
         ) {
-            Text(
-                emoji,
-                fontSize = 42.sp,
-                modifier = Modifier.align(Alignment.Center),
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(42.dp),
             )
             if (selected) {
                 Icon(
@@ -1321,7 +1261,7 @@ private fun FramedContent(
     selected: CollageFrameStyle,
     onSelectFrame: (CollageFrameStyle) -> Unit,
 ) {
-    SectionTitle("Elige tu marco", "La foto ya está lista.")
+    SectionTitle("Marco")
     if (preview != null) {
         Image(
             preview.asImageBitmap(),
@@ -1387,7 +1327,7 @@ private fun ShareContent(
     onRetryQr: () -> Unit,
     onQuickShare: () -> Unit,
 ) {
-    SectionTitle("Comparte tu foto", "Escanea el código con cualquier celular.")
+    SectionTitle("Comparte")
     var zoomed by remember { mutableStateOf(false) }
     preview?.let {
         // Show the whole strip instead of a center crop: guests need to see the real result.
@@ -1506,10 +1446,12 @@ private fun ShareContent(
 }
 
 @Composable
-private fun SectionTitle(title: String, subtitle: String) {
+private fun SectionTitle(title: String, subtitle: String = "") {
     Column {
         Text(title, color = Cream, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Text(subtitle, color = Cream.copy(alpha = 0.7f), fontSize = 15.sp)
+        if (subtitle.isNotBlank()) {
+            Text(subtitle, color = Cream.copy(alpha = 0.7f), fontSize = 15.sp)
+        }
     }
 }
 
