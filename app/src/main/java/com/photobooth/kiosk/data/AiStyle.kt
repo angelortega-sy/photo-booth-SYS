@@ -101,30 +101,55 @@ object AiAccessories {
 
     val HAIR_OPTIONS: List<AiAccessory> = listOf(
         AiAccessory(
-            id = "ssj_red",
-            labelRes = R.string.ai_accessory_ssj_red,
-            promptFragment = "the person's hair turns Super Saiyan God red, with a soft crimson aura around them",
-        ),
-        AiAccessory(
             id = "ssj_yellow",
             labelRes = R.string.ai_accessory_ssj_yellow,
-            promptFragment = "the person's hair turns Super Saiyan yellow, with a crackling golden aura around them",
+            promptFragment = "the person's hair stands straight up in tall sharp Super Saiyan spikes " +
+                "turned glowing golden yellow, with a crackling golden aura around them",
+        ),
+        AiAccessory(
+            id = "ssj_red",
+            labelRes = R.string.ai_accessory_ssj_red,
+            promptFragment = "the person's hair stands straight up in tall sharp Super Saiyan spikes " +
+                "turned deep crimson red, with a soft crimson aura around them",
         ),
         AiAccessory(
             id = "ssj_blue",
             labelRes = R.string.ai_accessory_ssj_blue,
-            promptFragment = "the person's hair turns Super Saiyan Blue, with a cold cyan aura around them",
+            promptFragment = "the person's hair stands straight up in tall sharp Super Saiyan spikes " +
+                "turned icy electric blue, with a cold cyan aura around them",
+        ),
+        AiAccessory(
+            id = "ssj_rose",
+            labelRes = R.string.ai_accessory_ssj_rose,
+            promptFragment = "the person's hair stands straight up in tall sharp Super Saiyan spikes " +
+                "turned soft pink, with a rose-tinted aura around them",
+        ),
+    )
+
+    val OUTFIT_OPTIONS: List<AiAccessory> = listOf(
+        AiAccessory(
+            id = "gi_syscom",
+            labelRes = R.string.ai_accessory_gi_syscom,
+            promptFragment = "the person wears a martial-arts gi with a loose kimono-style wrap top, " +
+                "a wide belt and a round chest badge with a bold letter S",
+        ),
+        AiAccessory(
+            id = "bulma_style",
+            labelRes = R.string.ai_accessory_bulma_style,
+            promptFragment = "the person wears a retro sci-fi adventurer outfit: a short cropped " +
+                "jacket, shorts, gloves and a scarf, styled like a confident heroine",
         ),
     )
 
     val ALL: List<AiAccessory> =
-        HEAD_OPTIONS + FACE_OPTIONS + EXTRA_OPTIONS + HAIR_OPTIONS
+        HEAD_OPTIONS + FACE_OPTIONS + EXTRA_OPTIONS + HAIR_OPTIONS + OUTFIT_OPTIONS
 
     val GROUPS: List<AiAccessoryGroup> = listOf(
         AiAccessoryGroup("head", R.string.ai_accessory_group_head, HEAD_OPTIONS),
         AiAccessoryGroup("face", R.string.ai_accessory_group_face, FACE_OPTIONS),
         AiAccessoryGroup("extra", R.string.ai_accessory_group_extra, EXTRA_OPTIONS),
         AiAccessoryGroup("hair", R.string.ai_accessory_group_hair, HAIR_OPTIONS),
+        AiAccessoryGroup("outfit", R.string.ai_accessory_group_outfit, OUTFIT_OPTIONS),
     )
 
     private val GROUP_BY_ID: Map<String, String> = buildMap {
@@ -132,6 +157,7 @@ object AiAccessories {
         FACE_OPTIONS.forEach { put(it.id, "face") }
         EXTRA_OPTIONS.forEach { put(it.id, "extra") }
         HAIR_OPTIONS.forEach { put(it.id, "hair") }
+        OUTFIT_OPTIONS.forEach { put(it.id, "outfit") }
     }
 
     /** Single-select within a group: toggles off when the same id is tapped again. */
