@@ -243,6 +243,14 @@
     <string name="ai_accessory_group_head">Cabeza (elige 1)</string>
     <string name="ai_accessory_group_face">Cara (elige 1)</string>
     <string name="ai_accessory_group_extra">Extra (elige 1)</string>
+    <string name="ai_accessory_group_hair">Cabello y aura (elige 1)</string>
+    <string name="ai_accessory_group_outfit">Vestimenta (elige 1)</string>
+    <string name="ai_accessory_ssj_red">Pelo rojo</string>
+    <string name="ai_accessory_ssj_yellow">Pelo amarillo</string>
+    <string name="ai_accessory_ssj_blue">Pelo azul</string>
+    <string name="ai_accessory_ssj_rose">Pelo rosa</string>
+    <string name="ai_accessory_gi_syscom">Gi con la S de Syscom</string>
+    <string name="ai_accessory_bulma_style">Traje tipo heroína</string>
     <string name="ai_accessory_none">Ninguno</string>
     <string name="ai_style_ghibli">Estudio Ghibli</string>
     <string name="ai_style_anime">Anime</string>
@@ -289,6 +297,7 @@
     <string name="ai_style_noir">Blanco y negro</string>
     <string name="ai_style_vhs">VHS 90s</string>
     <string name="ai_style_watercolor">Acuarela</string>
+    <string name="ai_style_lego">LEGO</string>
     <string name="ai_models_empty">Registra el tótem para ver modelos y precios.</string>
     <string name="ai_price_unknown">Precio no disponible</string>
     <string name="ai_unit_image">imagen</string>

@@ -334,12 +334,16 @@ fun AiSingleFlow(
                     .fillMaxWidth(),
                 contentAlignment = Alignment.TopCenter,
             ) {
+                val contentScroll = rememberScrollState()
+                // Each step starts at the top: the previous step may have been
+                // scrolled down, which used to leave the next step half visible.
+                LaunchedEffect(step) { contentScroll.scrollTo(0) }
                 Column(
                     Modifier
                         .widthIn(max = maxWidth)
                         .fillMaxWidth()
                         .padding(horizontal = hPad)
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(contentScroll),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     when (step) {
@@ -439,8 +443,13 @@ fun AiSingleFlow(
                 canGenerate = state.canGenerate,
                 generating = state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING,
                 finishArmed = finishArmed,
+                // Once the photos are paid for there is nothing left to edit
+                // upstream, so the flow never walks back into style or background.
+                backEnabled = !state.hasResult && state.status != AiStatus.UPLOADING &&
+                    state.status != AiStatus.GENERATING,
                 onBack = {
                     onInteraction()
+                    if (state.hasResult) return@BottomBar
                     step = when (step) {
                         AiStep.CAPTURE -> return@BottomBar exit()
                         AiStep.STYLE -> AiStep.CAPTURE
@@ -1047,6 +1056,7 @@ private fun BottomBar(
     canGenerate: Boolean,
     generating: Boolean,
     finishArmed: Boolean,
+    backEnabled: Boolean,
     onBack: () -> Unit,
     onNext: () -> Unit,
 ) {
@@ -1074,6 +1084,7 @@ private fun BottomBar(
     ) {
         OutlinedButton(
             onClick = onBack,
+            enabled = backEnabled,
             modifier = Modifier.weight(1f).height(68.dp),
             shape = RoundedCornerShape(20.dp),
         ) {
