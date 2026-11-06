@@ -163,20 +163,36 @@ object AiStyles {
                 "Polished family-friendly render, no text, no logos, no watermark.",
         ),
         AiStyle(
-            id = "cyberpunk",
-            labelRes = R.string.ai_style_cyberpunk,
-            prompt = "Transform the person in this photo into a cyberpunk neon illustration, with " +
-                "glowing rim light and futuristic detail. Preserve the person's identity, face, " +
-                "pose, framing and clothing. Polished illustration, " +
-                "no text, no logos, no watermark.",
-        ),
-        AiStyle(
             id = "comic",
             labelRes = R.string.ai_style_comic,
             prompt = "Transform the person in this photo into a vibrant pop-art comic illustration, " +
                 "with bold inks and halftone shading. Preserve the person's identity, face, pose, " +
                 "framing and clothing. Polished illustration, family friendly, " +
                 "no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "oil",
+            labelRes = R.string.ai_style_oil,
+            prompt = "Transform the person in this photo into a traditional oil painting on linen, " +
+                "with visible impasto brush strokes and palette-knife highlights. Preserve the " +
+                "person's identity, face, pose, framing and clothing. " +
+                "Family friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "dragonball",
+            labelRes = R.string.ai_style_dragonball,
+            prompt = "Transform the person in this photo into a 1990s Dragon Ball anime cel, with " +
+                "brush-pen line art and flat cel colors. Preserve the person's identity, face, " +
+                "pose, framing and clothing; do not turn them into an existing character. " +
+                "Family friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "simpson",
+            labelRes = R.string.ai_style_simpson,
+            prompt = "Redraw the person in this photo in a flat 2D 1990s TV cartoon style: " +
+                "yellow skin, big round eyes with dot pupils, bold uniform outlines and flat colors. " +
+                "Preserve the person's identity, face, pose, framing and clothing. " +
+                "Family friendly, no text, no logos, no watermark.",
         ),
     )
 

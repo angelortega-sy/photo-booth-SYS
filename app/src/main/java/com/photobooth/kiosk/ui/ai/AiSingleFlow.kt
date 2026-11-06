@@ -169,18 +169,19 @@ fun AiSingleFlow(
         onHome()
     }
 
-    // Style preview thumbnails (bundled assets, may be absent on old installs).
-    LaunchedEffect(Unit) {
-        val loaded = withContext(Dispatchers.IO) {
-            AiStyles.ALL.mapNotNull { style ->
+    // Style preview thumbnails (bundled assets). Keys come from the local catalog
+    // plus whatever the server advertises, so new server styles only need an asset.
+    LaunchedEffect(state.serverStyles) {
+        val ids = (AiStyles.ALL.map { it.id } + state.serverStyles.map { it.id }).distinct()
+        stylePreviews = withContext(Dispatchers.IO) {
+            ids.mapNotNull { id ->
                 runCatching {
-                    context.assets.open("style_previews/${style.id}.webp").use {
-                        BitmapFactory.decodeStream(it)?.let { bmp -> style.id to bmp }
+                    context.assets.open("style_previews/$id.webp").use {
+                        BitmapFactory.decodeStream(it)?.let { bmp -> id to bmp }
                     }
                 }.getOrNull()
             }.toMap()
         }
-        stylePreviews = loaded
     }
 
     // Background preview thumbnails (bundled + custom imports).
@@ -277,7 +278,10 @@ fun AiSingleFlow(
         }
     }
 
-    val gestureActive = step == AiStep.CAPTURE && !state.hasPhoto && countdown == 0
+    val gestureActive = state.palmCaptureEnabled &&
+        step == AiStep.CAPTURE &&
+        !state.hasPhoto &&
+        countdown == 0
 
     // Auto-start the QR server when the share screen opens.
     LaunchedEffect(step) {
@@ -471,7 +475,8 @@ private fun CaptureContent(
 ) {
     Text(
         if (hasPhoto) "Foto lista. Revisa y continúa."
-        else "Muestra la palma o toca el botón.",
+        else if (gestureActive) "Muestra la palma o toca el botón."
+        else "Toca el botón para tomar tu foto.",
         color = Cream.copy(alpha = 0.8f),
         fontSize = 16.sp,
     )

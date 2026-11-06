@@ -18,6 +18,7 @@ import com.photobooth.kiosk.data.DeviceIdentity
 import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CameraSettingsStore
+import com.photobooth.kiosk.data.GestureSettingsStore
 import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
@@ -75,6 +76,7 @@ data class PhotoBoothUiState(
     val selectedPhotoIndex: Int? = null,
     val usedFallbackIndices: Set<Int> = emptySet(),
     val cameraRotationDegrees: Int = 0,
+    val palmCaptureEnabled: Boolean = true,
     val aiStyles: List<AiStyle> = AiStyles.ALL,
     val serverStyles: List<BoothStyle> = emptyList(),
     val serverModels: List<BoothModel> = emptyList(),
@@ -121,6 +123,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private val repository = BackgroundRepository(application)
     private val processor = PhotoProcessor(application)
     private val cameraSettings = CameraSettingsStore(application)
+    private val gestureSettings = GestureSettingsStore(application)
     private val brandingStore = EventBrandingStore(application)
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
@@ -154,6 +157,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private val _uiState = MutableStateFlow(
         PhotoBoothUiState(
             cameraRotationDegrees = cameraSettings.rotationDegrees,
+            palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
             customization = CollageCustomization(
                 eventBranding = brandingStore.load(),
                 badgePreset = if (brandingStore.hasSaved()) {
@@ -437,6 +441,12 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     fun setCameraRotation(degrees: Int) {
         cameraSettings.rotationDegrees = degrees
         _uiState.update { it.copy(cameraRotationDegrees = cameraSettings.rotationDegrees) }
+    }
+
+    /** Enables or disables the open-palm capture gesture for guests. */
+    fun setPalmCaptureEnabled(enabled: Boolean) {
+        gestureSettings.palmCaptureEnabled = enabled
+        _uiState.update { it.copy(palmCaptureEnabled = enabled) }
     }
 
     fun selectBackground(id: String) {
@@ -1228,6 +1238,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             selectedBackgroundId = initialBg,
             photoBackgroundIds = List(PhotoBoothUiState.PHOTO_COUNT) { initialBg },
             cameraRotationDegrees = cameraSettings.rotationDegrees,
+            palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
             serverStyles = state.serverStyles,
             serverModels = state.serverModels,
             selectedModelId = state.selectedModelId,

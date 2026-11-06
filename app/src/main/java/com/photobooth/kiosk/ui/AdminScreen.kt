@@ -44,6 +44,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.AttachMoney
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
@@ -53,7 +54,9 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Button
@@ -136,6 +139,7 @@ private enum class AdminSection(
 ) {
     SUMMARY(R.string.admin_tab_summary),
     CAMERA(R.string.admin_section_camera, R.string.admin_nav_camera_description),
+    GESTURES(R.string.admin_tab_gestures, R.string.admin_nav_gestures_description),
     PHOTOS(R.string.admin_section_photos, R.string.admin_nav_photos_description),
     EVENT(R.string.admin_tab_event, R.string.admin_nav_event_description),
     USAGE(R.string.admin_tab_usage, R.string.admin_nav_usage_description),
@@ -349,18 +353,20 @@ private fun PinScreen(
             )
             Spacer(Modifier.height(24.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                repeat(8) { index ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // iPhone-style: one filled dot per typed digit, never a row of empty slots.
+                repeat(maxOf(4, current.length)) { index ->
+                    val filled = index < current.length
                     Box(
                         modifier = Modifier
-                            .size(12.dp)
+                            .size(if (filled) 16.dp else 14.dp)
                             .background(
-                                if (index < current.length) SyscomBlue else InkSoft,
+                                if (filled) SyscomBlueLight else InkSoft,
                                 CircleShape,
                             )
                             .border(
                                 1.dp,
-                                if (index < current.length) SyscomBlue else Cream.copy(alpha = 0.18f),
+                                if (filled) SyscomBlueLight else Cream.copy(alpha = 0.22f),
                                 CircleShape,
                             ),
                     )
@@ -655,6 +661,15 @@ private fun AdminScreen(
                                 onCameraError = { cameraTestError = it },
                                 rotationDegrees = appState.cameraRotationDegrees,
                                 onRotationChange = viewModel::setCameraRotation,
+                            )
+                        }
+                    }
+
+                    AdminSection.GESTURES -> {
+                        item {
+                            GesturesCard(
+                                palmEnabled = appState.palmCaptureEnabled,
+                                onPalmToggle = viewModel::setPalmCaptureEnabled,
                             )
                         }
                     }
@@ -1210,44 +1225,11 @@ private fun AiServerAdminCard(
             )
         }
         if (models.isNotEmpty()) {
-            Text(
-                text = stringResource(R.string.ai_section_model),
-                color = Cream,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 14.dp),
+            ModelSelectField(
+                models = models,
+                selectedModelId = selectedModelId,
+                onSelect = viewModel::selectServerModel,
             )
-            models.forEach { model ->
-                val price = if (model.priceUsd == null) {
-                    stringResource(R.string.ai_price_unknown)
-                } else {
-                    String.format(java.util.Locale.US, "$%.4f", model.priceUsd)
-                }
-                val unit = when (model.priceUnit) {
-                    "image" -> stringResource(R.string.ai_unit_image)
-                    "megapixel" -> stringResource(R.string.ai_unit_megapixel)
-                    "token" -> stringResource(R.string.ai_unit_token)
-                    else -> model.priceUnit.orEmpty()
-                }
-                TextButton(
-                    onClick = { viewModel.selectServerModel(model.id) },
-                    enabled = model.selectable,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = buildString {
-                            if (model.id == selectedModelId) append("● ") else append("○ ")
-                            append(model.name)
-                            append(" · ")
-                            append(price)
-                            if (unit.isNotBlank()) append(" / ").append(unit)
-                            if (model.overBudget) append(" · ").append(context.getString(R.string.ai_over_budget))
-                        },
-                        color = if (model.selectable) Cream else Cream.copy(alpha = 0.35f),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
         }
         OutlinedButton(
             onClick = {
@@ -1286,6 +1268,172 @@ private fun AiServerAdminCard(
             )
             null -> Unit
         }
+    }
+}
+
+/** Searchable single-select for the AI model, instead of a long radio list. */
+@Composable
+private fun ModelSelectField(
+    models: List<BoothModel>,
+    selectedModelId: String,
+    onSelect: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var open by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val selected = models.firstOrNull { it.id == selectedModelId }
+    val unknownPrice = stringResource(R.string.ai_price_unknown)
+    val unitImage = stringResource(R.string.ai_unit_image)
+    val unitMegapixel = stringResource(R.string.ai_unit_megapixel)
+    val unitToken = stringResource(R.string.ai_unit_token)
+
+    fun priceLabel(model: BoothModel): String {
+        val price = model.priceUsd
+            ?.let { String.format(Locale.US, "$%.4f", it) }
+            ?: unknownPrice
+        val unit = when (model.priceUnit) {
+            "image" -> unitImage
+            "megapixel" -> unitMegapixel
+            "token" -> unitToken
+            else -> model.priceUnit.orEmpty()
+        }
+        return if (unit.isBlank()) price else "$price / $unit"
+    }
+
+    Column(Modifier.fillMaxWidth().padding(top = 14.dp)) {
+        Text(
+            text = stringResource(R.string.ai_model_select_label),
+            color = Cream,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 58.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(InkSoft)
+                .border(1.dp, SyscomBlue.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                .clickable(role = Role.Button) {
+                    query = ""
+                    open = true
+                }
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = selected?.name ?: stringResource(R.string.ai_model_none),
+                    color = if (selected != null) Cream else Cream.copy(alpha = 0.5f),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (selected != null) {
+                    Text(
+                        text = priceLabel(selected),
+                        color = Cream.copy(alpha = 0.6f),
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.Rounded.ArrowDropDown,
+                contentDescription = null,
+                tint = SyscomBlueLight,
+            )
+        }
+    }
+
+    if (open) {
+        val filtered = models.filter { model ->
+            query.isBlank() ||
+                model.name.contains(query, ignoreCase = true) ||
+                model.id.contains(query, ignoreCase = true)
+        }
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = {
+                Text(
+                    text = stringResource(R.string.ai_model_select_title),
+                    color = Cream,
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        placeholder = { Text(stringResource(R.string.ai_model_search_hint)) },
+                        leadingIcon = {
+                            Icon(Icons.Rounded.Search, contentDescription = null)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    if (filtered.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.ai_model_search_empty),
+                            color = Cream.copy(alpha = 0.6f),
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(8.dp),
+                        )
+                    } else {
+                        LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                            items(filtered, key = { it.id }) { model ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable(enabled = model.selectable) {
+                                            onSelect(model.id)
+                                            open = false
+                                        }
+                                        .padding(vertical = 10.dp, horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            text = model.name,
+                                            color = if (model.selectable) Cream else Cream.copy(alpha = 0.4f),
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        Text(
+                                            text = buildString {
+                                                append(priceLabel(model))
+                                                if (model.overBudget) {
+                                                    append(" · ")
+                                                    append(context.getString(R.string.ai_over_budget))
+                                                }
+                                            },
+                                            color = Cream.copy(alpha = 0.55f),
+                                            fontSize = 12.sp,
+                                        )
+                                    }
+                                    if (model.id == selectedModelId) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Check,
+                                            contentDescription = stringResource(R.string.ai_model_selected),
+                                            tint = SyscomBlueLight,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { open = false }) {
+                    Text(stringResource(R.string.admin_cancel), color = Cream)
+                }
+            },
+        )
     }
 }
 
@@ -1433,6 +1581,7 @@ private fun AdminSectionNavigationGroup(
         AdminSection.EVENT,
         AdminSection.USAGE,
         AdminSection.CAMERA,
+        AdminSection.GESTURES,
         AdminSection.PHOTOS,
         AdminSection.SYSTEM,
     )
@@ -1511,6 +1660,7 @@ private fun AdminSectionNavigationGroup(
 private fun adminSectionIcon(section: AdminSection): ImageVector = when (section) {
     AdminSection.SUMMARY -> Icons.Rounded.Settings
     AdminSection.CAMERA -> Icons.Rounded.CameraAlt
+    AdminSection.GESTURES -> Icons.Rounded.TouchApp
     AdminSection.PHOTOS -> Icons.Rounded.PhotoLibrary
     AdminSection.EVENT -> Icons.Rounded.Edit
     AdminSection.USAGE -> Icons.Rounded.AttachMoney
@@ -1592,6 +1742,55 @@ private fun DeviceCard(summary: DeviceSummary?) {
             InfoRow("Densidad", summary.density)
             InfoRow("Versión", summary.appVersion)
         }
+    }
+}
+
+@Composable
+private fun GesturesCard(
+    palmEnabled: Boolean,
+    onPalmToggle: (Boolean) -> Unit,
+) {
+    AdminCard(
+        title = stringResource(R.string.admin_gestures_title),
+        subtitle = stringResource(R.string.admin_gestures_subtitle),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(role = Role.Switch) { onPalmToggle(!palmEnabled) }
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.admin_gestures_palm),
+                    color = Cream,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(
+                        if (palmEnabled) {
+                            R.string.admin_gestures_palm_on
+                        } else {
+                            R.string.admin_gestures_palm_off
+                        },
+                    ),
+                    color = Color(0xFF9AC2F4),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Switch(checked = palmEnabled, onCheckedChange = onPalmToggle)
+        }
+        Text(
+            text = stringResource(R.string.admin_gestures_palm_hint),
+            color = Cream.copy(alpha = 0.6f),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

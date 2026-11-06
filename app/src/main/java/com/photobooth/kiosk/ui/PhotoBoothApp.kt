@@ -979,7 +979,8 @@ private fun PhotoBoothScreen(
         }
     }
 
-    val handDetectionActive = cameraReady &&
+    val handDetectionActive = state.palmCaptureEnabled &&
+        cameraReady &&
         !state.isProcessing &&
         !state.isCapturing &&
         !state.hasResult &&

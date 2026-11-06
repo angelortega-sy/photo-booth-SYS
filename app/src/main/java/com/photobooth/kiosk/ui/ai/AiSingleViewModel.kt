@@ -16,6 +16,7 @@ import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.data.EventBrandingStore
+import com.photobooth.kiosk.data.GestureSettingsStore
 import com.photobooth.kiosk.network.AiBackendClient
 import com.photobooth.kiosk.network.AiBackendException
 import com.photobooth.kiosk.network.BoothModel
@@ -56,6 +57,7 @@ data class AiSingleUiState(
     val resultFile: File? = null,
     val frameStyle: CollageFrameStyle = CollageFrameStyle.SYSCOM_DARK,
     val customization: CollageCustomization = CollageCustomization(),
+    val palmCaptureEnabled: Boolean = true,
 ) {
     val canGenerate: Boolean =
         hasPhoto && status != AiStatus.UPLOADING && status != AiStatus.GENERATING
@@ -67,6 +69,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
     private val brandingStore = EventBrandingStore(application)
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
+    private val gestureSettings = GestureSettingsStore(application)
     private val aiClient = AiBackendClient(identityStore, DeviceKeyStore())
     private var remoteSessionId: String? = null
 
@@ -82,6 +85,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
     private val _uiState = MutableStateFlow(
         AiSingleUiState(
             customization = CollageCustomization(eventBranding = brandingStore.load()),
+            palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
         ),
     )
     val uiState: StateFlow<AiSingleUiState> = _uiState.asStateFlow()
@@ -118,7 +122,15 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
             originalFile = file
             _uiState.value.photoPreview?.let { if (!it.isRecycled) it.recycle() }
             _uiState.update {
-                it.copy(hasPhoto = true, photoPreview = preview, error = null)
+                it.copy(
+                    hasPhoto = true,
+                    photoPreview = preview,
+                    // A fresh shot starts with no accessories so a stale selection
+                    // is never applied to a different photo by accident.
+                    accessories = emptySet(),
+                    frameStyle = CollageFrameStyle.SYSCOM_DARK,
+                    error = null,
+                )
             }
         }
     }
@@ -194,6 +206,8 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 error = null,
                 resultPreview = null,
                 resultFile = null,
+                accessories = emptySet(),
+                frameStyle = CollageFrameStyle.SYSCOM_DARK,
             )
         }
     }
