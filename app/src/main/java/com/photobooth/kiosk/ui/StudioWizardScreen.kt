@@ -97,6 +97,8 @@ fun StudioWizardScreen(
     enabled: Boolean,
     onStepSelected: (Int) -> Unit,
     onSelectPhotoTarget: (Int?) -> Unit,
+    onSelectBackground: (String) -> Unit,
+    onApplyBackgroundToAll: (Boolean) -> Unit,
     onSelectAiBackground: (Int, String) -> Unit,
     onSelectLayout: (CollageLayout) -> Unit,
     onSelectFrameStyle: (CollageFrameStyle) -> Unit,
@@ -332,14 +334,23 @@ fun StudioWizardScreen(
                     .padding(14.dp),
             ) {
                 when (state.wizardStep) {
-                    0 -> StepCollageAndFramePanel(
+                    0 -> StepBackgroundPanel(
+                        state = state,
+                        backgrounds = backgrounds,
+                        onApplyBackgroundToAll = onApplyBackgroundToAll,
+                        onSelectPhotoTarget = onSelectPhotoTarget,
+                        onSelectBackground = onSelectBackground,
+                        onNext = { onStepSelected(1) },
+                    )
+
+                    1 -> StepCollageAndFramePanel(
                         state = state,
                         onSelectLayout = onSelectLayout,
                         onSelectFrameStyle = onSelectFrameStyle,
                         onSelectBorderStyle = onSelectBorderStyle,
-                        showBack = false,
-                        onPrev = {},
-                        onNext = { onStepSelected(1) },
+                        showBack = true,
+                        onPrev = { onStepSelected(0) },
+                        onNext = { onStepSelected(2) },
                     )
 
                     else -> StepBadgeAndDeliveryPanel(
@@ -347,7 +358,7 @@ fun StudioWizardScreen(
                         enabled = enabled,
                         onSelectBadgePreset = onSelectBadgePreset,
                         onToggleDateStamp = onToggleDateStamp,
-                        onPrev = { onStepSelected(0) },
+                        onPrev = { onStepSelected(1) },
                         onShare = onShare,
                     )
                 }
@@ -362,6 +373,7 @@ private fun WizardStepperBar(
     onStepSelected: (Int) -> Unit,
 ) {
     val steps = listOf(
+        stringResource(R.string.wizard_step_backgrounds),
         stringResource(R.string.wizard_step_collage),
         stringResource(R.string.wizard_step_badge),
     )
@@ -895,6 +907,95 @@ private fun StudioBackgroundCard(
 }
 
 @Composable
+private fun StepBackgroundPanel(
+    state: PhotoBoothUiState,
+    backgrounds: List<BackgroundOption>,
+    onApplyBackgroundToAll: (Boolean) -> Unit,
+    onSelectPhotoTarget: (Int?) -> Unit,
+    onSelectBackground: (String) -> Unit,
+    onNext: () -> Unit,
+) {
+    val selectedId = if (state.applyBackgroundToAll) {
+        val ids = state.photoBackgroundIds.distinct()
+        if (ids.size == 1) ids.first() else state.selectedBackgroundId
+    } else {
+        val index = state.selectedPhotoIndex ?: 0
+        state.photoBackgroundIds.getOrElse(index) { state.selectedBackgroundId }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        Text(
+            text = stringResource(R.string.wizard_tap_photo_hint),
+            color = Cream.copy(alpha = 0.7f),
+            fontSize = 12.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TargetScopeChip(
+                text = stringResource(R.string.wizard_apply_all),
+                selected = state.applyBackgroundToAll,
+                onClick = { onApplyBackgroundToAll(true) },
+            )
+            repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
+                TargetScopeChip(
+                    text = stringResource(R.string.wizard_photo_tab, index + 1),
+                    selected = !state.applyBackgroundToAll && state.selectedPhotoIndex == index,
+                    onClick = {
+                        onApplyBackgroundToAll(false)
+                        onSelectPhotoTarget(index)
+                    },
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            backgrounds.forEach { option ->
+                TargetScopeChip(
+                    text = option.name,
+                    selected = option.id == selectedId,
+                    onClick = { onSelectBackground(option.id) },
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = onNext,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SyscomBlue,
+                contentColor = Color.White,
+            ),
+        ) {
+            Text(
+                text = stringResource(R.string.wizard_step_collage),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                contentDescription = null,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+    }
+}
+
+@Composable
 private fun StepCollageAndFramePanel(
     state: PhotoBoothUiState,
     onSelectLayout: (CollageLayout) -> Unit,
@@ -1195,6 +1296,16 @@ private fun StepBadgeAndDeliveryPanel(
                     )
                 }
             }
+        }
+
+        state.shareError?.let { message ->
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = message,
+                color = Color(0xFFFFB4AB),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
 
         Spacer(Modifier.height(12.dp))

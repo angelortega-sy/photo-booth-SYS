@@ -94,6 +94,7 @@ data class PhotoBoothUiState(
     val adminBackgrounds: List<BackgroundOption> = emptyList(),
     val backgroundRevision: Int = 0,
     val errorMessage: String? = null,
+    val shareError: String? = null,
 ) {
     val hasResult: Boolean
         get() = capturedCount == PHOTO_COUNT && stripPreview != null && photoPreviews.size == PHOTO_COUNT
@@ -237,6 +238,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     suspend fun startDelivery(): DeliverySession? {
+        _uiState.update { it.copy(shareError = null) }
         val files = ensureExportedFiles() ?: return null
         if (files.size != 4) return null
         if (identityStore.load().enrolled) {
@@ -247,7 +249,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 return DeliverySession(pageUrl = shareUrl, token = "drive", port = 0)
             } catch (error: AiBackendException) {
                 if (error.httpCode != null) {
-                    _uiState.update { it.copy(errorMessage = aiUserMessage(error)) }
+                    val message = aiUserMessage(error)
+                    _uiState.update { it.copy(errorMessage = message, shareError = message) }
                     return null
                 }
             } catch (_: Throwable) {
@@ -418,7 +421,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun setWizardStep(step: Int) {
-        _uiState.update { it.copy(wizardStep = step.coerceIn(0, 1)) }
+        _uiState.update { it.copy(wizardStep = step.coerceIn(0, 2)) }
     }
 
     fun setApplyBackgroundToAll(applyAll: Boolean) {
@@ -598,7 +601,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update {
             it.copy(
                 styleDecided = true,
-                wizardStep = 1,
+                wizardStep = 2,
                 aiError = null,
             )
         }
@@ -775,7 +778,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                         styleDecided = true,
                         aiCost = cost,
                         aiProgress = 100,
-                        wizardStep = 1,
+                        wizardStep = 2,
                         selectedPhotoIndex = null,
                         errorMessage = null,
                         aiError = null,
@@ -860,8 +863,11 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             "device_revoked" -> app.getString(R.string.ai_error_revoked)
             "unknown_device", "invalid_signature" ->
                 app.getString(R.string.ai_error_not_enrolled)
+            "style_not_found" -> app.getString(R.string.ai_error_style)
+            "background_not_found" -> app.getString(R.string.ai_error_background)
+            "upstream_error" -> app.getString(R.string.ai_error_upstream)
             else -> if (error.httpCode != null) {
-                app.getString(R.string.ai_error_server)
+                app.getString(R.string.ai_error_server_code, error.code ?: error.httpCode.toString())
             } else {
                 app.getString(R.string.ai_error_network)
             }

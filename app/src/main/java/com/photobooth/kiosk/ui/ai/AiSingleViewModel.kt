@@ -300,16 +300,11 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
             loaded.onSuccess { (styles, models) ->
                 val saved = aiSettings.load().modelId
                 _uiState.update { state ->
-                    val modelId = when {
-                        models.any { it.id == state.selectedModelId && it.selectable } -> state.selectedModelId
-                        models.any { it.id == saved && it.selectable } -> saved
-                        else -> models.firstOrNull { it.selectable }?.id.orEmpty()
-                    }
+                    val modelId = if (models.any { it.id == saved && it.selectable }) saved else ""
                     val styleId = when {
                         styles.any { it.id == state.selectedStyleId } -> state.selectedStyleId
                         else -> styles.firstOrNull()?.id ?: state.selectedStyleId
                     }
-                    if (modelId.isNotBlank()) aiSettings.saveModel(modelId)
                     state.copy(
                         serverStyles = styles,
                         serverModels = models,
