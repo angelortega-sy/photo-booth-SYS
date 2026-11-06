@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ImageNotSupported
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,6 +71,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.photobooth.kiosk.R
@@ -473,6 +476,7 @@ private fun CaptureContent(
     onError: (String) -> Unit,
     onPalm: () -> Unit,
 ) {
+    var showPreview by remember { mutableStateOf(false) }
     Text(
         if (hasPhoto) "Foto lista. Revisa y continúa."
         else if (gestureActive) "Muestra la palma o toca el botón."
@@ -505,16 +509,16 @@ private fun CaptureContent(
         if (flash) Box(Modifier.fillMaxSize().background(Cream))
     }
     if (cameraError != null) Text(cameraError, color = Cream.copy(alpha = 0.8f), fontSize = 13.sp)
-    photoPreview?.let { preview ->
-        Image(
-            preview.asImageBitmap(),
-            contentDescription = "Vista previa",
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .clip(RoundedCornerShape(18.dp)),
-            contentScale = ContentScale.Crop,
-        )
+    if (hasPhoto && photoPreview != null) {
+        OutlinedButton(
+            onClick = { showPreview = true },
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+            shape = RoundedCornerShape(20.dp),
+        ) {
+            Icon(Icons.Rounded.Visibility, contentDescription = null, tint = Cream)
+            Spacer(Modifier.width(8.dp))
+            Text("Ver mi foto", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Cream)
+        }
     }
     Button(
         onClick = onCapture,
@@ -523,6 +527,47 @@ private fun CaptureContent(
         colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
     ) {
         Text(if (hasPhoto) "Repetir foto" else "Tomar foto", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+    }
+
+    // Full-size preview in a modal: the inline thumbnail was too small to judge the shot.
+    if (showPreview && photoPreview != null) {
+        Dialog(onDismissRequest = { showPreview = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(InkSoft)
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Tu foto", color = Cream, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(14.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(420.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Ink),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        photoPreview.asImageBitmap(),
+                        contentDescription = "Tu foto",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = { showPreview = false },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+                ) {
+                    Text("Cerrar", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 
@@ -860,15 +905,22 @@ private fun ShareContent(
 ) {
     SectionTitle("Comparte tu foto", "Escanea el código con cualquier celular.")
     preview?.let {
-        Image(
-            it.asImageBitmap(),
-            contentDescription = "Tu foto final",
+        // Show the whole strip instead of a center crop: guests need to see the real result.
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
-                .clip(RoundedCornerShape(20.dp)),
-            contentScale = ContentScale.Crop,
-        )
+                .height(300.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(InkSoft),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                it.asImageBitmap(),
+                contentDescription = "Tu foto final",
+                modifier = Modifier.fillMaxHeight().fillMaxWidth(),
+                contentScale = ContentScale.Fit,
+            )
+        }
     }
     Box(
         Modifier
@@ -884,6 +936,7 @@ private fun ShareContent(
                     qr.asImageBitmap(),
                     contentDescription = "QR de descarga",
                     modifier = Modifier
+                        .widthIn(max = 240.dp)
                         .fillMaxWidth()
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(16.dp)),
