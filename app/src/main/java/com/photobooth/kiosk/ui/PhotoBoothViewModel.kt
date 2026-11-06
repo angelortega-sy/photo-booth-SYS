@@ -33,6 +33,7 @@ import com.photobooth.kiosk.network.AiBackendClient
 import com.photobooth.kiosk.network.AiBackendException
 import com.photobooth.kiosk.network.BoothModel
 import com.photobooth.kiosk.network.BoothStyle
+import com.photobooth.kiosk.network.ServerStatusProbe
 import com.photobooth.kiosk.network.UsageMonth
 import com.photobooth.kiosk.network.UsageLimits
 import com.photobooth.kiosk.network.UsagePage
@@ -83,6 +84,9 @@ data class PhotoBoothUiState(
     val aiStyles: List<AiStyle> = AiStyles.ALL,
     val serverStyles: List<BoothStyle> = emptyList(),
     val serverModels: List<BoothModel> = emptyList(),
+    val serverStatusProbe: ServerStatusProbe? = null,
+    val serverStatusError: String? = null,
+    val isServerStatusChecking: Boolean = false,
     /** Style ids the admin switched off; guests never see them. */
     val disabledStyleIds: Set<String> = emptySet(),
     val selectedModelId: String = "",
@@ -598,6 +602,13 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
     fun saveServerBaseUrl(baseUrl: String) {
         identityStore.saveBaseUrl(baseUrl.trim())
+        _uiState.update {
+            it.copy(
+                serverStatusProbe = null,
+                serverStatusError = null,
+                isServerStatusChecking = false,
+            )
+        }
     }
 
     fun saveSelectedModel(modelId: String) {
@@ -654,6 +665,43 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                         serverModels = models,
                         selectedModelId = modelId,
                         selectedAiStyleId = styleId,
+                    )
+                }
+            }
+        }
+    }
+
+    /** Refreshes the signed service probe and the server-provided style/model catalog. */
+    fun refreshServerDiagnostics() {
+        if (!identityStore.load().enrolled) {
+            _uiState.update {
+                it.copy(
+                    serverStatusProbe = null,
+                    serverStatusError = "unknown_device",
+                    isServerStatusChecking = false,
+                )
+            }
+            return
+        }
+        _uiState.update { it.copy(serverStatusError = null, isServerStatusChecking = true) }
+        refreshServerCatalog()
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { aiClient.status() } }
+            result.onSuccess { probe ->
+                _uiState.update {
+                    it.copy(
+                        serverStatusProbe = probe,
+                        serverStatusError = null,
+                        isServerStatusChecking = false,
+                    )
+                }
+            }.onFailure { error ->
+                val code = (error as? AiBackendException)?.code
+                _uiState.update {
+                    it.copy(
+                        serverStatusProbe = null,
+                        serverStatusError = code ?: error.message ?: "network",
+                        isServerStatusChecking = false,
                     )
                 }
             }
