@@ -117,7 +117,9 @@ fun CameraPreview(
                 @Suppress("DEPRECATION")
                 val capture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                    .setTargetResolution(Size(1920, 1080))
+                    // Portrait target: a landscape request makes CameraX crop the field of
+                    // view to 16:9, so the saved photo ends up tighter than the preview.
+                    .setTargetResolution(Size(1080, 1920))
                     .build()
 
                 @Suppress("DEPRECATION")

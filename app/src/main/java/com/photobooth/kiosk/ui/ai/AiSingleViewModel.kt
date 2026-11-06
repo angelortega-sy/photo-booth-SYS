@@ -108,13 +108,23 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 if (!current.isRecycled) current.recycle()
                 current = mirrored
             }
-            val full = BitmapTransforms.centerCrop(
-                current,
-                PhotoProcessor.OUTPUT_WIDTH,
-                PhotoProcessor.OUTPUT_HEIGHT,
-            )
+            // Keep the whole frame. Forcing 9:16 here cut the sides of a 3:4 camera
+            // buffer, so the guest ended up with a close-up of one cheek.
+            val targetWidth = minOf(PhotoProcessor.OUTPUT_WIDTH, current.width)
+            val targetHeight = current.height * targetWidth / current.width
+            val full = if (targetWidth == current.width && targetHeight == current.height) {
+                current.copy(Bitmap.Config.ARGB_8888, false)
+            } else {
+                Bitmap.createScaledBitmap(current, targetWidth, targetHeight, true)
+            }
             if (!current.isRecycled) current.recycle()
-            val preview = Bitmap.createScaledBitmap(full, 540, 960, true)
+            val previewWidth = 540
+            val preview = Bitmap.createScaledBitmap(
+                full,
+                previewWidth,
+                full.height * previewWidth / full.width,
+                true,
+            )
             val dir = ensureSessionDir()
             val file = File(dir, "ai_single_original.jpg")
             withContext(Dispatchers.IO) { PhotoFrameComposer.writeJpeg(full, file) }
