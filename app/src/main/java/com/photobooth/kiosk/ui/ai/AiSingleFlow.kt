@@ -91,10 +91,13 @@ import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.InkSoft
 import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
+import com.photobooth.kiosk.ui.QrZoomDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private const val FINISH_GUARD_MS = 3_000L
 
 private enum class AiStep(val index: Int, val title: String) {
     CAPTURE(0, "Foto"),
@@ -423,12 +426,19 @@ fun AiSingleFlow(
             }
 
             // Bottom bar
+            var finishArmed by remember { mutableStateOf(false) }
+            LaunchedEffect(step) {
+                finishArmed = false
+                if (step == AiStep.FRAMED || step == AiStep.SHARE) delay(FINISH_GUARD_MS)
+                finishArmed = true
+            }
             BottomBar(
                 hPad = hPad,
                 step = step,
                 canContinueFromCapture = state.hasPhoto,
                 canGenerate = state.canGenerate,
                 generating = state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING,
+                finishArmed = finishArmed,
                 onBack = {
                     onInteraction()
                     step = when (step) {
@@ -904,6 +914,7 @@ private fun ShareContent(
     onQuickShare: () -> Unit,
 ) {
     SectionTitle("Comparte tu foto", "Escanea el código con cualquier celular.")
+    var zoomed by remember { mutableStateOf(false) }
     preview?.let {
         // Show the whole strip instead of a center crop: guests need to see the real result.
         Box(
@@ -939,9 +950,18 @@ private fun ShareContent(
                         .widthIn(max = 240.dp)
                         .fillMaxWidth()
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(16.dp)),
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { zoomed = true },
                     contentScale = ContentScale.Fit,
                 )
+                Text(
+                    text = stringResource(R.string.qr_tap_zoom),
+                    color = Cream.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                )
+                if (zoomed) {
+                    QrZoomDialog(bitmap = qr, onDismiss = { zoomed = false })
+                }
             } else {
                 Box(Modifier.size(220.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1026,6 +1046,7 @@ private fun BottomBar(
     canContinueFromCapture: Boolean,
     canGenerate: Boolean,
     generating: Boolean,
+    finishArmed: Boolean,
     onBack: () -> Unit,
     onNext: () -> Unit,
 ) {
@@ -1034,12 +1055,14 @@ private fun BottomBar(
         AiStep.STYLE -> "Continuar"
         AiStep.BACKGROUND -> "Continuar"
         AiStep.ACCESSORIES -> "Generar con IA"
-        AiStep.FRAMED -> "Terminar"
-        AiStep.SHARE -> "Finalizar"
+        AiStep.FRAMED -> "Finalizar"
+        AiStep.SHARE -> "Terminar"
     }
     val nextEnabled = when (step) {
         AiStep.CAPTURE -> canContinueFromCapture
         AiStep.ACCESSORIES -> canGenerate && !generating
+        // Arm the closing buttons late so a guest cannot skip the screen by tapping twice.
+        AiStep.FRAMED, AiStep.SHARE -> finishArmed
         else -> true
     }
     Row(

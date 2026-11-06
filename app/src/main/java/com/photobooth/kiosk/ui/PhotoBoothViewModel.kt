@@ -432,7 +432,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun setWizardStep(step: Int) {
-        _uiState.update { it.copy(wizardStep = step.coerceIn(0, 2)) }
+        _uiState.update { it.copy(wizardStep = step.coerceIn(0, 3)) }
     }
 
     fun setApplyBackgroundToAll(applyAll: Boolean) {

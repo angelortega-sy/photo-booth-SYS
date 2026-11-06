@@ -47,6 +47,7 @@ import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.AttachMoney
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Edit
@@ -149,6 +150,8 @@ private enum class AdminSection(
     PHOTOS(R.string.admin_section_photos, R.string.admin_nav_photos_description),
     EVENT(R.string.admin_tab_event, R.string.admin_nav_event_description),
     USAGE(R.string.admin_tab_usage, R.string.admin_nav_usage_description),
+    AI(R.string.admin_tab_ai, R.string.admin_nav_ai_description),
+    NETWORK(R.string.admin_tab_network, R.string.admin_nav_network_description),
     SYSTEM(R.string.admin_tab_system, R.string.admin_nav_system_description),
 }
 
@@ -787,7 +790,7 @@ private fun AdminScreen(
                         }
                     }
 
-                    AdminSection.SYSTEM -> {
+                    AdminSection.NETWORK -> {
                         item {
                             NetworkCard(
                                 networkType = networkType,
@@ -808,6 +811,9 @@ private fun AdminScreen(
                                 },
                             )
                         }
+                    }
+
+                    AdminSection.AI -> {
                         item {
                             AiServerAdminCard(
                                 viewModel = viewModel,
@@ -818,6 +824,9 @@ private fun AdminScreen(
                                 },
                             )
                         }
+                    }
+
+                    AdminSection.SYSTEM -> {
                         item {
                             AdminCard(
                                 title = stringResource(R.string.admin_security_title),
@@ -2018,6 +2027,8 @@ private fun AdminSectionNavigationGroup(
         AdminSection.GESTURES,
         AdminSection.STYLES,
         AdminSection.PHOTOS,
+        AdminSection.AI,
+        AdminSection.NETWORK,
         AdminSection.SYSTEM,
     )
     val shape = RoundedCornerShape(20.dp)
@@ -2100,7 +2111,9 @@ private fun adminSectionIcon(section: AdminSection): ImageVector = when (section
     AdminSection.PHOTOS -> Icons.Rounded.PhotoLibrary
     AdminSection.EVENT -> Icons.Rounded.Edit
     AdminSection.USAGE -> Icons.Rounded.AttachMoney
-    AdminSection.SYSTEM -> Icons.Rounded.Wifi
+    AdminSection.AI -> Icons.Rounded.AutoAwesome
+    AdminSection.NETWORK -> Icons.Rounded.Wifi
+    AdminSection.SYSTEM -> Icons.Rounded.Settings
 }
 
 @Composable

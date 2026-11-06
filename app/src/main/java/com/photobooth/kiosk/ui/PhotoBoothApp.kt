@@ -737,10 +737,12 @@ private fun DeliveryOptionsDialog(
 @Composable
 private fun QrDeliveryDialog(
     session: DeliverySession,
+    preview: Bitmap?,
     onDismiss: () -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
+    var zoomed by remember { mutableStateOf(false) }
     val qr = remember(session.pageUrl) {
         QrCodeGenerator.generate(session.pageUrl, 720)
     }
@@ -772,18 +774,44 @@ private fun QrDeliveryDialog(
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(16.dp))
+                if (preview != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Ink),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(
+                            bitmap = preview.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(22.dp))
                         .background(Color.White)
+                        .clickable { zoomed = true }
                         .padding(12.dp),
                 ) {
                     Image(
                         bitmap = qr.asImageBitmap(),
                         contentDescription = null,
-                        modifier = Modifier.size(260.dp),
+                        modifier = Modifier.size(200.dp),
                     )
                 }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.qr_tap_zoom),
+                    color = Cream.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                )
                 Spacer(Modifier.height(14.dp))
                 Text(
                     text = session.pageUrl,
@@ -824,11 +852,15 @@ private fun QrDeliveryDialog(
                             contentColor = Color.White,
                         ),
                     ) {
-                        Text(stringResource(R.string.close), fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.finish_session), fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
+    }
+
+    if (zoomed) {
+        QrZoomDialog(bitmap = qr, onDismiss = { zoomed = false })
     }
 }
 
@@ -1219,7 +1251,10 @@ private fun PhotoBoothScreen(
                 onSelectBorderStyle = viewModel::selectPhotoBorderStyle,
                 onSelectBadgePreset = viewModel::selectBadgePreset,
                 onToggleDateStamp = viewModel::toggleDateStamp,
-                onShare = { showDeliveryOptions = true },
+                delivery = deliverySession,
+                onStartDelivery = { if (deliverySession == null) showQrDelivery() },
+                onQuickShare = { showDeliveryOptions = false; sharePhoto() },
+                onFinish = onHome,
                 onRetake = {
                     autoSequenceActive = false
                     cameraReady = false
@@ -1240,13 +1275,6 @@ private fun PhotoBoothScreen(
                     showDeliveryOptions = false
                     showQrDelivery()
                 },
-            )
-        }
-
-        deliverySession?.let { session ->
-            QrDeliveryDialog(
-                session = session,
-                onDismiss = { closeQrDelivery() },
             )
         }
 
