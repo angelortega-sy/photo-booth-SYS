@@ -1,0 +1,26 @@
+[
+  {
+    "theme": "playa",
+    "file": "playa.png",
+    "model": "openai/gpt-image-2.6-sunburst",
+    "prompt": "Minimalist flat vector app icon for a photo booth, square 1:1 composition. Solid very dark navy background #050B14, no gradient, no texture. Centered mark: a thick cream #F3F8FF letter S inside a single thin Syscom blue #0B63CE circle that reads as a camera lens rim. The S is a geometric monogram with even stroke weight and a slight camera-shutter notch. Perfectly geometric, perfectly centered and symmetrical. Flat vector, hard crisp edges, only two ink colors plus the dark background, no shadows, no 3D, no bevel, no glow, no reflections, no gradient. Mark occupies about 60 percent of the canvas with generous dark padding. No text, no words, no brand name, no extra letters, no watermark, no photographic content. Must stay legible at 48x48 pixels.",
+    "aspect_ratio": "1:1",
+    "resolution": "1K",
+    "seed": null,
+    "media_type": "image/png",
+    "cost_usd": 0.02565,
+    "generated_at": "2026-11-06T16:58:13.704Z"
+  },
+  {
+    "theme": "estudio",
+    "file": "estudio.png",
+    "model": "openai/gpt-image-2.6-sunburst",
+    "prompt": "Minimalist flat vector app icon for a photo booth, square 1:1 composition. Solid very dark navy background #050B14, no gradient, no texture. Centered mark: a thick cream #F3F8FF letter S inside a single thin Syscom blue #0B63CE circle that reads as a camera lens rim. The S is a geometric monogram with even stroke weight and a slight camera-shutter notch. Perfectly geometric, perfectly centered and symmetrical. Flat vector, hard crisp edges, only two ink colors plus the dark background, no shadows, no 3D, no bevel, no glow, no reflections, no gradient. Mark occupies about 60 percent of the canvas with generous dark padding. No text, no words, no brand name, no extra letters, no watermark, no photographic content. Must stay legible at 48x48 pixels.",
+    "aspect_ratio": "1:1",
+    "resolution": "1K",
+    "seed": null,
+    "media_type": "image/png",
+    "cost_usd": 0.02565,
+    "generated_at": "2026-11-06T16:58:13.704Z"
+  }
+]
