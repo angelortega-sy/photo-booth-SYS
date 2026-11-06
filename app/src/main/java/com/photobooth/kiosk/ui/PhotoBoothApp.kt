@@ -737,6 +737,7 @@ private fun DeliveryOptionsDialog(
 @Composable
 private fun QrDeliveryDialog(
     session: DeliverySession,
+    preview: Bitmap?,
     onDismiss: () -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
@@ -772,6 +773,24 @@ private fun QrDeliveryDialog(
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(16.dp))
+                if (preview != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Ink),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(
+                            bitmap = preview.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(22.dp))
@@ -781,7 +800,7 @@ private fun QrDeliveryDialog(
                     Image(
                         bitmap = qr.asImageBitmap(),
                         contentDescription = null,
-                        modifier = Modifier.size(260.dp),
+                        modifier = Modifier.size(200.dp),
                     )
                 }
                 Spacer(Modifier.height(14.dp))
@@ -1246,6 +1265,7 @@ private fun PhotoBoothScreen(
         deliverySession?.let { session ->
             QrDeliveryDialog(
                 session = session,
+                preview = state.stripPreview,
                 onDismiss = { closeQrDelivery() },
             )
         }

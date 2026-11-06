@@ -76,6 +76,12 @@
     <string name="wizard_step_backgrounds">1. Fondo</string>
     <string name="wizard_step_collage">2. Diseño</string>
     <string name="wizard_step_badge">3. Entrega</string>
+    <string name="wizard_step_title_backgrounds">Fondo</string>
+    <string name="wizard_step_title_collage">Diseño</string>
+    <string name="wizard_step_title_badge">Entrega</string>
+    <string name="wizard_step_counter">Paso %1$d de %2$d · %3$s</string>
+    <string name="wizard_back">Atrás</string>
+    <string name="wizard_next">Continuar</string>
     <string name="wizard_apply_all">Aplicar a las 3</string>
     <string name="wizard_photo_tab">Foto %1$d</string>
     <string name="wizard_view_collage">Ver Collage</string>

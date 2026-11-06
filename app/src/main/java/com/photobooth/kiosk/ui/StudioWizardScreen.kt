@@ -168,8 +168,20 @@ fun StudioWizardScreen(
                     Text(
                         text = stringResource(R.string.result_title),
                         color = Cream,
-                        fontSize = 23.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.wizard_step_counter,
+                            state.wizardStep + 1,
+                            WIZARD_STEPS.size,
+                            stringResource(
+                                WIZARD_STEPS[state.wizardStep.coerceIn(0, WIZARD_STEPS.lastIndex)],
+                            ),
+                        ),
+                        color = Cream.copy(alpha = 0.65f),
+                        fontSize = 14.sp,
                     )
                 }
 
@@ -203,12 +215,17 @@ fun StudioWizardScreen(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
 
-            // 3-Step Interactive Wizard Stepper
-            WizardStepperBar(
-                currentStep = state.wizardStep,
-                onStepSelected = onStepSelected,
+            // Same progress shape as the AI flow: one bar instead of tab titles.
+            LinearProgressIndicator(
+                progress = { (state.wizardStep + 1) / WIZARD_STEPS.size.toFloat() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(999.dp)),
+                color = SyscomBlue,
+                trackColor = InkSoft,
             )
 
             Spacer(Modifier.height(10.dp))
@@ -337,10 +354,10 @@ fun StudioWizardScreen(
                     0 -> StepBackgroundPanel(
                         state = state,
                         backgrounds = backgrounds,
+                        loadThumbnail = loadThumbnail,
                         onApplyBackgroundToAll = onApplyBackgroundToAll,
                         onSelectPhotoTarget = onSelectPhotoTarget,
                         onSelectBackground = onSelectBackground,
-                        onNext = { onStepSelected(1) },
                     )
 
                     1 -> StepCollageAndFramePanel(
@@ -348,9 +365,6 @@ fun StudioWizardScreen(
                         onSelectLayout = onSelectLayout,
                         onSelectFrameStyle = onSelectFrameStyle,
                         onSelectBorderStyle = onSelectBorderStyle,
-                        showBack = true,
-                        onPrev = { onStepSelected(0) },
-                        onNext = { onStepSelected(2) },
                     )
 
                     else -> StepBadgeAndDeliveryPanel(
@@ -358,64 +372,118 @@ fun StudioWizardScreen(
                         enabled = enabled,
                         onSelectBadgePreset = onSelectBadgePreset,
                         onToggleDateStamp = onToggleDateStamp,
-                        onPrev = { onStepSelected(1) },
-                        onShare = onShare,
                     )
                 }
             }
+
+            Spacer(Modifier.height(10.dp))
+
+            WizardBottomBar(
+                step = state.wizardStep,
+                enabled = enabled,
+                exporting = state.isExporting,
+                onBack = { onStepSelected(state.wizardStep - 1) },
+                onNext = { onStepSelected(state.wizardStep + 1) },
+                onShare = onShare,
+            )
         }
     }
 }
 
+/** Labels for the wizard counter, indexed by `wizardStep`. */
+private val WIZARD_STEPS = listOf(
+    R.string.wizard_step_title_backgrounds,
+    R.string.wizard_step_title_collage,
+    R.string.wizard_step_title_badge,
+)
+
 @Composable
-private fun WizardStepperBar(
-    currentStep: Int,
-    onStepSelected: (Int) -> Unit,
+private fun WizardBottomBar(
+    step: Int,
+    enabled: Boolean,
+    exporting: Boolean,
+    onBack: () -> Unit,
+    onNext: () -> Unit,
+    onShare: () -> Unit,
 ) {
-    val steps = listOf(
-        stringResource(R.string.wizard_step_backgrounds),
-        stringResource(R.string.wizard_step_collage),
-        stringResource(R.string.wizard_step_badge),
-    )
+    val isLast = step >= WIZARD_STEPS.lastIndex
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Ink.copy(alpha = 0.65f))
-            .border(1.dp, Cream.copy(alpha = 0.12f), RoundedCornerShape(18.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        steps.forEachIndexed { index, title ->
-            val isSelected = index == currentStep
-            val isCompleted = index < currentStep
-            Box(
+        if (step > 0) {
+            OutlinedButton(
+                onClick = onBack,
+                enabled = enabled,
                 modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        when {
-                            isSelected -> SyscomBlue
-                            isCompleted -> SyscomBlueDeep.copy(alpha = 0.55f)
-                            else -> Color.Transparent
-                        },
-                    )
-                    .border(
-                        width = 1.dp,
-                        color = if (isSelected) SyscomBlueLight else Color.Transparent,
-                        shape = RoundedCornerShape(14.dp),
-                    )
-                    .clickable { onStepSelected(index) },
-                contentAlignment = Alignment.Center,
+                    .weight(0.4f)
+                    .height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Cream.copy(alpha = 0.24f)),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = null,
+                    tint = Cream.copy(alpha = 0.8f),
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = stringResource(R.string.wizard_back),
+                    color = Cream.copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+
+        val primaryModifier = if (step > 0) {
+            Modifier.weight(0.6f).height(52.dp)
+        } else {
+            Modifier.weight(1f).height(52.dp)
+        }
+
+        if (!isLast) {
+            Button(
+                onClick = onNext,
+                enabled = enabled,
+                modifier = primaryModifier,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
             ) {
                 Text(
-                    text = title,
-                    color = if (isSelected || isCompleted) Color.White else Cream.copy(alpha = 0.62f),
-                    fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    text = stringResource(R.string.wizard_next),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        } else {
+            Button(
+                onClick = onShare,
+                enabled = enabled && !exporting,
+                modifier = primaryModifier,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+            ) {
+                if (exporting) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(18.dp),
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.save_photo),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
                 )
             }
         }
@@ -910,10 +978,10 @@ private fun StudioBackgroundCard(
 private fun StepBackgroundPanel(
     state: PhotoBoothUiState,
     backgrounds: List<BackgroundOption>,
+    loadThumbnail: (String) -> Bitmap?,
     onApplyBackgroundToAll: (Boolean) -> Unit,
     onSelectPhotoTarget: (Int?) -> Unit,
     onSelectBackground: (String) -> Unit,
-    onNext: () -> Unit,
 ) {
     val selectedId = if (state.applyBackgroundToAll) {
         val ids = state.photoBackgroundIds.distinct()
@@ -956,41 +1024,18 @@ private fun StepBackgroundPanel(
             }
         }
         Spacer(Modifier.height(10.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            backgrounds.forEach { option ->
-                TargetScopeChip(
-                    text = option.name,
+            items(backgrounds, key = { it.id }) { option ->
+                StudioBackgroundCard(
+                    option = option,
                     selected = option.id == selectedId,
+                    loadThumbnail = loadThumbnail,
                     onClick = { onSelectBackground(option.id) },
                 )
             }
-        }
-        Spacer(Modifier.height(12.dp))
-        Button(
-            onClick = onNext,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SyscomBlue,
-                contentColor = Color.White,
-            ),
-        ) {
-            Text(
-                text = stringResource(R.string.wizard_step_collage),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(Modifier.width(6.dp))
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                contentDescription = null,
-                modifier = Modifier.size(17.dp),
-            )
         }
     }
 }
@@ -1001,9 +1046,6 @@ private fun StepCollageAndFramePanel(
     onSelectLayout: (CollageLayout) -> Unit,
     onSelectFrameStyle: (CollageFrameStyle) -> Unit,
     onSelectBorderStyle: (PhotoBorderStyle) -> Unit,
-    showBack: Boolean = true,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1148,48 +1190,6 @@ private fun StepCollageAndFramePanel(
             }
         }
 
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (showBack) OutlinedButton(
-                onClick = onPrev,
-                modifier = Modifier.weight(0.4f).height(48.dp),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.dp, Cream.copy(alpha = 0.24f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = null,
-                    modifier = Modifier.size(17.dp),
-                )
-                Spacer(Modifier.width(5.dp))
-                Text(stringResource(R.string.wizard_prev_step), fontSize = 13.sp)
-            }
-            Button(
-                onClick = onNext,
-                modifier = Modifier.weight(if (showBack) 0.6f else 1f).height(48.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SyscomBlue,
-                    contentColor = Color.White,
-                ),
-            ) {
-                Text(
-                    text = stringResource(R.string.wizard_step_badge),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.width(6.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(17.dp),
-                )
-            }
-        }
     }
 }
 
@@ -1199,8 +1199,6 @@ private fun StepBadgeAndDeliveryPanel(
     enabled: Boolean,
     onSelectBadgePreset: (EventBadgePreset) -> Unit,
     onToggleDateStamp: (Boolean) -> Unit,
-    onPrev: () -> Unit,
-    onShare: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1308,54 +1306,5 @@ private fun StepBadgeAndDeliveryPanel(
             )
         }
 
-        Spacer(Modifier.height(12.dp))
-
-        // Primary download CTA: opens the system share sheet, where Quick Share appears.
-        Button(
-            onClick = onShare,
-            enabled = enabled,
-            modifier = Modifier.fillMaxWidth().height(54.dp),
-            shape = RoundedCornerShape(27.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SyscomBlue,
-                contentColor = Color.White,
-            ),
-        ) {
-            if (state.isExporting) {
-                CircularProgressIndicator(
-                    color = Color.White,
-                    strokeWidth = 2.5.dp,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(Modifier.width(10.dp))
-            } else {
-                Icon(Icons.Rounded.Download, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-            }
-            Text(
-                text = stringResource(R.string.save_photo),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = onPrev,
-            enabled = enabled,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.dp, Cream.copy(alpha = 0.24f)),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Cream),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = null,
-                modifier = Modifier.size(17.dp),
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(stringResource(R.string.wizard_prev_step), fontSize = 13.sp)
-        }
     }
 }
