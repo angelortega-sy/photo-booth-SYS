@@ -454,18 +454,17 @@ fun AiSingleFlow(
                 finishArmed = finishArmed,
                 // Once the photos are paid for there is nothing left to edit
                 // upstream, so the flow never walks back into style or background.
-                backEnabled = !state.hasResult && state.status != AiStatus.UPLOADING &&
-                    state.status != AiStatus.GENERATING,
+                backEnabled = step != AiStep.FRAMED && step != AiStep.SHARE &&
+                    state.status != AiStatus.UPLOADING && state.status != AiStatus.GENERATING,
                 onBack = {
                     onInteraction()
-                    if (state.hasResult) return@BottomBar
+                    if (step == AiStep.FRAMED || step == AiStep.SHARE) return@BottomBar
                     step = when (step) {
                         AiStep.CAPTURE -> return@BottomBar exit()
                         AiStep.STYLE -> AiStep.CAPTURE
                         AiStep.BACKGROUND -> AiStep.STYLE
                         AiStep.ACCESSORIES -> AiStep.BACKGROUND
-                        AiStep.FRAMED -> AiStep.ACCESSORIES
-                        AiStep.SHARE -> AiStep.FRAMED
+                        AiStep.FRAMED, AiStep.SHARE -> return@BottomBar
                     }
                 },
                 onNext = {
@@ -1532,8 +1531,7 @@ private fun BottomBar(
         AiStep.STYLE -> "Continuar"
         AiStep.BACKGROUND -> "Continuar"
         AiStep.ACCESSORIES -> if (retryGeneration) "Reintentar con IA" else "Generar con IA"
-        AiStep.FRAMED -> "Finalizar"
-        AiStep.SHARE -> "Terminar"
+        AiStep.FRAMED, AiStep.SHARE -> "Finalizar"
     }
     val nextEnabled = when (step) {
         AiStep.CAPTURE -> canContinueFromCapture
@@ -1542,6 +1540,7 @@ private fun BottomBar(
         AiStep.FRAMED, AiStep.SHARE -> finishArmed
         else -> true
     }
+    val showBack = step != AiStep.FRAMED && step != AiStep.SHARE
     Row(
         Modifier
             .fillMaxWidth()
@@ -1549,18 +1548,20 @@ private fun BottomBar(
             .padding(horizontal = hPad, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        OutlinedButton(
-            onClick = onBack,
-            enabled = backEnabled,
-            modifier = Modifier.weight(1f).height(68.dp),
-            shape = RoundedCornerShape(20.dp),
-        ) {
-            Text(if (step == AiStep.CAPTURE) "Salir" else "Atrás", fontSize = 18.sp)
+        if (showBack) {
+            OutlinedButton(
+                onClick = onBack,
+                enabled = backEnabled,
+                modifier = Modifier.weight(1f).height(68.dp),
+                shape = RoundedCornerShape(20.dp),
+            ) {
+                Text(if (step == AiStep.CAPTURE) "Salir" else "Atrás", fontSize = 18.sp)
+            }
         }
         Button(
             onClick = onNext,
             enabled = nextEnabled,
-            modifier = Modifier.weight(1.4f).height(68.dp),
+            modifier = Modifier.weight(if (showBack) 1.4f else 1f).height(68.dp),
             shape = RoundedCornerShape(20.dp),
             colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
         ) {

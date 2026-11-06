@@ -236,10 +236,11 @@ object AiStyles {
         AiStyle(
             id = "simpson",
             labelRes = R.string.ai_style_simpson,
-            prompt = "Redraw the person in this photo in a flat 2D 1990s TV cartoon style: " +
-                "yellow skin, big round eyes with dot pupils, bold uniform outlines and flat colors. " +
-                "Preserve the person's identity, face, pose, framing and clothing. " +
-                "Family friendly, no text, no logos, no watermark.",
+            prompt = "Redraw the person in this photo as a classic Simpsons frame, not a generic " +
+                "yellow cartoon: oversized head, huge overbite muzzle, enormous white eyes with " +
+                "dot pupils, four-finger hands, tube limbs, and one flat yellow. Preserve the " +
+                "person's identity, hairstyle, pose, framing and clothing. Do not turn them into " +
+                "an existing character. Family friendly, no text, no logos, no watermark.",
         ),
         AiStyle(
             id = "pixelart",
@@ -292,12 +293,12 @@ object AiStyles {
         AiStyle(
             id = "lego",
             labelRes = R.string.ai_style_lego,
-            prompt = "Rebuild the person in this photo as a photographed LEGO minifigure set, with " +
-                "glossy ABS plastic, the classic yellow cylindrical head, and the classic face: " +
-                "only two dot eyes and a curved mouth line, with no nose at all and a completely " +
-                "flat yellow face, C-shaped hands, moulded plastic hair and visible studs. Preserve " +
-                "the person's identity, hairstyle colour, pose, framing and clothing colours. " +
-                "Family friendly, no text, no logos, no watermark.",
+            prompt = "Rebuild the person and the whole scene as one photographed LEGO minifigure " +
+                "on a brick-built background. Use the classic yellow head with only two dot eyes " +
+                "and a curved mouth, no nose, and exactly two complete C-shaped hands, both fully " +
+                "visible even when the arms are crossed. The background is empty LEGO bricks, with " +
+                "no people and no extra figures. Preserve the person's hairstyle colour, pose, " +
+                "framing and clothing colours. Family friendly, no text, no logos, no watermark.",
         ),
     )
 
