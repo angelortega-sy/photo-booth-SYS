@@ -133,6 +133,8 @@ fun AiSingleFlow(
     viewModel: AiSingleViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // The admin may have switched styles on or off since the last guest run.
+    LaunchedEffect(Unit) { viewModel.refreshStyleSettings() }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()

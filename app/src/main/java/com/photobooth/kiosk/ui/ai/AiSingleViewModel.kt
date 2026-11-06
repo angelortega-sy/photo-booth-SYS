@@ -97,6 +97,24 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
     )
     val uiState: StateFlow<AiSingleUiState> = _uiState.asStateFlow()
 
+    /**
+     * Re-reads the admin style switches. The screen is activity scoped, so
+     * without this a style that was switched back on would stay hidden for the
+     * rest of the process.
+     */
+    fun refreshStyleSettings() {
+        val disabled = styleSettings.disabledIds
+        _uiState.update { state ->
+            val visible = state.serverStyles.filterNot { it.id in disabled }
+            val styleId = if (visible.any { it.id == state.selectedStyleId }) {
+                state.selectedStyleId
+            } else {
+                visible.firstOrNull()?.id ?: state.selectedStyleId
+            }
+            state.copy(disabledStyleIds = disabled, selectedStyleId = styleId)
+        }
+    }
+
     val backgrounds: List<BackgroundOption> get() = repository.visibleOptions
 
     fun loadThumbnail(id: String): Bitmap? = repository.loadThumbnail(id)
