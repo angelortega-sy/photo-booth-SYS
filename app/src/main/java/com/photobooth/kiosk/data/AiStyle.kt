@@ -99,18 +99,39 @@ object AiAccessories {
         ),
     )
 
-    val ALL: List<AiAccessory> = HEAD_OPTIONS + FACE_OPTIONS + EXTRA_OPTIONS
+    val HAIR_OPTIONS: List<AiAccessory> = listOf(
+        AiAccessory(
+            id = "ssj_red",
+            labelRes = R.string.ai_accessory_ssj_red,
+            promptFragment = "the person's hair turns Super Saiyan God red, with a soft crimson aura around them",
+        ),
+        AiAccessory(
+            id = "ssj_yellow",
+            labelRes = R.string.ai_accessory_ssj_yellow,
+            promptFragment = "the person's hair turns Super Saiyan yellow, with a crackling golden aura around them",
+        ),
+        AiAccessory(
+            id = "ssj_blue",
+            labelRes = R.string.ai_accessory_ssj_blue,
+            promptFragment = "the person's hair turns Super Saiyan Blue, with a cold cyan aura around them",
+        ),
+    )
+
+    val ALL: List<AiAccessory> =
+        HEAD_OPTIONS + FACE_OPTIONS + EXTRA_OPTIONS + HAIR_OPTIONS
 
     val GROUPS: List<AiAccessoryGroup> = listOf(
         AiAccessoryGroup("head", R.string.ai_accessory_group_head, HEAD_OPTIONS),
         AiAccessoryGroup("face", R.string.ai_accessory_group_face, FACE_OPTIONS),
         AiAccessoryGroup("extra", R.string.ai_accessory_group_extra, EXTRA_OPTIONS),
+        AiAccessoryGroup("hair", R.string.ai_accessory_group_hair, HAIR_OPTIONS),
     )
 
     private val GROUP_BY_ID: Map<String, String> = buildMap {
         HEAD_OPTIONS.forEach { put(it.id, "head") }
         FACE_OPTIONS.forEach { put(it.id, "face") }
         EXTRA_OPTIONS.forEach { put(it.id, "extra") }
+        HAIR_OPTIONS.forEach { put(it.id, "hair") }
     }
 
     /** Single-select within a group: toggles off when the same id is tapped again. */
@@ -241,6 +262,14 @@ object AiStyles {
                 "transparent wet-in-wet washes, visible paper grain and unpainted white " +
                 "highlights. Preserve the person's identity, face, pose, framing and clothing " +
                 "colors. Family friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "lego",
+            labelRes = R.string.ai_style_lego,
+            prompt = "Rebuild the person in this photo as a LEGO minifigure scene, with glossy " +
+                "ABS plastic, the classic yellow head, dot eyes, C-shaped hands and visible " +
+                "studs. Preserve the person's identity, hairstyle colour, pose, framing and " +
+                "clothing colours. Family friendly, no text, no logos, no watermark.",
         ),
     )
 
