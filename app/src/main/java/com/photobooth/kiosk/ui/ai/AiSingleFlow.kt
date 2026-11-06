@@ -174,6 +174,7 @@ private fun accessoryGroupTitle(id: String): String = when (id) {
 fun AiSingleFlow(
     onHome: () -> Unit,
     onInteraction: () -> Unit,
+    previewRotationDegrees: Int = 0,
     viewModel: AiSingleViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -403,6 +404,7 @@ fun AiSingleFlow(
                             onCaptured = { bmp, rot, mirror -> viewModel.onPhotoCaptured(bmp, rot, mirror) },
                             onError = { cameraError = it },
                             onPalm = { onInteraction(); startCapture() },
+                            previewRotationDegrees = previewRotationDegrees,
                         )
                         AiStep.STYLE -> StyleContent(
                             styles = state.serverStyles.filterNot { it.id in state.disabledStyleIds },
@@ -561,6 +563,7 @@ private fun CaptureContent(
     onCaptured: (Bitmap, Int, Boolean) -> Unit,
     onError: (String) -> Unit,
     onPalm: () -> Unit,
+    previewRotationDegrees: Int,
 ) {
     var showPreview by remember { mutableStateOf(false) }
     if (!hasPhoto) {
@@ -582,6 +585,7 @@ private fun CaptureContent(
             modifier = Modifier.fillMaxSize(),
             captureRequest = captureRequest,
             handDetectionEnabled = gestureActive && cameraReady,
+            previewRotationDegrees = previewRotationDegrees,
             onPalmDetected = onPalm,
             onReady = onReady,
             onCaptured = onCaptured,
