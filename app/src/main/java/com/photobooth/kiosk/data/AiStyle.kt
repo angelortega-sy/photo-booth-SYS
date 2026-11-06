@@ -103,26 +103,34 @@ object AiAccessories {
         AiAccessory(
             id = "ssj_yellow",
             labelRes = R.string.ai_accessory_ssj_yellow,
-            promptFragment = "the person's hair stands straight up in tall sharp Super Saiyan spikes " +
-                "turned glowing golden yellow, with a crackling golden aura around them",
+            promptFragment = "Change only the hair. Keep this person's face, age, skin, eyes, nose, " +
+                "mouth, expression, and personality. Do not redraw them as Goku or any anime " +
+                "character. Their own hair stands straight up in tall sharp Super Saiyan spikes " +
+                "turned glowing golden yellow, with a faint golden aura behind the hair only",
         ),
         AiAccessory(
             id = "ssj_red",
             labelRes = R.string.ai_accessory_ssj_red,
-            promptFragment = "the person's hair stands straight up in tall sharp Super Saiyan spikes " +
-                "turned deep crimson red, with a soft crimson aura around them",
+            promptFragment = "Change only the hair. Keep this person's face, age, skin, eyes, nose, " +
+                "mouth, expression, and personality. Do not redraw them as Goku or any anime " +
+                "character. Their own hair stands straight up in tall sharp Super Saiyan spikes " +
+                "turned deep crimson red, with a faint crimson aura behind the hair only",
         ),
         AiAccessory(
             id = "ssj_blue",
             labelRes = R.string.ai_accessory_ssj_blue,
-            promptFragment = "the person's hair stands straight up in tall sharp Super Saiyan spikes " +
-                "turned icy electric blue, with a cold cyan aura around them",
+            promptFragment = "Change only the hair. Keep this person's face, age, skin, eyes, nose, " +
+                "mouth, expression, and personality. Do not redraw them as Goku or any anime " +
+                "character. Their own hair stands straight up in tall sharp Super Saiyan spikes " +
+                "turned icy electric blue, with a faint cyan aura behind the hair only",
         ),
         AiAccessory(
             id = "ssj_rose",
             labelRes = R.string.ai_accessory_ssj_rose,
-            promptFragment = "the person's hair stands straight up in tall sharp Super Saiyan spikes " +
-                "turned soft pink, with a rose-tinted aura around them",
+            promptFragment = "Change only the hair. Keep this person's face, age, skin, eyes, nose, " +
+                "mouth, expression, and personality. Do not redraw them as Goku or any anime " +
+                "character. Their own hair stands straight up in tall sharp Super Saiyan spikes " +
+                "turned vivid purple, with a faint purple aura behind the hair only",
         ),
     )
 
@@ -236,10 +244,11 @@ object AiStyles {
         AiStyle(
             id = "simpson",
             labelRes = R.string.ai_style_simpson,
-            prompt = "Redraw the person in this photo as a classic Simpsons frame, not a generic " +
-                "yellow cartoon: oversized head, huge overbite muzzle, enormous white eyes with " +
-                "dot pupils, four-finger hands, tube limbs, and one flat yellow. Preserve the " +
-                "person's identity, hairstyle, pose, framing and clothing. Do not turn them into " +
+            prompt = "Redraw every person in this photo as a classic Simpsons frame, not a generic " +
+                "yellow cartoon. Give each one their own Simpsons personality: their expression, " +
+                "a unique hair silhouette, and the show's mouth shapes. Use the oversized head, " +
+                "huge overbite muzzle, enormous white eyes, four-finger hands, tube limbs, and " +
+                "one flat yellow. Do not make a group look like copies. Do not turn them into " +
                 "an existing character. Family friendly, no text, no logos, no watermark.",
         ),
         AiStyle(
@@ -296,8 +305,10 @@ object AiStyles {
             prompt = "Rebuild every person in the photo, and the whole scene, as photographed LEGO " +
                 "minifigures on a brick-built background. Make one minifigure for each person: do " +
                 "not drop anyone in a group and do not add anyone who was not there. Each figure " +
-                "uses the classic yellow head with only two dot eyes and a curved mouth, no nose, " +
-                "and exactly two complete C-shaped hands, both fully visible even when the arms " +
+                "uses the classic yellow head with a printed face that matches that person's " +
+                "expression and personality: their eyebrows, eye shape, smile or smirk, and small " +
+                "marks such as freckles or glasses. No sculpted nose. Each figure has " +
+                "exactly two complete C-shaped hands, both fully visible even when the arms " +
                 "are crossed or partly behind a neighbour. The background is empty LEGO bricks, " +
                 "with zero extra minifigures. Preserve each person's hairstyle colour, pose, " +
                 "spacing and clothing colours. Family friendly, no text, no logos, no watermark.",

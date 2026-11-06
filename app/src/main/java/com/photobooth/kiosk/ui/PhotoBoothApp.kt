@@ -247,6 +247,7 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
             boothMode == "ai" -> com.photobooth.kiosk.ui.ai.AiSingleFlow(
                 onHome = { goHome() },
                 onInteraction = { lastInteraction = SystemClock.uptimeMillis() },
+                previewRotationDegrees = state.cameraRotationDegrees,
             )
 
             else -> PhotoBoothScreen(

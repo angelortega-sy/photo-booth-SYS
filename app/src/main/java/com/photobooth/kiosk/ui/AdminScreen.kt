@@ -2458,6 +2458,7 @@ private fun CameraCard(
                 CameraPreview(
                     modifier = Modifier.fillMaxSize(),
                     captureRequest = 0,
+                    previewRotationDegrees = rotationDegrees,
                     onReady = {},
                     onCaptured = { _, _, _ -> },
                     onError = onCameraError,
