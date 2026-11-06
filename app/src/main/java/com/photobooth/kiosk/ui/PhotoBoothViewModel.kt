@@ -418,10 +418,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun setWizardStep(step: Int) {
-        val state = _uiState.value
-        val coerced = step.coerceIn(0, 2)
-        if (coerced > 0 && !state.hasAiResult && !state.styleDecided) return
-        _uiState.update { it.copy(wizardStep = coerced) }
+        _uiState.update { it.copy(wizardStep = step.coerceIn(0, 1)) }
     }
 
     fun setApplyBackgroundToAll(applyAll: Boolean) {
@@ -574,13 +571,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     fun loadIdentity(): DeviceIdentity = identityStore.load()
 
     fun saveServerBaseUrl(baseUrl: String) {
-        val trimmed = baseUrl.trim()
-        identityStore.saveBaseUrl(trimmed)
-        aiSettings.save(aiSettings.load().copy(baseUrl = trimmed))
-    }
-
-    fun saveKioskToken(token: String) {
-        aiSettings.save(aiSettings.load().copy(kioskToken = token.trim()))
+        identityStore.saveBaseUrl(baseUrl.trim())
     }
 
     fun saveSelectedModel(modelId: String) {

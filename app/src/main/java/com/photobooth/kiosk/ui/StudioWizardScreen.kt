@@ -103,11 +103,6 @@ fun StudioWizardScreen(
     onSelectBorderStyle: (PhotoBorderStyle) -> Unit,
     onSelectBadgePreset: (EventBadgePreset) -> Unit,
     onToggleDateStamp: (Boolean) -> Unit,
-    onSelectAiStyle: (String) -> Unit,
-    onSelectModel: (String) -> Unit,
-    onKeepOriginal: () -> Unit,
-    onGenerateAi: () -> Unit,
-    onCancelAi: () -> Unit,
     onShare: () -> Unit,
     onRetake: () -> Unit,
     onHome: () -> Unit,
@@ -211,7 +206,6 @@ fun StudioWizardScreen(
             // 3-Step Interactive Wizard Stepper
             WizardStepperBar(
                 currentStep = state.wizardStep,
-                hasAiResult = state.hasAiResult,
                 onStepSelected = onStepSelected,
             )
 
@@ -338,23 +332,14 @@ fun StudioWizardScreen(
                     .padding(14.dp),
             ) {
                 when (state.wizardStep) {
-                    0 -> AiConfigPanel(
-                        state = state,
-                        enabled = enabled,
-                        onSelectAiStyle = onSelectAiStyle,
-                        onSelectModel = onSelectModel,
-                        onKeepOriginal = onKeepOriginal,
-                        onGenerateAi = onGenerateAi,
-                        onCancelAi = onCancelAi,
-                    )
-
-                    1 -> StepCollageAndFramePanel(
+                    0 -> StepCollageAndFramePanel(
                         state = state,
                         onSelectLayout = onSelectLayout,
                         onSelectFrameStyle = onSelectFrameStyle,
                         onSelectBorderStyle = onSelectBorderStyle,
-                        onPrev = { onStepSelected(0) },
-                        onNext = { onStepSelected(2) },
+                        showBack = false,
+                        onPrev = {},
+                        onNext = { onStepSelected(1) },
                     )
 
                     else -> StepBadgeAndDeliveryPanel(
@@ -362,7 +347,7 @@ fun StudioWizardScreen(
                         enabled = enabled,
                         onSelectBadgePreset = onSelectBadgePreset,
                         onToggleDateStamp = onToggleDateStamp,
-                        onPrev = { onStepSelected(1) },
+                        onPrev = { onStepSelected(0) },
                         onShare = onShare,
                     )
                 }
@@ -374,11 +359,9 @@ fun StudioWizardScreen(
 @Composable
 private fun WizardStepperBar(
     currentStep: Int,
-    hasAiResult: Boolean,
     onStepSelected: (Int) -> Unit,
 ) {
     val steps = listOf(
-        stringResource(R.string.wizard_step_backgrounds),
         stringResource(R.string.wizard_step_collage),
         stringResource(R.string.wizard_step_badge),
     )
@@ -411,7 +394,7 @@ private fun WizardStepperBar(
                         color = if (isSelected) SyscomBlueLight else Color.Transparent,
                         shape = RoundedCornerShape(14.dp),
                     )
-                    .clickable(enabled = index < currentStep || (hasAiResult && index <= 2)) { onStepSelected(index) },
+                    .clickable { onStepSelected(index) },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -917,6 +900,7 @@ private fun StepCollageAndFramePanel(
     onSelectLayout: (CollageLayout) -> Unit,
     onSelectFrameStyle: (CollageFrameStyle) -> Unit,
     onSelectBorderStyle: (PhotoBorderStyle) -> Unit,
+    showBack: Boolean = true,
     onPrev: () -> Unit,
     onNext: () -> Unit,
 ) {
@@ -1068,7 +1052,7 @@ private fun StepCollageAndFramePanel(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            OutlinedButton(
+            if (showBack) OutlinedButton(
                 onClick = onPrev,
                 modifier = Modifier.weight(0.4f).height(48.dp),
                 shape = RoundedCornerShape(24.dp),
@@ -1085,7 +1069,7 @@ private fun StepCollageAndFramePanel(
             }
             Button(
                 onClick = onNext,
-                modifier = Modifier.weight(0.6f).height(48.dp),
+                modifier = Modifier.weight(if (showBack) 0.6f else 1f).height(48.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SyscomBlue,

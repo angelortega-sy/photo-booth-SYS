@@ -1216,11 +1216,6 @@ private fun PhotoBoothScreen(
                 onSelectBorderStyle = viewModel::selectPhotoBorderStyle,
                 onSelectBadgePreset = viewModel::selectBadgePreset,
                 onToggleDateStamp = viewModel::toggleDateStamp,
-                onSelectAiStyle = viewModel::selectAiStyle,
-                onSelectModel = viewModel::selectServerModel,
-                onKeepOriginal = viewModel::keepOriginalPhoto,
-                onGenerateAi = { viewModel.generateWithAi() },
-                onCancelAi = { viewModel.cancelAi() },
                 onShare = { showDeliveryOptions = true },
                 onRetake = {
                     autoSequenceActive = false
