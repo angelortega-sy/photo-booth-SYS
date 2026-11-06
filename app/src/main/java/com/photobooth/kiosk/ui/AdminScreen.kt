@@ -353,22 +353,17 @@ private fun PinScreen(
             )
             Spacer(Modifier.height(24.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                // iPhone-style: one filled dot per typed digit, never a row of empty slots.
-                repeat(maxOf(4, current.length)) { index ->
-                    val filled = index < current.length
+            Row(
+                modifier = Modifier.height(18.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // iPhone-style: only the digits typed so far, one blue dot each, nothing while empty.
+                repeat(current.length) {
                     Box(
                         modifier = Modifier
-                            .size(if (filled) 16.dp else 14.dp)
-                            .background(
-                                if (filled) SyscomBlueLight else InkSoft,
-                                CircleShape,
-                            )
-                            .border(
-                                1.dp,
-                                if (filled) SyscomBlueLight else Cream.copy(alpha = 0.22f),
-                                CircleShape,
-                            ),
+                            .size(14.dp)
+                            .background(SyscomBlueLight, CircleShape),
                     )
                 }
             }

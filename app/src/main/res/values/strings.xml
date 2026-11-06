@@ -259,6 +259,8 @@
     <string name="ai_model_selected">Modelo seleccionado</string>
     <string name="ai_model_none">Sin modelo seleccionado</string>
     <string name="ai_style_simpson">Simpsons</string>
+    <string name="ai_style_pixelart">Pixel Art</string>
+    <string name="ai_style_cyberpunk">Cyberpunk</string>
     <string name="ai_models_empty">Registra el tótem para ver modelos y precios.</string>
     <string name="ai_price_unknown">Precio no disponible</string>
     <string name="ai_unit_image">imagen</string>
