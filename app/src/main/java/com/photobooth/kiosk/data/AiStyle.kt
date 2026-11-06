@@ -293,12 +293,14 @@ object AiStyles {
         AiStyle(
             id = "lego",
             labelRes = R.string.ai_style_lego,
-            prompt = "Rebuild the person and the whole scene as one photographed LEGO minifigure " +
-                "on a brick-built background. Use the classic yellow head with only two dot eyes " +
-                "and a curved mouth, no nose, and exactly two complete C-shaped hands, both fully " +
-                "visible even when the arms are crossed. The background is empty LEGO bricks, with " +
-                "no people and no extra figures. Preserve the person's hairstyle colour, pose, " +
-                "framing and clothing colours. Family friendly, no text, no logos, no watermark.",
+            prompt = "Rebuild every person in the photo, and the whole scene, as photographed LEGO " +
+                "minifigures on a brick-built background. Make one minifigure for each person: do " +
+                "not drop anyone in a group and do not add anyone who was not there. Each figure " +
+                "uses the classic yellow head with only two dot eyes and a curved mouth, no nose, " +
+                "and exactly two complete C-shaped hands, both fully visible even when the arms " +
+                "are crossed or partly behind a neighbour. The background is empty LEGO bricks, " +
+                "with zero extra minifigures. Preserve each person's hairstyle colour, pose, " +
+                "spacing and clothing colours. Family friendly, no text, no logos, no watermark.",
         ),
     )
 
