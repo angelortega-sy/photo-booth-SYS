@@ -247,7 +247,14 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
             _uiState.update { it.copy(status = AiStatus.ERROR, error = app.getString(R.string.ai_error_no_model)) }
             return
         }
-        if (repository.isCustom(snapshot.backgroundId)) {
+        // Imported backgrounds are uploaded as a second reference so the server keeps
+        // that exact image and restyles only the person.
+        val customBackground = if (repository.isCustom(snapshot.backgroundId)) {
+            repository.customBackgroundFile(snapshot.backgroundId)
+        } else {
+            null
+        }
+        if (repository.isCustom(snapshot.backgroundId) && customBackground?.isFile != true) {
             _uiState.update { it.copy(status = AiStatus.ERROR, error = app.getString(R.string.ai_error_custom_background)) }
             return
         }
@@ -260,6 +267,9 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 val session = withContext(Dispatchers.IO) { aiClient.createSession() }
                 remoteSessionId = session.id
                 withContext(Dispatchers.IO) { aiClient.uploadPhoto(session.id, source) }
+                if (customBackground != null) {
+                    withContext(Dispatchers.IO) { aiClient.uploadBackground(session.id, customBackground) }
+                }
                 ensureActive()
                 _uiState.update { it.copy(status = AiStatus.GENERATING, uploadProgress = 1, progress = 45) }
                 val styled = withContext(Dispatchers.IO) {
@@ -270,6 +280,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                         source = "0",
                         backgroundId = snapshot.backgroundId,
                         accessoryIds = snapshot.accessories.toList(),
+                        useCustomBackground = customBackground != null,
                     )
                 }
                 ensureActive()
