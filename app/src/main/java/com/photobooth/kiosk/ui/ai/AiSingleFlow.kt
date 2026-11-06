@@ -45,7 +45,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -81,7 +80,6 @@ import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.delivery.LocalDeliveryServer
-import com.photobooth.kiosk.network.BoothModel
 import com.photobooth.kiosk.network.BoothStyle
 import com.photobooth.kiosk.photo.PhotoSaver
 import com.photobooth.kiosk.photo.QrCodeGenerator
@@ -352,13 +350,11 @@ fun AiSingleFlow(
                         )
                         AiStep.STYLE -> StyleContent(
                             styles = state.serverStyles,
-                            models = state.serverModels,
-                            selectedModelId = state.selectedModelId,
+                            modelReady = state.selectedModelId.isNotBlank(),
                             previews = stylePreviews,
                             selectedId = state.selectedStyleId,
                             locked = state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING,
                             onSelect = { viewModel.selectStyle(it); onInteraction() },
-                            onSelectModel = { viewModel.selectModel(it); onInteraction() },
                         )
                         AiStep.BACKGROUND -> BackgroundContent(
                             options = viewModel.backgrounds,
@@ -528,15 +524,20 @@ private fun CaptureContent(
 @Composable
 private fun StyleContent(
     styles: List<BoothStyle>,
-    models: List<BoothModel>,
-    selectedModelId: String,
+    modelReady: Boolean,
     previews: Map<String, Bitmap>,
     selectedId: String,
     locked: Boolean,
     onSelect: (String) -> Unit,
-    onSelectModel: (String) -> Unit,
 ) {
-    SectionTitle("Elige el estilo", "Los estilos y modelos salen del servidor.")
+    SectionTitle("Elige el estilo", "Los estilos salen del servidor.")
+    if (!modelReady) {
+        Text(
+            "El modelo se configura en el administrador.",
+            color = Cream.copy(alpha = 0.7f),
+            fontSize = 15.sp,
+        )
+    }
     if (styles.isEmpty()) {
         Text(
             "Registra el tótem en el administrador para cargar los estilos.",
@@ -553,30 +554,6 @@ private fun StyleContent(
                 selected = style.id == selectedId,
                 onClick = { if (!locked) onSelect(style.id) },
             )
-        }
-    }
-    if (models.isNotEmpty()) {
-        Spacer(Modifier.height(16.dp))
-        Text("Modelo", color = Cream, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        models.forEach { model ->
-            val price = model.priceUsd?.let { String.format(java.util.Locale.US, "$%.4f", it) } ?: "sin precio"
-            TextButton(
-                onClick = { if (!locked) onSelectModel(model.id) },
-                enabled = model.selectable && !locked,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = buildString {
-                        append(if (model.id == selectedModelId) "● " else "○ ")
-                        append(model.name)
-                        append(" · ")
-                        append(price)
-                    },
-                    color = if (model.selectable) Cream else Cream.copy(alpha = 0.35f),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
         }
     }
 }

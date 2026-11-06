@@ -1210,6 +1210,8 @@ private fun PhotoBoothScreen(
                 enabled = !busy && !state.isExporting,
                 onStepSelected = viewModel::setWizardStep,
                 onSelectPhotoTarget = viewModel::selectResult,
+                onSelectBackground = viewModel::selectBackground,
+                onApplyBackgroundToAll = viewModel::setApplyBackgroundToAll,
                 onSelectAiBackground = viewModel::selectAiBackground,
                 onSelectLayout = viewModel::selectCollageLayout,
                 onSelectFrameStyle = viewModel::selectFrameStyle,

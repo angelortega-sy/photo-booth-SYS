@@ -73,9 +73,9 @@
     <string name="badge_memories">Recuerdo Oficial</string>
     <string name="badge_custom">Personalizado</string>
 
-    <string name="wizard_step_backgrounds">1. Diseño</string>
-    <string name="wizard_step_collage">1. Diseño</string>
-    <string name="wizard_step_badge">2. Entrega</string>
+    <string name="wizard_step_backgrounds">1. Fondo</string>
+    <string name="wizard_step_collage">2. Diseño</string>
+    <string name="wizard_step_badge">3. Entrega</string>
     <string name="wizard_apply_all">Aplicar a las 3</string>
     <string name="wizard_photo_tab">Foto %1$d</string>
     <string name="wizard_view_collage">Ver Collage</string>
@@ -233,7 +233,7 @@
     <string name="ai_error_upstream">El proveedor de imágenes rechazó la generación.</string>
     <string name="ai_error_custom_background">Los fondos importados todavía no se envían a la IA. Elige un fondo del catálogo o Sin fondo.</string>
     <string name="ai_error_not_enrolled">Registra este tótem en Modo administrador.</string>
-    <string name="ai_error_no_model">Elige un estilo y un modelo.</string>
+    <string name="ai_error_no_model">Elige un estilo. El modelo se configura en el administrador.</string>
     <string name="ai_error_quota">Se alcanzó el cupo de generaciones de hoy.</string>
     <string name="ai_error_budget">Se alcanzó el presupuesto del mes.</string>
     <string name="ai_error_clock">La hora del tótem no coincide con el servidor. Revisa la fecha y la hora.</string>
