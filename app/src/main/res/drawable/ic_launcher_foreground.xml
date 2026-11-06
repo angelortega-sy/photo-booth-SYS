@@ -1,18 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cabina de Fotos launcher mark: a flat Syscom-blue camera with a cream lens.
+  Source of truth: design/logos/build_logos.py (variant a-solid).
+  Geometry stays inside the 66dp circular safe zone of the adaptive icon.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- viewfinder hump -->
     <path
-        android:fillColor="#0B63CE"
-        android:pathData="M33,38h11l5,-7h10l5,7h8c3.3,0 6,2.7 6,6v24c0,3.3 -2.7,6 -6,6H33c-3.3,0 -6,-2.7 -6,-6V44c0,-3.3 2.7,-6 6,-6z" />
+        android:pathData="M48,26 H60 A5,5 0 0 1 65,31 V34 A5,5 0 0 1 60,39 H48 A5,5 0 0 1 43,34 V31 A5,5 0 0 1 48,26 Z"
+        android:fillColor="#0B63CE" />
+
+    <!-- body -->
     <path
-        android:fillColor="#050B14"
-        android:pathData="M54,48a13,13 0,1 0,0 26a13,13 0,1 0,0 -26z" />
+        android:pathData="M35,34 H73 A11,11 0 0 1 84,45 V68 A11,11 0 0 1 73,79 H35 A11,11 0 0 1 24,68 V45 A11,11 0 0 1 35,34 Z"
+        android:fillColor="#0B63CE" />
+
+    <!-- lens ring -->
     <path
-        android:fillColor="#0B63CE"
-        android:pathData="M54,52.5a8.5,8.5 0,1 0,0 17a8.5,8.5 0,1 0,0 -17z" />
+        android:pathData="M41,56.5 A13,13 0 1 0 67,56.5 A13,13 0 1 0 41,56.5 Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#F3F8FF"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round" />
+
+    <!-- lens core -->
     <path
-        android:fillColor="#050B14"
-        android:pathData="M80,43a3,3 0,1 0,0 6a3,3 0,1 0,0 -6z" />
+        android:pathData="M49.5,56.5 A4.5,4.5 0 1 0 58.5,56.5 A4.5,4.5 0 1 0 49.5,56.5 Z"
+        android:fillColor="#F3F8FF" />
+
+    <!-- flash -->
+    <path
+        android:pathData="M67.7,43 A2.8,2.8 0 1 0 73.3,43 A2.8,2.8 0 1 0 67.7,43 Z"
+        android:fillColor="#F3F8FF" />
 </vector>
