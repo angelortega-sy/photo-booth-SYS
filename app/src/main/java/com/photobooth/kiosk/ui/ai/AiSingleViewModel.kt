@@ -56,6 +56,8 @@ data class AiSingleUiState(
     val progress: Int = 0,
     val cost: Double? = null,
     val error: String? = null,
+    /** Increments for every error, including repeated messages, so the UI can show each event. */
+    val errorEventId: Long = 0,
     val resultPreview: Bitmap? = null,
     val resultFile: File? = null,
     val frameStyle: CollageFrameStyle = CollageFrameStyle.SYSCOM_DARK,
@@ -166,11 +168,22 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         _uiState.update { it.copy(selectedModelId = id, error = null) }
     }
 
-    /** Drive link for the styled photo. Null when the booth is offline or not enrolled. */
+    /**
+     * Drive link for the styled photo. A failed finalization remains recoverable through the
+     * local delivery server, but must still be visible to the guest.
+     */
     fun driveShareUrl(): String? {
         val sessionId = remoteSessionId ?: return null
         if (!identityStore.load().enrolled) return null
-        return runCatching { aiClient.finalize(sessionId) }.getOrNull()
+        return try {
+            aiClient.finalize(sessionId)
+        } catch (error: AiBackendException) {
+            showError(userMessage(error))
+            null
+        } catch (_: Exception) {
+            showError(getApplication<Application>().getString(R.string.ai_error_network))
+            null
+        }
     }
 
     fun selectBackground(id: String) {
@@ -192,6 +205,34 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         _uiState.update {
             it.copy(accessories = it.accessories - ids, error = null)
         }
+    }
+
+    /** Restores personalization defaults without discarding the captured source photo. */
+    fun resetPersonalization() {
+        if (isLocked()) return
+        styledBitmap?.let { if (!it.isRecycled) it.recycle() }
+        styledBitmap = null
+        _uiState.value.resultPreview?.let { if (!it.isRecycled) it.recycle() }
+        _uiState.update {
+            it.copy(
+                selectedStyleId = DEFAULT_STYLE_ID,
+                backgroundId = BackgroundRepository.NO_BACKGROUND_ID,
+                accessories = emptySet(),
+                frameStyle = CollageFrameStyle.SYSCOM_DARK,
+                status = AiStatus.IDLE,
+                uploadProgress = 0,
+                progress = 0,
+                cost = null,
+                error = null,
+                resultPreview = null,
+                resultFile = null,
+            )
+        }
+    }
+
+    /** Clears the current error message after it has been presented to the guest. */
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
     }
 
     fun selectFrame(style: CollageFrameStyle) {
@@ -239,12 +280,12 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         if (isLocked()) return
         val app = getApplication<Application>()
         if (!identityStore.load().enrolled) {
-            _uiState.update { it.copy(status = AiStatus.ERROR, error = app.getString(R.string.ai_error_not_enrolled)) }
+            showError(app.getString(R.string.ai_error_not_enrolled))
             return
         }
         val modelId = snapshot.selectedModelId.ifBlank { aiSettings.load().modelId }
         if (modelId.isBlank() || snapshot.selectedStyleId.isBlank()) {
-            _uiState.update { it.copy(status = AiStatus.ERROR, error = app.getString(R.string.ai_error_no_model)) }
+            showError(app.getString(R.string.ai_error_no_model))
             return
         }
         // Imported backgrounds are uploaded as a second reference so the server keeps
@@ -255,7 +296,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
             null
         }
         if (repository.isCustom(snapshot.backgroundId) && customBackground?.isFile != true) {
-            _uiState.update { it.copy(status = AiStatus.ERROR, error = app.getString(R.string.ai_error_custom_background)) }
+            showError(app.getString(R.string.ai_error_custom_background))
             return
         }
         aiJob?.cancel()
@@ -319,15 +360,20 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update { it.copy(status = AiStatus.IDLE) }
                 throw e
             } catch (e: AiBackendException) {
-                _uiState.update { it.copy(status = AiStatus.ERROR, error = userMessage(e)) }
+                showError(userMessage(e))
             } catch (_: Exception) {
-                _uiState.update {
-                    it.copy(
-                        status = AiStatus.ERROR,
-                        error = getApplication<Application>().getString(R.string.ai_error_network),
-                    )
-                }
+                showError(getApplication<Application>().getString(R.string.ai_error_network))
             }
+        }
+    }
+
+    private fun showError(message: String) {
+        _uiState.update {
+            it.copy(
+                status = AiStatus.ERROR,
+                error = message,
+                errorEventId = it.errorEventId + 1,
+            )
         }
     }
 
@@ -414,5 +460,9 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         _uiState.value.photoPreview?.let { if (!it.isRecycled) it.recycle() }
         _uiState.value.resultPreview?.let { if (!it.isRecycled) it.recycle() }
         styledBitmap?.let { if (!it.isRecycled) it.recycle() }
+    }
+
+    private companion object {
+        const val DEFAULT_STYLE_ID = "ghibli"
     }
 }

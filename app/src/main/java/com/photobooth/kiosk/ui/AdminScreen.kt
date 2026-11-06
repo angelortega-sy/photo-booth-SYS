@@ -110,6 +110,7 @@ import com.photobooth.kiosk.R
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.AiStyles
 import com.photobooth.kiosk.network.BoothModel
+import com.photobooth.kiosk.network.ServerStatusProbe
 import com.photobooth.kiosk.network.UsageMonth
 import com.photobooth.kiosk.network.UsageRequest
 import com.photobooth.kiosk.network.UsageSummary
@@ -819,6 +820,9 @@ private fun AdminScreen(
                                 viewModel = viewModel,
                                 models = appState.serverModels,
                                 selectedModelId = appState.selectedModelId,
+                                statusProbe = appState.serverStatusProbe,
+                                statusError = appState.serverStatusError,
+                                isStatusChecking = appState.isServerStatusChecking,
                                 onMessage = { message ->
                                     scope.launch { snackbarHostState.showSnackbar(message) }
                                 },
@@ -1151,6 +1155,9 @@ private fun AiServerAdminCard(
     viewModel: PhotoBoothViewModel,
     models: List<BoothModel>,
     selectedModelId: String,
+    statusProbe: ServerStatusProbe?,
+    statusError: String?,
+    isStatusChecking: Boolean,
     onMessage: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -1158,9 +1165,7 @@ private fun AiServerAdminCard(
     var baseUrl by remember { mutableStateOf(identity.baseUrl) }
     var enrollCode by remember { mutableStateOf("") }
     var deviceId by remember { mutableStateOf(identity.deviceId) }
-    var testing by remember { mutableStateOf(false) }
     var enrolling by remember { mutableStateOf(false) }
-    var testSucceeded by remember { mutableStateOf<Boolean?>(null) }
     var statusText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
@@ -1182,6 +1187,25 @@ private fun AiServerAdminCard(
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 8.dp),
+        )
+        InfoRow("Servidor", baseUrl.ifBlank { "—" })
+        InfoRow(
+            "Última prueba",
+            when {
+                isStatusChecking -> "Comprobando…"
+                statusProbe != null -> "Respondió"
+                !statusError.isNullOrBlank() -> "Error: $statusError"
+                else -> "Sin comprobar"
+            },
+        )
+        InfoRow("Latencia", statusProbe?.latencyMs?.let { "$it ms" } ?: "—")
+        InfoRow(
+            "Drive",
+            statusProbe?.driveHealthy?.let { if (it) "Correcto" else "Error" } ?: "—",
+        )
+        InfoRow(
+            "TOTEMEXPO",
+            statusProbe?.totemExpoReady?.let { if (it) "Listo" else "No listo" } ?: "—",
         )
         OutlinedTextField(
             value = baseUrl,
@@ -1262,39 +1286,16 @@ private fun AiServerAdminCard(
         OutlinedButton(
             onClick = {
                 viewModel.saveServerBaseUrl(baseUrl)
-                testing = true
-                testSucceeded = null
-                scope.launch {
-                    val ok = viewModel.testServer()
-                    testing = false
-                    testSucceeded = ok
-                }
+                viewModel.refreshServerDiagnostics()
             },
-            enabled = !testing,
+            enabled = !isStatusChecking,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(50.dp),
         ) {
             Text(
                 stringResource(
-                    if (testing) R.string.admin_ai_testing else R.string.admin_ai_test,
+                    if (isStatusChecking) R.string.admin_ai_testing else R.string.admin_ai_test,
                 ),
             )
-        }
-        when (testSucceeded) {
-            true -> Text(
-                text = stringResource(R.string.admin_ai_test_ok),
-                color = SyscomBlueLight,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            false -> Text(
-                text = stringResource(R.string.admin_ai_test_error),
-                color = Color(0xFFFF7A7A),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            null -> Unit
         }
     }
 }

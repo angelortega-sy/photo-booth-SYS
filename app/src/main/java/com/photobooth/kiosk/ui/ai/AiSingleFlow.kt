@@ -9,8 +9,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -37,8 +35,6 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -130,7 +126,6 @@ private fun accessoryEmoji(id: String): String = when (id) {
  * fixed top bar + progress, scrollable content, fixed bottom bar.
  * Camera gesture (open palm) triggers capture like the button.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AiSingleFlow(
     onHome: () -> Unit,
@@ -156,6 +151,9 @@ fun AiSingleFlow(
     var server by remember { mutableStateOf<LocalDeliveryServer?>(null) }
     var stylePreviews by remember { mutableStateOf(mapOf<String, Bitmap>()) }
     var bgPreviews by remember { mutableStateOf(mapOf<String, Bitmap>()) }
+    var previewTitle by remember { mutableStateOf<String?>(null) }
+    var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showGenerationReview by remember { mutableStateOf(false) }
 
     val hPad = if (compact) 18.dp else 32.dp
     val maxWidth = if (compact) 560.dp else 680.dp
@@ -213,7 +211,7 @@ fun AiSingleFlow(
     LaunchedEffect(state.hasResult) {
         if (state.hasResult && step == AiStep.ACCESSORIES) step = AiStep.FRAMED
     }
-    LaunchedEffect(state.error) {
+    LaunchedEffect(state.errorEventId) {
         state.error?.let { snackbar.showSnackbar(it) }
     }
 
@@ -369,20 +367,28 @@ fun AiSingleFlow(
                             selectedId = state.selectedStyleId,
                             locked = state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING,
                             onSelect = { viewModel.selectStyle(it); onInteraction() },
+                            onPreview = { title, preview ->
+                                previewTitle = title
+                                previewBitmap = preview
+                                onInteraction()
+                            },
                         )
                         AiStep.BACKGROUND -> BackgroundContent(
                             options = viewModel.backgrounds,
                             previews = bgPreviews,
                             selectedId = state.backgroundId,
                             onSelect = { viewModel.selectBackground(it); onInteraction() },
+                            onPreview = { title, preview ->
+                                previewTitle = title
+                                previewBitmap = preview
+                                onInteraction()
+                            },
                         )
                         AiStep.ACCESSORIES -> AccessoriesContent(
                             selected = state.accessories,
-                            status = state.status,
-                            progress = state.progress,
                             onToggle = { viewModel.selectAccessoryExclusive(it); onInteraction() },
                             onClearGroup = { viewModel.clearAccessoryGroup(it); onInteraction() },
-                            onCancel = { viewModel.cancel() },
+                            onResetPersonalization = { viewModel.resetPersonalization(); onInteraction() },
                         )
                         AiStep.FRAMED -> FramedContent(
                             preview = state.resultPreview,
@@ -442,6 +448,7 @@ fun AiSingleFlow(
                 canContinueFromCapture = state.hasPhoto,
                 canGenerate = state.canGenerate,
                 generating = state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING,
+                retryGeneration = state.status == AiStatus.ERROR,
                 finishArmed = finishArmed,
                 // Once the photos are paid for there is nothing left to edit
                 // upstream, so the flow never walks back into style or background.
@@ -466,12 +473,51 @@ fun AiSingleFlow(
                         AiStep.STYLE -> AiStep.BACKGROUND
                         AiStep.BACKGROUND -> AiStep.ACCESSORIES
                         AiStep.ACCESSORIES -> {
-                            viewModel.generate()
+                            showGenerationReview = true
                             step
                         }
                         AiStep.FRAMED -> AiStep.SHARE
                         AiStep.SHARE -> return@BottomBar exit()
                     }
+                },
+            )
+        }
+        if (state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING) {
+            GenerationExperience(
+                status = state.status,
+                photoPreview = state.photoPreview,
+                onCancel = viewModel::cancel,
+            )
+        }
+        if (showGenerationReview) {
+            val styleName = state.serverStyles.firstOrNull { it.id == state.selectedStyleId }?.name
+                ?: AiStyles.ALL.firstOrNull { it.id == state.selectedStyleId }
+                    ?.let { context.getString(it.labelRes) }
+                ?: state.selectedStyleId
+            val backgroundName = viewModel.backgrounds.firstOrNull { it.id == state.backgroundId }?.name
+                ?: context.getString(R.string.ai_background_none)
+            val accessoryNames = AiAccessories.ALL
+                .filter { it.id in state.accessories }
+                .map { context.getString(it.labelRes) }
+            GenerationReviewDialog(
+                styleName = styleName,
+                backgroundName = backgroundName,
+                accessoryNames = accessoryNames,
+                onEdit = { showGenerationReview = false },
+                onConfirm = {
+                    showGenerationReview = false
+                    viewModel.generate()
+                    onInteraction()
+                },
+            )
+        }
+        previewTitle?.let { title ->
+            PreviewDialog(
+                title = title,
+                preview = previewBitmap,
+                onDismiss = {
+                    previewTitle = null
+                    previewBitmap = null
                 },
             )
         }
@@ -598,6 +644,7 @@ private fun StyleContent(
     selectedId: String,
     locked: Boolean,
     onSelect: (String) -> Unit,
+    onPreview: (String, Bitmap?) -> Unit,
 ) {
     SectionTitle("Elige el estilo", "Los estilos salen del servidor.")
     if (!modelReady) {
@@ -615,14 +662,23 @@ private fun StyleContent(
         )
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        styles.forEach { style ->
-            StyleCard(
-                title = style.name,
-                subtitle = style.id,
-                preview = previews[style.id],
-                selected = style.id == selectedId,
-                onClick = { if (!locked) onSelect(style.id) },
-            )
+        styles.chunked(2).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                row.forEach { style ->
+                    StyleCard(
+                        title = style.name,
+                        preview = previews[style.id],
+                        selected = style.id == selectedId,
+                        onClick = { if (!locked) onSelect(style.id) },
+                        onPreview = { onPreview(style.name, previews[style.id]) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
@@ -630,38 +686,64 @@ private fun StyleContent(
 @Composable
 private fun StyleCard(
     title: String,
-    subtitle: String,
     preview: Bitmap?,
     selected: Boolean,
     onClick: () -> Unit,
+    onPreview: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .clickable(role = Role.Button, onClick = onClick)
             .then(if (selected) Modifier.border(2.dp, SyscomBlue, RoundedCornerShape(20.dp)) else Modifier),
         shape = RoundedCornerShape(20.dp),
         color = if (selected) SyscomBlue.copy(alpha = 0.22f) else InkSoft,
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (preview != null) {
-                Image(
-                    preview.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(96.dp)
-                        .aspectRatio(3f / 4f)
-                        .clip(RoundedCornerShape(14.dp)),
-                    contentScale = ContentScale.Crop,
-                )
+                Box {
+                    Image(
+                        preview.asImageBitmap(),
+                        contentDescription = title,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(3f / 4f)
+                            .clip(RoundedCornerShape(14.dp)),
+                        contentScale = ContentScale.Crop,
+                    )
+                    if (selected) {
+                        Icon(
+                            Icons.Rounded.Check,
+                            contentDescription = "Seleccionado",
+                            tint = Cream,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(22.dp),
+                        )
+                    }
+                    IconButton(
+                        onClick = onPreview,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(4.dp),
+                    ) {
+                        Icon(
+                            Icons.Rounded.Visibility,
+                            contentDescription = "Ver $title",
+                            tint = Cream,
+                        )
+                    }
+                }
             } else {
                 Box(
                     Modifier
-                        .size(96.dp)
+                        .fillMaxWidth()
+                        .aspectRatio(3f / 4f)
                         .clip(RoundedCornerShape(14.dp))
                         .background(SyscomBlue.copy(alpha = 0.25f)),
                     contentAlignment = Alignment.Center,
@@ -669,13 +751,282 @@ private fun StyleCard(
                     Text(title.take(1), color = Cream, fontSize = 40.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, color = Cream, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text(subtitle, color = Cream.copy(alpha = 0.7f), fontSize = 14.sp)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                title,
+                color = Cream,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun GenerationReviewDialog(
+    styleName: String,
+    backgroundName: String,
+    accessoryNames: List<String>,
+    onEdit: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    Dialog(onDismissRequest = onEdit) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(28.dp))
+                .background(InkSoft)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Revisa tu foto", color = Cream, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
+            Text(
+                "Confirma tu selección antes de generar.",
+                color = Cream.copy(alpha = 0.72f),
+                fontSize = 15.sp,
+            )
+            ReviewSelectionRow("Estilo", styleName)
+            ReviewSelectionRow("Fondo", backgroundName)
+            ReviewSelectionRow(
+                "Accesorios",
+                accessoryNames.takeIf { it.isNotEmpty() }?.joinToString() ?: "Sin accesorios",
+            )
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = onEdit,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(18.dp),
+            ) {
+                Text("Volver a editar", fontSize = 16.sp)
             }
-            if (selected) Icon(Icons.Rounded.Check, null, tint = SyscomBlueLight, modifier = Modifier.size(30.dp))
+            Button(
+                onClick = onConfirm,
+                modifier = Modifier.fillMaxWidth().height(60.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+            ) {
+                Text("Confirmar y generar", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewSelectionRow(label: String, value: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Ink)
+            .padding(14.dp),
+    ) {
+        Text(label, color = Cream.copy(alpha = 0.62f), fontSize = 13.sp)
+        Text(value, color = Cream, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun PreviewDialog(
+    title: String,
+    preview: Bitmap?,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(28.dp))
+                .background(InkSoft)
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(title, color = Cream, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(480.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Ink),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (preview != null) {
+                    Image(
+                        preview.asImageBitmap(),
+                        contentDescription = "Vista previa de $title",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
+                    )
+                } else {
+                    Icon(
+                        Icons.Rounded.ImageNotSupported,
+                        contentDescription = null,
+                        tint = Cream.copy(alpha = 0.75f),
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+            ) {
+                Text("Cerrar", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GenerationExperience(
+    status: AiStatus,
+    photoPreview: Bitmap?,
+    onCancel: () -> Unit,
+) {
+    var progress by remember(status) {
+        mutableIntStateOf(if (status == AiStatus.UPLOADING) 12 else 45)
+    }
+    LaunchedEffect(status) {
+        while (progress < if (status == AiStatus.UPLOADING) 38 else 92) {
+            delay(if (progress < 70) 420 else 850)
+            progress += if (progress < 70) 2 else 1
+        }
+    }
+
+    val generating = status == AiStatus.GENERATING
+    val title = if (generating) "Tu foto está cobrando vida" else "Preparando tu foto"
+    val detail = when {
+        !generating -> "Subiendo una copia segura para transformarla."
+        progress < 62 -> "La IA está aplicando el estilo que elegiste."
+        progress < 78 -> "Afinando colores, rostro y detalles."
+        else -> "Dando los últimos toques. Ya casi está lista."
+    }
+    val estimated = if (generating) "Esto suele tomar entre 15 y 20 segundos." else "Solo tomará un momento."
+    val stages = listOf("Foto lista", "Estilo en proceso", "Detalles finales")
+    val currentStage = when {
+        !generating -> 0
+        progress < 78 -> 1
+        else -> 2
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Ink.copy(alpha = 0.96f))
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.widthIn(max = 440.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier.size(126.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(
+                    progress = { progress / 100f },
+                    modifier = Modifier.fillMaxSize(),
+                    color = SyscomBlueLight,
+                    trackColor = InkSoft,
+                    strokeWidth = 9.dp,
+                )
+                photoPreview?.let { preview ->
+                    Image(
+                        preview.asImageBitmap(),
+                        contentDescription = "Foto en proceso",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(94.dp)
+                            .clip(RoundedCornerShape(22.dp)),
+                    )
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+            Text(
+                title,
+                color = Cream,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                detail,
+                color = Cream.copy(alpha = 0.8f),
+                fontSize = 16.sp,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                estimated,
+                color = Cream.copy(alpha = 0.58f),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(24.dp))
+            LinearProgressIndicator(
+                progress = { progress / 100f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(99.dp)),
+                color = SyscomBlueLight,
+                trackColor = InkSoft,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text("$progress%", color = Cream, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(26.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                stages.forEachIndexed { index, stage ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(RoundedCornerShape(99.dp))
+                                .background(
+                                    if (index <= currentStage) SyscomBlue else InkSoft,
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (index < currentStage) {
+                                Icon(
+                                    Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    tint = Cream,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            } else {
+                                Text(
+                                    "${index + 1}",
+                                    color = Cream,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            stage,
+                            color = if (index <= currentStage) Cream else Cream.copy(alpha = 0.42f),
+                            fontSize = 14.sp,
+                            fontWeight = if (index == currentStage) FontWeight.Bold else FontWeight.Medium,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(28.dp))
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(18.dp),
+            ) {
+                Text(stringResource(R.string.ai_cancel), fontSize = 16.sp)
+            }
         }
     }
 }
@@ -686,22 +1037,21 @@ private fun BackgroundContent(
     previews: Map<String, Bitmap>,
     selectedId: String,
     onSelect: (String) -> Unit,
+    onPreview: (String, Bitmap?) -> Unit,
 ) {
     SectionTitle("Fondo (opcional)", "Sin fondo = la IA crea toda la escena.")
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        val noneSelected = selectedId == BackgroundRepository.NO_BACKGROUND_ID
-        BigOptionRow(
-            title = "Sin fondo",
-            subtitle = "La IA genera toda la escena.",
-            preview = null,
-            icon = {
-                Icon(
-                    Icons.Rounded.ImageNotSupported, null,
-                    tint = Cream.copy(alpha = 0.85f), modifier = Modifier.size(30.dp),
-                )
-            },
-            selected = noneSelected,
-            onClick = { onSelect(BackgroundRepository.NO_BACKGROUND_ID) },
+        BackgroundOptionGrid(
+            options = listOf(
+                BackgroundOption(
+                    id = BackgroundRepository.NO_BACKGROUND_ID,
+                    name = "Sin fondo",
+                ),
+            ),
+            previews = previews,
+            selectedId = selectedId,
+            onSelect = onSelect,
+            onPreview = onPreview,
         )
         // "Cámara real" (original) is hidden in IA mode: it has no prompt and
         // would fall back to a wrong invented backdrop. Custom = hybrid exact.
@@ -713,137 +1063,251 @@ private fun BackgroundContent(
         val custom = iaOptions.filter { it.filePath != null }
         if (builtin.isNotEmpty()) {
             Text("Integrados · la IA recrea la escena", color = Cream.copy(alpha = 0.7f), fontSize = 14.sp)
-            builtin.forEach { option ->
-                BigOptionRow(
-                    title = option.name,
-                    subtitle = "Integrado · la IA lo recrea",
-                    preview = previews[option.id],
-                    icon = null,
-                    selected = option.id == selectedId,
-                    onClick = { onSelect(option.id) },
-                )
-            }
+            BackgroundOptionGrid(builtin, previews, selectedId, onSelect, onPreview)
         }
-        Text("Fondos personalizados · se conservan exactos", color = Cream.copy(alpha = 0.7f), fontSize = 14.sp)
-        if (custom.isEmpty()) {
+        if (custom.isNotEmpty()) {
+            Text("Fondos personalizados", color = Cream.copy(alpha = 0.7f), fontSize = 14.sp)
+            BackgroundOptionGrid(custom, previews, selectedId, onSelect, onPreview)
+        } else {
             Text(
                 "Aún no hay. Impórtalos en Admin → Evento.",
                 color = Cream.copy(alpha = 0.55f),
                 fontSize = 14.sp,
             )
         }
-        custom.forEach { option ->
-            BigOptionRow(
-                title = option.name,
-                subtitle = "Personalizado · solo la persona cambia",
-                preview = previews[option.id],
-                icon = null,
-                selected = option.id == selectedId,
-                onClick = { onSelect(option.id) },
-            )
+    }
+}
+
+@Composable
+private fun BackgroundOptionGrid(
+    options: List<BackgroundOption>,
+    previews: Map<String, Bitmap>,
+    selectedId: String,
+    onSelect: (String) -> Unit,
+    onPreview: (String, Bitmap?) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        options.chunked(2).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                row.forEach { option ->
+                    BackgroundCard(
+                        option = option,
+                        preview = previews[option.id],
+                        selected = option.id == selectedId,
+                        onClick = { onSelect(option.id) },
+                        onPreview = { onPreview(option.name, previews[option.id]) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
 
 @Composable
-private fun BigOptionRow(
-    title: String,
-    subtitle: String,
+private fun BackgroundCard(
+    option: BackgroundOption,
     preview: Bitmap?,
-    icon: (@Composable () -> Unit)?,
     selected: Boolean,
     onClick: () -> Unit,
+    onPreview: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .clickable(role = Role.Button, onClick = onClick)
             .then(if (selected) Modifier.border(2.dp, SyscomBlue, RoundedCornerShape(20.dp)) else Modifier),
         shape = RoundedCornerShape(20.dp),
         color = if (selected) SyscomBlue.copy(alpha = 0.22f) else InkSoft,
     ) {
-        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (preview != null) {
-                Image(
-                    preview.asImageBitmap(),
-                    contentDescription = null,
+        Column(
+            modifier = Modifier.padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(3f / 4f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SyscomBlue.copy(alpha = if (option.id == BackgroundRepository.NO_BACKGROUND_ID) 0.2f else 0.08f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (preview != null) {
+                    Image(
+                        preview.asImageBitmap(),
+                        contentDescription = option.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        Icons.Rounded.ImageNotSupported,
+                        contentDescription = null,
+                        tint = Cream.copy(alpha = 0.82f),
+                        modifier = Modifier.size(42.dp),
+                    )
+                }
+                if (selected) {
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = "Seleccionado",
+                        tint = Cream,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(22.dp),
+                    )
+                }
+                IconButton(
+                    onClick = onPreview,
                     modifier = Modifier
-                        .size(96.dp)
-                        .clip(RoundedCornerShape(14.dp)),
-                    contentScale = ContentScale.Crop,
-                )
-                Spacer(Modifier.width(14.dp))
-            } else if (icon != null) {
-                icon()
-                Spacer(Modifier.width(14.dp))
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp),
+                ) {
+                    Icon(
+                        Icons.Rounded.Visibility,
+                        contentDescription = "Ver ${option.name}",
+                        tint = Cream,
+                    )
+                }
             }
-            Column(Modifier.weight(1f)) {
-                Text(title, color = Cream, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Text(subtitle, color = Cream.copy(alpha = 0.7f), fontSize = 14.sp)
-            }
-            if (selected) Icon(Icons.Rounded.Check, null, tint = SyscomBlueLight, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(
+                option.name,
+                color = Cream,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AccessoriesContent(
     selected: Set<String>,
-    status: AiStatus,
-    progress: Int,
     onToggle: (String) -> Unit,
     onClearGroup: (String) -> Unit,
-    onCancel: () -> Unit,
+    onResetPersonalization: () -> Unit,
 ) {
-    SectionTitle("Accesorios", "Solo 1 por grupo. Toca de nuevo para quitar.")
+    SectionTitle("Accesorios", "Combina uno de cada categoría para hacer tu foto única.")
     AiAccessories.GROUPS.forEach { group ->
-        Text(stringResource(group.labelRes), color = Cream, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            val noneSelected = selected.none { id -> group.options.any { it.id == id } }
-            FilterChip(
-                selected = noneSelected,
-                onClick = { onClearGroup(group.id) },
-                label = { Text("🚫 " + stringResource(R.string.ai_accessory_none), fontSize = 16.sp) },
-                modifier = Modifier.height(60.dp),
-                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = SyscomBlue),
-            )
-            group.options.forEach { option ->
-                FilterChip(
-                    selected = option.id in selected,
-                    onClick = { onToggle(option.id) },
-                    label = { Text(accessoryEmoji(option.id) + " " + stringResource(option.labelRes), fontSize = 16.sp) },
-                    modifier = Modifier.height(60.dp),
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = SyscomBlue),
-                )
+        val selectedOption = group.options.firstOrNull { it.id in selected }
+        Text(
+            stringResource(group.labelRes),
+            color = Cream,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            selectedOption?.let { "Elegiste: ${stringResource(it.labelRes)}" }
+                ?: "Sin accesorio seleccionado",
+            color = Cream.copy(alpha = 0.62f),
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(2.dp))
+        val choices = listOf<AiAccessoryChoice?>(null) +
+            group.options.map { AiAccessoryChoice(it.id, stringResource(it.labelRes)) }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            choices.chunked(2).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    row.forEach { choice ->
+                        val isNone = choice == null
+                        AccessoryCard(
+                            title = choice?.name ?: stringResource(R.string.ai_accessory_none),
+                            emoji = if (isNone) "✨" else accessoryEmoji(choice.id),
+                            selected = if (isNone) selectedOption == null else choice.id in selected,
+                            onClick = {
+                                if (isNone) onClearGroup(group.id) else onToggle(choice.id)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(8.dp))
     }
-    if (status == AiStatus.UPLOADING || status == AiStatus.GENERATING) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(Modifier.size(26.dp), color = SyscomBlueLight)
-            Spacer(Modifier.width(12.dp))
+    Text(
+        "Al continuar, la IA combinará tus accesorios con el estilo y el fondo elegidos.",
+        color = Cream.copy(alpha = 0.62f),
+        fontSize = 14.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedButton(
+        onClick = onResetPersonalization,
+        modifier = Modifier.fillMaxWidth().height(56.dp),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Text("Restablecer personalización", fontSize = 16.sp)
+    }
+}
+
+private data class AiAccessoryChoice(
+    val id: String,
+    val name: String,
+)
+
+@Composable
+private fun AccessoryCard(
+    title: String,
+    emoji: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .then(if (selected) Modifier.border(2.dp, SyscomBlueLight, RoundedCornerShape(20.dp)) else Modifier),
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) SyscomBlue.copy(alpha = 0.3f) else InkSoft,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(118.dp)
+                .padding(10.dp),
+        ) {
             Text(
-                if (status == AiStatus.UPLOADING) "Subiendo foto…"
-                else "Creando estilo… $progress%",
+                emoji,
+                fontSize = 42.sp,
+                modifier = Modifier.align(Alignment.Center),
+            )
+            if (selected) {
+                Icon(
+                    Icons.Rounded.Check,
+                    contentDescription = "Seleccionado",
+                    tint = Cream,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(22.dp),
+                )
+            }
+            Text(
+                title,
                 color = Cream,
-                fontSize = 16.sp,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
             )
         }
-        OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth().height(60.dp)) {
-            Text(stringResource(R.string.ai_cancel), fontSize = 17.sp)
-        }
-    } else {
-        Text(
-            "Al continuar se genera tu foto con IA (tarda ~30 s).",
-            color = Cream.copy(alpha = 0.65f),
-            fontSize = 14.sp,
-        )
     }
 }
 
@@ -1055,6 +1519,7 @@ private fun BottomBar(
     canContinueFromCapture: Boolean,
     canGenerate: Boolean,
     generating: Boolean,
+    retryGeneration: Boolean,
     finishArmed: Boolean,
     backEnabled: Boolean,
     onBack: () -> Unit,
@@ -1064,7 +1529,7 @@ private fun BottomBar(
         AiStep.CAPTURE -> "Continuar"
         AiStep.STYLE -> "Continuar"
         AiStep.BACKGROUND -> "Continuar"
-        AiStep.ACCESSORIES -> "Generar con IA"
+        AiStep.ACCESSORIES -> if (retryGeneration) "Reintentar con IA" else "Generar con IA"
         AiStep.FRAMED -> "Finalizar"
         AiStep.SHARE -> "Terminar"
     }
