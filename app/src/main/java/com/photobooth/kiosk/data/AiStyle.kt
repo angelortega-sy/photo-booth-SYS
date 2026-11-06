@@ -210,6 +210,38 @@ object AiStyles {
                 "neon magenta and cyan light. Preserve the person's identity, face, pose, framing " +
                 "and clothing colors. Family friendly, no text, no logos, no watermark.",
         ),
+        AiStyle(
+            id = "clay",
+            labelRes = R.string.ai_style_clay,
+            prompt = "Rebuild the person in this photo as a handmade stop-motion clay figure on a " +
+                "miniature set, with matte modelling clay, thumbprints and sculpted hair. Preserve " +
+                "the person's identity, face, pose, framing and clothing colors. " +
+                "Family friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "noir",
+            labelRes = R.string.ai_style_noir,
+            prompt = "Turn the person in this photo into a 1940s black and white film noir " +
+                "portrait, with silver-gelatin tonality, hard directional light, fine grain and a " +
+                "dark backdrop. Preserve the person's identity, face, pose, framing and clothing. " +
+                "Family friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "vhs",
+            labelRes = R.string.ai_style_vhs,
+            prompt = "Make the person in this photo look like a frame from a 1990s VHS camcorder " +
+                "tape: soft focus, interlace lines, tape noise, magenta colour cast and blown " +
+                "highlights. Preserve the person's identity, face, pose, framing and clothing. " +
+                "Family friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "watercolor",
+            labelRes = R.string.ai_style_watercolor,
+            prompt = "Paint the person in this photo as a watercolour on cold-press paper, with " +
+                "transparent wet-in-wet washes, visible paper grain and unpainted white " +
+                "highlights. Preserve the person's identity, face, pose, framing and clothing " +
+                "colors. Family friendly, no text, no logos, no watermark.",
+        ),
     )
 
     fun byId(id: String): AiStyle = ALL.firstOrNull { it.id == id } ?: ALL.first()

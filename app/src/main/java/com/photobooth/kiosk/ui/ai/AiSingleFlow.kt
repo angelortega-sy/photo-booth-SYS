@@ -356,7 +356,7 @@ fun AiSingleFlow(
                             onPalm = { onInteraction(); startCapture() },
                         )
                         AiStep.STYLE -> StyleContent(
-                            styles = state.serverStyles,
+                            styles = state.serverStyles.filterNot { it.id in state.disabledStyleIds },
                             modelReady = state.selectedModelId.isNotBlank(),
                             previews = stylePreviews,
                             selectedId = state.selectedStyleId,

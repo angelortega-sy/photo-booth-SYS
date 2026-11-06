@@ -17,6 +17,7 @@ import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.data.EventBrandingStore
 import com.photobooth.kiosk.data.GestureSettingsStore
+import com.photobooth.kiosk.data.StyleSettingsStore
 import com.photobooth.kiosk.network.AiBackendClient
 import com.photobooth.kiosk.network.AiBackendException
 import com.photobooth.kiosk.network.BoothModel
@@ -45,6 +46,8 @@ data class AiSingleUiState(
     val selectedStyleId: String = "ghibli",
     val serverStyles: List<BoothStyle> = emptyList(),
     val serverModels: List<BoothModel> = emptyList(),
+    /** Style ids the admin switched off; the guest never sees them. */
+    val disabledStyleIds: Set<String> = emptySet(),
     val selectedModelId: String = "",
     val backgroundId: String = BackgroundRepository.NO_BACKGROUND_ID,
     val accessories: Set<String> = emptySet(),
@@ -70,6 +73,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
     private val gestureSettings = GestureSettingsStore(application)
+    private val styleSettings = StyleSettingsStore(application)
     private val aiClient = AiBackendClient(identityStore, DeviceKeyStore())
     private var remoteSessionId: String? = null
 
@@ -86,6 +90,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         AiSingleUiState(
             customization = CollageCustomization(eventBranding = brandingStore.load()),
             palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
+            disabledStyleIds = styleSettings.disabledIds,
         ),
     )
     val uiState: StateFlow<AiSingleUiState> = _uiState.asStateFlow()
@@ -324,14 +329,17 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
             loaded.onSuccess { (styles, models) ->
                 val saved = aiSettings.load().modelId
                 _uiState.update { state ->
+                    val disabled = styleSettings.disabledIds
+                    val visible = styles.filterNot { it.id in disabled }
                     val modelId = if (models.any { it.id == saved && it.selectable }) saved else ""
                     val styleId = when {
-                        styles.any { it.id == state.selectedStyleId } -> state.selectedStyleId
-                        else -> styles.firstOrNull()?.id ?: state.selectedStyleId
+                        visible.any { it.id == state.selectedStyleId } -> state.selectedStyleId
+                        else -> visible.firstOrNull()?.id ?: state.selectedStyleId
                     }
                     state.copy(
                         serverStyles = styles,
                         serverModels = models,
+                        disabledStyleIds = disabled,
                         selectedModelId = modelId,
                         selectedStyleId = styleId,
                     )

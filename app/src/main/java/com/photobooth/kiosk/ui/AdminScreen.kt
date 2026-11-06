@@ -53,6 +53,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
@@ -104,6 +105,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.photobooth.kiosk.R
 import com.photobooth.kiosk.data.BackgroundOption
+import com.photobooth.kiosk.data.AiStyles
 import com.photobooth.kiosk.network.BoothModel
 import com.photobooth.kiosk.network.UsageMonth
 import com.photobooth.kiosk.network.UsageRequest
@@ -140,6 +142,7 @@ private enum class AdminSection(
     SUMMARY(R.string.admin_tab_summary),
     CAMERA(R.string.admin_section_camera, R.string.admin_nav_camera_description),
     GESTURES(R.string.admin_tab_gestures, R.string.admin_nav_gestures_description),
+    STYLES(R.string.admin_tab_styles, R.string.admin_nav_styles_description),
     PHOTOS(R.string.admin_section_photos, R.string.admin_nav_photos_description),
     EVENT(R.string.admin_tab_event, R.string.admin_nav_event_description),
     USAGE(R.string.admin_tab_usage, R.string.admin_nav_usage_description),
@@ -582,6 +585,14 @@ private fun AdminScreen(
     ) {
         val compact = LocalConfiguration.current.screenWidthDp < 600
         val photoColumns = if (compact) 2 else 4
+        val context = LocalContext.current
+        // Admin style list: the local catalogue plus any name the server advertises.
+        val styleRows = AiStyles.ALL.map { style ->
+            style.id to (
+                appState.serverStyles.firstOrNull { it.id == style.id }?.name
+                    ?: context.getString(style.labelRes)
+                )
+        }
         Column(
             modifier = Modifier
                 .widthIn(max = 1100.dp)
@@ -665,6 +676,16 @@ private fun AdminScreen(
                             GesturesCard(
                                 palmEnabled = appState.palmCaptureEnabled,
                                 onPalmToggle = viewModel::setPalmCaptureEnabled,
+                            )
+                        }
+                    }
+
+                    AdminSection.STYLES -> {
+                        item {
+                            StylesCard(
+                                rows = styleRows,
+                                disabledIds = appState.disabledStyleIds,
+                                onToggle = viewModel::setStyleEnabled,
                             )
                         }
                     }
@@ -1577,6 +1598,7 @@ private fun AdminSectionNavigationGroup(
         AdminSection.USAGE,
         AdminSection.CAMERA,
         AdminSection.GESTURES,
+        AdminSection.STYLES,
         AdminSection.PHOTOS,
         AdminSection.SYSTEM,
     )
@@ -1656,6 +1678,7 @@ private fun adminSectionIcon(section: AdminSection): ImageVector = when (section
     AdminSection.SUMMARY -> Icons.Rounded.Settings
     AdminSection.CAMERA -> Icons.Rounded.CameraAlt
     AdminSection.GESTURES -> Icons.Rounded.TouchApp
+    AdminSection.STYLES -> Icons.Rounded.Palette
     AdminSection.PHOTOS -> Icons.Rounded.PhotoLibrary
     AdminSection.EVENT -> Icons.Rounded.Edit
     AdminSection.USAGE -> Icons.Rounded.AttachMoney
@@ -1786,6 +1809,65 @@ private fun GesturesCard(
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 4.dp),
         )
+    }
+}
+
+@Composable
+private fun StylesCard(
+    rows: List<Pair<String, String>>,
+    disabledIds: Set<String>,
+    onToggle: (String, Boolean) -> Unit,
+) {
+    AdminCard(
+        title = stringResource(R.string.admin_styles_title),
+        subtitle = stringResource(R.string.admin_styles_subtitle),
+    ) {
+        if (rows.isEmpty()) {
+            Text(
+                text = stringResource(R.string.admin_styles_empty),
+                color = Cream.copy(alpha = 0.6f),
+                fontSize = 13.sp,
+            )
+        } else {
+            Text(
+                text = stringResource(
+                    R.string.admin_styles_count,
+                    rows.count { it.first !in disabledIds },
+                    rows.size,
+                ),
+                color = Color(0xFF9AC2F4),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            rows.forEach { (id, name) ->
+                val enabled = id !in disabledIds
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(role = Role.Switch) { onToggle(id, !enabled) }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = name,
+                        color = if (enabled) Cream else Cream.copy(alpha = 0.45f),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Switch(checked = enabled, onCheckedChange = { onToggle(id, it) })
+                }
+            }
+            Text(
+                text = stringResource(R.string.admin_styles_hint),
+                color = Cream.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
     }
 }
 
