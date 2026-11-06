@@ -19,6 +19,7 @@ import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CameraSettingsStore
 import com.photobooth.kiosk.data.GestureSettingsStore
+import com.photobooth.kiosk.data.StyleSettingsStore
 import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
@@ -80,6 +81,8 @@ data class PhotoBoothUiState(
     val aiStyles: List<AiStyle> = AiStyles.ALL,
     val serverStyles: List<BoothStyle> = emptyList(),
     val serverModels: List<BoothModel> = emptyList(),
+    /** Style ids the admin switched off; guests never see them. */
+    val disabledStyleIds: Set<String> = emptySet(),
     val selectedModelId: String = "",
     val styleDecided: Boolean = false,
     val selectedAiStyleId: String = "ghibli",
@@ -124,6 +127,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private val processor = PhotoProcessor(application)
     private val cameraSettings = CameraSettingsStore(application)
     private val gestureSettings = GestureSettingsStore(application)
+    private val styleSettings = StyleSettingsStore(application)
     private val brandingStore = EventBrandingStore(application)
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
@@ -158,6 +162,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         PhotoBoothUiState(
             cameraRotationDegrees = cameraSettings.rotationDegrees,
             palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
+            disabledStyleIds = styleSettings.disabledIds,
             customization = CollageCustomization(
                 eventBranding = brandingStore.load(),
                 badgePreset = if (brandingStore.hasSaved()) {
@@ -447,6 +452,12 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     fun setPalmCaptureEnabled(enabled: Boolean) {
         gestureSettings.palmCaptureEnabled = enabled
         _uiState.update { it.copy(palmCaptureEnabled = enabled) }
+    }
+
+    /** Shows or hides one AI style in the guest flow. */
+    fun setStyleEnabled(id: String, enabled: Boolean) {
+        styleSettings.setEnabled(id, enabled)
+        _uiState.update { it.copy(disabledStyleIds = styleSettings.disabledIds) }
     }
 
     fun selectBackground(id: String) {
@@ -1241,6 +1252,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
             serverStyles = state.serverStyles,
             serverModels = state.serverModels,
+            disabledStyleIds = styleSettings.disabledIds,
             selectedModelId = state.selectedModelId,
             customization = CollageCustomization(
                 eventBranding = brandingStore.load(),

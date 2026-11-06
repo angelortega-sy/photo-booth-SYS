@@ -8,7 +8,7 @@
 tools/generate-backgrounds/out/
 
 # Salida de generación de previews de estilos (pruebas, no se versiona)
-tools/generate-style-previews/out/
+tools/generate-style-previews/out*/
 
 # Bocetos de diseño: se versionan solo scripts, SVG y VectorDrawable, no las capturas
 design/**/*.png
