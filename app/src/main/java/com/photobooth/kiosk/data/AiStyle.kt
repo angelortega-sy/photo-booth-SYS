@@ -293,11 +293,11 @@ object AiStyles {
             id = "lego",
             labelRes = R.string.ai_style_lego,
             prompt = "Rebuild the person in this photo as a photographed LEGO minifigure set, with " +
-                "glossy ABS plastic, the classic yellow cylindrical head, dot eyes, a curved mouth " +
-                "line and a single yellow brick-stud cylinder for the nose instead of a human nose, " +
-                "C-shaped hands, moulded plastic hair and visible studs. Preserve the person's " +
-                "identity, hairstyle colour, pose, framing and clothing colours. Family friendly, " +
-                "no text, no logos, no watermark.",
+                "glossy ABS plastic, the classic yellow cylindrical head, and the classic face: " +
+                "only two dot eyes and a curved mouth line, with no nose at all and a completely " +
+                "flat yellow face, C-shaped hands, moulded plastic hair and visible studs. Preserve " +
+                "the person's identity, hairstyle colour, pose, framing and clothing colours. " +
+                "Family friendly, no text, no logos, no watermark.",
         ),
     )
 
