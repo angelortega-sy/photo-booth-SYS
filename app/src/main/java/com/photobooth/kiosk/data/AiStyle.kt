@@ -307,7 +307,9 @@ object AiStyles {
                 "not drop anyone in a group and do not add anyone who was not there. Each figure " +
                 "uses the classic yellow head. Replace the eyes with exactly one pair of small " +
                 "black dots printed into the plastic, not drawn on top of the real eyes. The " +
-                "mouth is only a simple lip line. No eyebrows, freckles, glasses, or extra marks. " +
+                "mouth is only a simple lip line. No eyebrows, freckles, or extra marks. If the " +
+                "person wears glasses, add one complete LEGO glasses piece with both lenses and " +
+                "both arms, not a half frame. " +
                 "No sculpted nose. Each figure has " +
                 "exactly two complete C-shaped hands, both fully visible even when the arms " +
                 "are crossed or partly behind a neighbour. The background is empty LEGO bricks, " +
