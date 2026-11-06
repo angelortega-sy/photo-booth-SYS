@@ -742,6 +742,7 @@ private fun QrDeliveryDialog(
 ) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
+    var zoomed by remember { mutableStateOf(false) }
     val qr = remember(session.pageUrl) {
         QrCodeGenerator.generate(session.pageUrl, 720)
     }
@@ -795,6 +796,7 @@ private fun QrDeliveryDialog(
                     modifier = Modifier
                         .clip(RoundedCornerShape(22.dp))
                         .background(Color.White)
+                        .clickable { zoomed = true }
                         .padding(12.dp),
                 ) {
                     Image(
@@ -803,6 +805,13 @@ private fun QrDeliveryDialog(
                         modifier = Modifier.size(200.dp),
                     )
                 }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.qr_tap_zoom),
+                    color = Cream.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                )
                 Spacer(Modifier.height(14.dp))
                 Text(
                     text = session.pageUrl,
@@ -843,11 +852,15 @@ private fun QrDeliveryDialog(
                             contentColor = Color.White,
                         ),
                     ) {
-                        Text(stringResource(R.string.close), fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.finish_session), fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
+    }
+
+    if (zoomed) {
+        QrZoomDialog(bitmap = qr, onDismiss = { zoomed = false })
     }
 }
 

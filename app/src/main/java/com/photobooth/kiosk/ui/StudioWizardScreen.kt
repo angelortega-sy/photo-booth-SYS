@@ -52,6 +52,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -87,6 +88,7 @@ import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueDeep
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -378,10 +380,17 @@ fun StudioWizardScreen(
 
             Spacer(Modifier.height(10.dp))
 
+            var finishArmed by remember { mutableStateOf(true) }
+            LaunchedEffect(state.wizardStep) {
+                finishArmed = false
+                if (state.wizardStep >= WIZARD_STEPS.lastIndex) delay(3_000)
+                finishArmed = true
+            }
             WizardBottomBar(
                 step = state.wizardStep,
                 enabled = enabled,
                 exporting = state.isExporting,
+                finishArmed = finishArmed,
                 onBack = { onStepSelected(state.wizardStep - 1) },
                 onNext = { onStepSelected(state.wizardStep + 1) },
                 onShare = onShare,
@@ -402,6 +411,7 @@ private fun WizardBottomBar(
     step: Int,
     enabled: Boolean,
     exporting: Boolean,
+    finishArmed: Boolean,
     onBack: () -> Unit,
     onNext: () -> Unit,
     onShare: () -> Unit,
@@ -461,7 +471,7 @@ private fun WizardBottomBar(
         } else {
             Button(
                 onClick = onShare,
-                enabled = enabled && !exporting,
+                enabled = enabled && !exporting && finishArmed,
                 modifier = primaryModifier,
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
@@ -474,14 +484,14 @@ private fun WizardBottomBar(
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.Rounded.Download,
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                     )
                 }
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.save_photo),
+                    text = stringResource(R.string.finish),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                 )
