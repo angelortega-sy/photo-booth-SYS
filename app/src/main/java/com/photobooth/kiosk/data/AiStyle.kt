@@ -194,6 +194,22 @@ object AiStyles {
                 "Preserve the person's identity, face, pose, framing and clothing. " +
                 "Family friendly, no text, no logos, no watermark.",
         ),
+        AiStyle(
+            id = "pixelart",
+            labelRes = R.string.ai_style_pixelart,
+            prompt = "Redraw the person in this photo as a 16-bit pixel art portrait on a strict " +
+                "pixel grid, with a limited palette, hard blocky edges and no anti-aliasing. " +
+                "Preserve the person's identity, face, pose, framing and clothing. " +
+                "Family friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "cyberpunk",
+            labelRes = R.string.ai_style_cyberpunk,
+            prompt = "Transform the person in this photo into a cyberpunk portrait with a glowing " +
+                "optical eye implant, chrome face plates and a mechanical prosthetic hand, lit by " +
+                "neon magenta and cyan light. Preserve the person's identity, face, pose, framing " +
+                "and clothing colors. Family friendly, no text, no logos, no watermark.",
+        ),
     )
 
     fun byId(id: String): AiStyle = ALL.firstOrNull { it.id == id } ?: ALL.first()
