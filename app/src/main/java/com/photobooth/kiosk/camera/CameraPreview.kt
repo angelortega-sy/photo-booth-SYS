@@ -224,10 +224,10 @@ fun CameraPreview(
             mainExecutor,
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
-                    // The extra degrees turn the live preview only. CameraX already
-                    // reports how to stand the JPEG up; adding them again flipped the
-                    // saved photo 180 degrees on a vertical USB webcam.
-                    val rotationDegrees = image.imageInfo.rotationDegrees
+                    // CameraX reports 270 for this vertical USB webcam, which leaves the
+                    // saved photo on its side. Another 270 turned it upside down. 90
+                    // brings that report back to upright without moving the live preview.
+                    val rotationDegrees = (image.imageInfo.rotationDegrees + 90) % 360
                     val buffer = image.planes[0].buffer
                     val bytes = ByteArray(buffer.remaining())
                     buffer.get(bytes)
