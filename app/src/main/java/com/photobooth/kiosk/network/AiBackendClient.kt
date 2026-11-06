@@ -3,6 +3,7 @@ package com.photobooth.kiosk.network
 import android.util.Base64
 import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.security.DeviceKeyStore
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -178,6 +179,18 @@ class AiBackendClient(
         return BoothSession(id = json.getString("id"), expiresAt = json.optString("expiresAt"))
     }
 
+    fun uploadPhoto(sessionId: String, photo: File) {
+        val boundary = "----Booth${UUID.randomUUID().toString().replace("-", "")}"
+        val body = multipart(boundary, listOf("photo0" to photo))
+        open(
+            "POST",
+            "/v1/sessions/$sessionId/photos",
+            body,
+            "multipart/form-data; boundary=$boundary",
+            sign = true,
+        )
+    }
+
     fun uploadPhotos(sessionId: String, photo0: File, photo1: File, photo2: File, strip: File) {
         val boundary = "----Booth${UUID.randomUUID().toString().replace("-", "")}"
         val body = multipart(
@@ -198,9 +211,25 @@ class AiBackendClient(
         )
     }
 
-    fun stylize(sessionId: String, modelId: String, styleId: String): StylizeResult {
-        val body = """{"modelId":${jsonString(modelId)},"styleId":${jsonString(styleId)},"source":"strip"}"""
-            .toByteArray(Charsets.UTF_8)
+    fun stylize(
+        sessionId: String,
+        modelId: String,
+        styleId: String,
+        source: String = "strip",
+        backgroundId: String? = null,
+        accessoryIds: List<String> = emptyList(),
+    ): StylizeResult {
+        val payload = JSONObject()
+            .put("modelId", modelId)
+            .put("styleId", styleId)
+            .put("source", source)
+        if (!backgroundId.isNullOrBlank() && backgroundId != "none" && backgroundId != "original") {
+            payload.put("backgroundId", backgroundId)
+        }
+        if (accessoryIds.isNotEmpty()) {
+            payload.put("accessoryIds", JSONArray(accessoryIds))
+        }
+        val body = payload.toString().toByteArray(Charsets.UTF_8)
         val (_, text) = open(
             "POST",
             "/v1/sessions/$sessionId/stylize",

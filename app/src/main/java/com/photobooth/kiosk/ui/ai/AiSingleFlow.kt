@@ -80,6 +80,7 @@ import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.delivery.LocalDeliveryServer
+import com.photobooth.kiosk.network.BoothStyle
 import com.photobooth.kiosk.photo.PhotoSaver
 import com.photobooth.kiosk.photo.QrCodeGenerator
 import com.photobooth.kiosk.ui.theme.Cream
@@ -168,18 +169,19 @@ fun AiSingleFlow(
         onHome()
     }
 
-    // Style preview thumbnails (bundled assets, may be absent on old installs).
-    LaunchedEffect(Unit) {
-        val loaded = withContext(Dispatchers.IO) {
-            AiStyles.ALL.mapNotNull { style ->
+    // Style preview thumbnails (bundled assets). Keys come from the local catalog
+    // plus whatever the server advertises, so new server styles only need an asset.
+    LaunchedEffect(state.serverStyles) {
+        val ids = (AiStyles.ALL.map { it.id } + state.serverStyles.map { it.id }).distinct()
+        stylePreviews = withContext(Dispatchers.IO) {
+            ids.mapNotNull { id ->
                 runCatching {
-                    context.assets.open("style_previews/${style.id}.webp").use {
-                        BitmapFactory.decodeStream(it)?.let { bmp -> style.id to bmp }
+                    context.assets.open("style_previews/$id.webp").use {
+                        BitmapFactory.decodeStream(it)?.let { bmp -> id to bmp }
                     }
                 }.getOrNull()
             }.toMap()
         }
-        stylePreviews = loaded
     }
 
     // Background preview thumbnails (bundled + custom imports).
@@ -249,6 +251,14 @@ fun AiSingleFlow(
             qrBitmap = null
             server?.stop()
             server = null
+            val remote = withContext(Dispatchers.IO) { viewModel.driveShareUrl() }
+            if (!remote.isNullOrBlank()) {
+                deliveryUrl = remote
+                qrBitmap = withContext(Dispatchers.IO) { QrCodeGenerator.generate(remote, 880) }
+                shareStarting = false
+                onInteraction()
+                return@launch
+            }
             val srv = LocalDeliveryServer()
             val session = withContext(Dispatchers.IO) {
                 srv.start(listOf(file), "Cabina IA")
@@ -268,7 +278,10 @@ fun AiSingleFlow(
         }
     }
 
-    val gestureActive = step == AiStep.CAPTURE && !state.hasPhoto && countdown == 0
+    val gestureActive = state.palmCaptureEnabled &&
+        step == AiStep.CAPTURE &&
+        !state.hasPhoto &&
+        countdown == 0
 
     // Auto-start the QR server when the share screen opens.
     LaunchedEffect(step) {
@@ -340,6 +353,8 @@ fun AiSingleFlow(
                             onPalm = { onInteraction(); startCapture() },
                         )
                         AiStep.STYLE -> StyleContent(
+                            styles = state.serverStyles,
+                            modelReady = state.selectedModelId.isNotBlank(),
                             previews = stylePreviews,
                             selectedId = state.selectedStyleId,
                             locked = state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING,
@@ -460,7 +475,8 @@ private fun CaptureContent(
 ) {
     Text(
         if (hasPhoto) "Foto lista. Revisa y continúa."
-        else "Muestra la palma o toca el botón.",
+        else if (gestureActive) "Muestra la palma o toca el botón."
+        else "Toca el botón para tomar tu foto.",
         color = Cream.copy(alpha = 0.8f),
         fontSize = 16.sp,
     )
@@ -512,26 +528,35 @@ private fun CaptureContent(
 
 @Composable
 private fun StyleContent(
+    styles: List<BoothStyle>,
+    modelReady: Boolean,
     previews: Map<String, Bitmap>,
     selectedId: String,
     locked: Boolean,
     onSelect: (String) -> Unit,
 ) {
-    SectionTitle("Elige el estilo", "Se aplica a toda la foto.")
+    SectionTitle("Elige el estilo", "Los estilos salen del servidor.")
+    if (!modelReady) {
+        Text(
+            "El modelo se configura en el administrador.",
+            color = Cream.copy(alpha = 0.7f),
+            fontSize = 15.sp,
+        )
+    }
+    if (styles.isEmpty()) {
+        Text(
+            "Registra el tótem en el administrador para cargar los estilos.",
+            color = Cream.copy(alpha = 0.7f),
+            fontSize = 15.sp,
+        )
+    }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        AiStyles.ALL.forEach { style ->
-            val selected = style.id == selectedId
+        styles.forEach { style ->
             StyleCard(
-                title = stringResource(style.labelRes),
-                subtitle = when (style.id) {
-                    "ghibli" -> "Anime cálido, trazo suave"
-                    "anime" -> "Anime moderno, color vivo"
-                    "pixar" -> "3D familiar tipo cine"
-                    "cyberpunk" -> "Neón futurista"
-                    else -> "Arte pop audaz"
-                },
+                title = style.name,
+                subtitle = style.id,
                 preview = previews[style.id],
-                selected = selected,
+                selected = style.id == selectedId,
                 onClick = { if (!locked) onSelect(style.id) },
             )
         }

@@ -73,7 +73,7 @@
     <string name="badge_memories">Recuerdo Oficial</string>
     <string name="badge_custom">Personalizado</string>
 
-    <string name="wizard_step_backgrounds">1. Estilo IA</string>
+    <string name="wizard_step_backgrounds">1. Fondo</string>
     <string name="wizard_step_collage">2. Diseño</string>
     <string name="wizard_step_badge">3. Entrega</string>
     <string name="wizard_apply_all">Aplicar a las 3</string>
@@ -129,6 +129,14 @@
     <string name="admin_section_camera_hint">Hardware detectado por el sistema</string>
     <string name="admin_camera_rotation">Orientación de la cámara USB</string>
     <string name="admin_camera_rotation_hint">Si la webcam se ve acostada, gírala 90° o 270°.</string>
+    <string name="admin_tab_gestures">Gestos</string>
+    <string name="admin_nav_gestures_description">Palma abierta para disparar la foto</string>
+    <string name="admin_gestures_title">Gestos de la cámara</string>
+    <string name="admin_gestures_subtitle">Elige cómo los invitados disparan la foto</string>
+    <string name="admin_gestures_palm">Foto con la palma abierta</string>
+    <string name="admin_gestures_palm_on">Activado · muestra la palma frente a la cámara</string>
+    <string name="admin_gestures_palm_off">Desactivado · solo el botón en pantalla</string>
+    <string name="admin_gestures_palm_hint">La detección corre en el equipo con MediaPipe. Si hay poca luz o el invitado queda lejos, conviene dejar solo el botón.</string>
     <string name="admin_section_photos">Fotos</string>
     <string name="admin_section_network">Red y descarga</string>
     <string name="admin_section_network_hint">Conexión del kiosko</string>
@@ -215,8 +223,9 @@
     <string name="ai_style_ghibli">Estudio Ghibli</string>
     <string name="ai_style_anime">Anime</string>
     <string name="ai_style_pixar">Pixar 3D</string>
-    <string name="ai_style_cyberpunk">Cyberpunk</string>
     <string name="ai_style_comic">Cómic pop</string>
+    <string name="ai_style_oil">Óleo</string>
+    <string name="ai_style_dragonball">Dragon Ball</string>
     <string name="ai_generate">Generar con IA</string>
     <string name="ai_regenerate">Generar de nuevo</string>
     <string name="ai_cancel">Cancelar</string>
@@ -227,8 +236,13 @@
     <string name="ai_error_no_server">Configura la URL del servidor en Modo administrador.</string>
     <string name="ai_error_network">No se pudo conectar con el servidor de IA. Revisa la red.</string>
     <string name="ai_error_server">El servidor de IA devolvió un error. Intenta de nuevo.</string>
+    <string name="ai_error_server_code">El servidor rechazó la foto (%1$s).</string>
+    <string name="ai_error_style">Ese estilo no existe en el servidor.</string>
+    <string name="ai_error_background">Ese fondo no existe en el servidor.</string>
+    <string name="ai_error_upstream">El proveedor de imágenes rechazó la generación.</string>
+    <string name="ai_error_custom_background">Los fondos importados todavía no se envían a la IA. Elige un fondo del catálogo o Sin fondo.</string>
     <string name="ai_error_not_enrolled">Registra este tótem en Modo administrador.</string>
-    <string name="ai_error_no_model">Elige un estilo y un modelo.</string>
+    <string name="ai_error_no_model">Elige un estilo. El modelo se configura en el administrador.</string>
     <string name="ai_error_quota">Se alcanzó el cupo de generaciones de hoy.</string>
     <string name="ai_error_budget">Se alcanzó el presupuesto del mes.</string>
     <string name="ai_error_clock">La hora del tótem no coincide con el servidor. Revisa la fecha y la hora.</string>
@@ -238,6 +252,13 @@
     <string name="ai_error_revoked">Este tótem fue revocado.</string>
     <string name="ai_keep_original">Así está bien</string>
     <string name="ai_section_model">Modelo</string>
+    <string name="ai_model_select_label">Modelo</string>
+    <string name="ai_model_select_title">Elige el modelo</string>
+    <string name="ai_model_search_hint">Buscar por nombre o id</string>
+    <string name="ai_model_search_empty">Ningún modelo coincide.</string>
+    <string name="ai_model_selected">Modelo seleccionado</string>
+    <string name="ai_model_none">Sin modelo seleccionado</string>
+    <string name="ai_style_simpson">Simpsons</string>
     <string name="ai_models_empty">Registra el tótem para ver modelos y precios.</string>
     <string name="ai_price_unknown">Precio no disponible</string>
     <string name="ai_unit_image">imagen</string>
@@ -248,7 +269,6 @@
     <string name="admin_ai_title">IA y servidor</string>
     <string name="admin_ai_subtitle">Este tótem solo habla con el servidor de la cabina. La llave de OpenRouter no está en la app.</string>
     <string name="admin_ai_url">URL del servidor (https://…)</string>
-    <string name="admin_ai_token">Token del kiosko (flujo de una foto)</string>
     <string name="admin_ai_enroll">Contraseña del tótem</string>
     <string name="admin_ai_enroll_action">Registrar tótem</string>
     <string name="admin_ai_enrolling">Registrando…</string>

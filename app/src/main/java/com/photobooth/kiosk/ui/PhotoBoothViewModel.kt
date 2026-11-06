@@ -18,6 +18,7 @@ import com.photobooth.kiosk.data.DeviceIdentity
 import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CameraSettingsStore
+import com.photobooth.kiosk.data.GestureSettingsStore
 import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
@@ -75,6 +76,7 @@ data class PhotoBoothUiState(
     val selectedPhotoIndex: Int? = null,
     val usedFallbackIndices: Set<Int> = emptySet(),
     val cameraRotationDegrees: Int = 0,
+    val palmCaptureEnabled: Boolean = true,
     val aiStyles: List<AiStyle> = AiStyles.ALL,
     val serverStyles: List<BoothStyle> = emptyList(),
     val serverModels: List<BoothModel> = emptyList(),
@@ -94,6 +96,7 @@ data class PhotoBoothUiState(
     val adminBackgrounds: List<BackgroundOption> = emptyList(),
     val backgroundRevision: Int = 0,
     val errorMessage: String? = null,
+    val shareError: String? = null,
 ) {
     val hasResult: Boolean
         get() = capturedCount == PHOTO_COUNT && stripPreview != null && photoPreviews.size == PHOTO_COUNT
@@ -120,6 +123,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private val repository = BackgroundRepository(application)
     private val processor = PhotoProcessor(application)
     private val cameraSettings = CameraSettingsStore(application)
+    private val gestureSettings = GestureSettingsStore(application)
     private val brandingStore = EventBrandingStore(application)
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
@@ -153,6 +157,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private val _uiState = MutableStateFlow(
         PhotoBoothUiState(
             cameraRotationDegrees = cameraSettings.rotationDegrees,
+            palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
             customization = CollageCustomization(
                 eventBranding = brandingStore.load(),
                 badgePreset = if (brandingStore.hasSaved()) {
@@ -237,6 +242,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     suspend fun startDelivery(): DeliverySession? {
+        _uiState.update { it.copy(shareError = null) }
         val files = ensureExportedFiles() ?: return null
         if (files.size != 4) return null
         if (identityStore.load().enrolled) {
@@ -247,7 +253,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 return DeliverySession(pageUrl = shareUrl, token = "drive", port = 0)
             } catch (error: AiBackendException) {
                 if (error.httpCode != null) {
-                    _uiState.update { it.copy(errorMessage = aiUserMessage(error)) }
+                    val message = aiUserMessage(error)
+                    _uiState.update { it.copy(errorMessage = message, shareError = message) }
                     return null
                 }
             } catch (_: Throwable) {
@@ -418,10 +425,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun setWizardStep(step: Int) {
-        val state = _uiState.value
-        val coerced = step.coerceIn(0, 2)
-        if (coerced > 0 && !state.hasAiResult && !state.styleDecided) return
-        _uiState.update { it.copy(wizardStep = coerced) }
+        _uiState.update { it.copy(wizardStep = step.coerceIn(0, 2)) }
     }
 
     fun setApplyBackgroundToAll(applyAll: Boolean) {
@@ -437,6 +441,12 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     fun setCameraRotation(degrees: Int) {
         cameraSettings.rotationDegrees = degrees
         _uiState.update { it.copy(cameraRotationDegrees = cameraSettings.rotationDegrees) }
+    }
+
+    /** Enables or disables the open-palm capture gesture for guests. */
+    fun setPalmCaptureEnabled(enabled: Boolean) {
+        gestureSettings.palmCaptureEnabled = enabled
+        _uiState.update { it.copy(palmCaptureEnabled = enabled) }
     }
 
     fun selectBackground(id: String) {
@@ -574,13 +584,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     fun loadIdentity(): DeviceIdentity = identityStore.load()
 
     fun saveServerBaseUrl(baseUrl: String) {
-        val trimmed = baseUrl.trim()
-        identityStore.saveBaseUrl(trimmed)
-        aiSettings.save(aiSettings.load().copy(baseUrl = trimmed))
-    }
-
-    fun saveKioskToken(token: String) {
-        aiSettings.save(aiSettings.load().copy(kioskToken = token.trim()))
+        identityStore.saveBaseUrl(baseUrl.trim())
     }
 
     fun saveSelectedModel(modelId: String) {
@@ -607,7 +611,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update {
             it.copy(
                 styleDecided = true,
-                wizardStep = 1,
+                wizardStep = 2,
                 aiError = null,
             )
         }
@@ -784,7 +788,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                         styleDecided = true,
                         aiCost = cost,
                         aiProgress = 100,
-                        wizardStep = 1,
+                        wizardStep = 2,
                         selectedPhotoIndex = null,
                         errorMessage = null,
                         aiError = null,
@@ -869,8 +873,11 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             "device_revoked" -> app.getString(R.string.ai_error_revoked)
             "unknown_device", "invalid_signature" ->
                 app.getString(R.string.ai_error_not_enrolled)
+            "style_not_found" -> app.getString(R.string.ai_error_style)
+            "background_not_found" -> app.getString(R.string.ai_error_background)
+            "upstream_error" -> app.getString(R.string.ai_error_upstream)
             else -> if (error.httpCode != null) {
-                app.getString(R.string.ai_error_server)
+                app.getString(R.string.ai_error_server_code, error.code ?: error.httpCode.toString())
             } else {
                 app.getString(R.string.ai_error_network)
             }
@@ -1231,6 +1238,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             selectedBackgroundId = initialBg,
             photoBackgroundIds = List(PhotoBoothUiState.PHOTO_COUNT) { initialBg },
             cameraRotationDegrees = cameraSettings.rotationDegrees,
+            palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
             serverStyles = state.serverStyles,
             serverModels = state.serverModels,
             selectedModelId = state.selectedModelId,

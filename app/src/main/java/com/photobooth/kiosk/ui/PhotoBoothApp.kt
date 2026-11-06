@@ -979,7 +979,8 @@ private fun PhotoBoothScreen(
         }
     }
 
-    val handDetectionActive = cameraReady &&
+    val handDetectionActive = state.palmCaptureEnabled &&
+        cameraReady &&
         !state.isProcessing &&
         !state.isCapturing &&
         !state.hasResult &&
@@ -1210,17 +1211,14 @@ private fun PhotoBoothScreen(
                 enabled = !busy && !state.isExporting,
                 onStepSelected = viewModel::setWizardStep,
                 onSelectPhotoTarget = viewModel::selectResult,
+                onSelectBackground = viewModel::selectBackground,
+                onApplyBackgroundToAll = viewModel::setApplyBackgroundToAll,
                 onSelectAiBackground = viewModel::selectAiBackground,
                 onSelectLayout = viewModel::selectCollageLayout,
                 onSelectFrameStyle = viewModel::selectFrameStyle,
                 onSelectBorderStyle = viewModel::selectPhotoBorderStyle,
                 onSelectBadgePreset = viewModel::selectBadgePreset,
                 onToggleDateStamp = viewModel::toggleDateStamp,
-                onSelectAiStyle = viewModel::selectAiStyle,
-                onSelectModel = viewModel::selectServerModel,
-                onKeepOriginal = viewModel::keepOriginalPhoto,
-                onGenerateAi = { viewModel.generateWithAi() },
-                onCancelAi = { viewModel.cancelAi() },
                 onShare = { showDeliveryOptions = true },
                 onRetake = {
                     autoSequenceActive = false
