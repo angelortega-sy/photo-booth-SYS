@@ -305,9 +305,10 @@ object AiStyles {
             prompt = "Rebuild every person in the photo, and the whole scene, as photographed LEGO " +
                 "minifigures on a brick-built background. Make one minifigure for each person: do " +
                 "not drop anyone in a group and do not add anyone who was not there. Each figure " +
-                "uses the classic yellow head with a printed face that is only the eyes and the " +
-                "lips: two plain black eyes and one simple mouth. No eyebrows, freckles, glasses, " +
-                "or extra marks. No sculpted nose. Each figure has " +
+                "uses the classic yellow head. Replace the eyes with exactly one pair of small " +
+                "black dots printed into the plastic, not drawn on top of the real eyes. The " +
+                "mouth is only a simple lip line. No eyebrows, freckles, glasses, or extra marks. " +
+                "No sculpted nose. Each figure has " +
                 "exactly two complete C-shaped hands, both fully visible even when the arms " +
                 "are crossed or partly behind a neighbour. The background is empty LEGO bricks, " +
                 "with zero extra minifigures. Preserve each person's hairstyle colour, pose, " +
