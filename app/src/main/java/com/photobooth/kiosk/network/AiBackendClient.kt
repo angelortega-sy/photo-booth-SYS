@@ -1,6 +1,7 @@
 package com.photobooth.kiosk.network
 
 import android.util.Base64
+import android.os.SystemClock
 import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.security.DeviceKeyStore
 import org.json.JSONArray
@@ -32,6 +33,12 @@ data class BoothModel(
 )
 
 data class BoothSession(val id: String, val expiresAt: String)
+
+data class ServerStatusProbe(
+    val driveHealthy: Boolean,
+    val totemExpoReady: Boolean,
+    val latencyMs: Long,
+)
 
 data class StylizeResult(
     val costUsd: Double?,
@@ -122,6 +129,18 @@ class AiBackendClient(
                 add(BoothStyle(id = item.getString("id"), name = item.optString("name")))
             }
         }
+    }
+
+    /** Signed readiness probe for the Drive share path and TOTEMEXPO service. */
+    fun status(): ServerStatusProbe {
+        val startedAt = SystemClock.elapsedRealtime()
+        val (_, text) = open("GET", "/v1/status", ByteArray(0), null, sign = true)
+        val json = JSONObject(text)
+        return ServerStatusProbe(
+            driveHealthy = json.optJSONObject("drive")?.optBoolean("healthy") ?: false,
+            totemExpoReady = json.optJSONObject("totemExpo")?.optBoolean("ready") ?: false,
+            latencyMs = SystemClock.elapsedRealtime() - startedAt,
+        )
     }
 
     fun models(): List<BoothModel> {
