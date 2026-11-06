@@ -247,7 +247,7 @@
     <string name="ai_error_style">Ese estilo no existe en el servidor.</string>
     <string name="ai_error_background">Ese fondo no existe en el servidor.</string>
     <string name="ai_error_upstream">El proveedor de imágenes rechazó la generación.</string>
-    <string name="ai_error_custom_background">Los fondos importados todavía no se envían a la IA. Elige un fondo del catálogo o Sin fondo.</string>
+    <string name="ai_error_custom_background">No encontramos el archivo de ese fondo. Vuelve a elegirlo en el administrador.</string>
     <string name="ai_error_not_enrolled">Registra este tótem en Modo administrador.</string>
     <string name="ai_error_no_model">Elige un estilo. El modelo se configura en el administrador.</string>
     <string name="ai_error_quota">Se alcanzó el cupo de generaciones de hoy.</string>
@@ -302,5 +302,26 @@
     <string name="admin_usage_total">Total: $%1$s · %2$d peticiones</string>
     <string name="admin_usage_load_error">No se pudo leer el gasto.</string>
     <string name="admin_usage_none_month">Elige un mes</string>
+    <string name="admin_usage_limits_title">Cuenta de OpenRouter</string>
+    <string name="admin_usage_limits_spent">%1$s gastado de %2$s</string>
+    <string name="admin_usage_limits_spent_no_limit">%1$s gastado · sin límite configurado</string>
+    <string name="admin_usage_limits_used">%1$s%% usado</string>
+    <string name="admin_usage_limits_remaining">Restante: %1$s</string>
+    <string name="admin_usage_limits_credits">Créditos: %1$s de %2$s</string>
+    <string name="admin_usage_limits_free">Plan gratuito</string>
+    <string name="admin_usage_limits_rate">Máximo %1$d peticiones por %2$s</string>
+    <string name="admin_usage_limits_unavailable">No se pudo leer el límite de la cuenta.</string>
+    <string name="admin_usage_daily">Gasto por día</string>
+    <string name="admin_usage_top_models">Modelos con más gasto</string>
+    <string name="admin_usage_failed">%1$d fallidas</string>
+    <string name="admin_usage_search">Buscar modelo, estilo o estado</string>
+    <string name="admin_usage_log">Registro</string>
+    <string name="admin_usage_col_time">Hora</string>
+    <string name="admin_usage_col_style">Estilo</string>
+    <string name="admin_usage_col_model">Modelo</string>
+    <string name="admin_usage_col_cost">Costo</string>
+    <string name="admin_usage_empty_filter">Nada coincide con esa búsqueda.</string>
+    <string name="admin_usage_showing">Mostrando %1$d de %2$d</string>
+    <string name="admin_usage_load_more">Cargar más</string>
     <string name="admin_event_hashtag">Hashtag del evento</string>
 </resources>

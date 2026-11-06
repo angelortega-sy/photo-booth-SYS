@@ -34,6 +34,8 @@ import com.photobooth.kiosk.network.AiBackendException
 import com.photobooth.kiosk.network.BoothModel
 import com.photobooth.kiosk.network.BoothStyle
 import com.photobooth.kiosk.network.UsageMonth
+import com.photobooth.kiosk.network.UsageLimits
+import com.photobooth.kiosk.network.UsagePage
 import com.photobooth.kiosk.network.UsageRequest
 import com.photobooth.kiosk.network.UsageSummary
 import com.photobooth.kiosk.network.decodeImage
@@ -675,9 +677,18 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         aiClient.usageSummary(month)
     }
 
-    suspend fun loadUsageRequests(month: String): List<UsageRequest> = withContext(Dispatchers.IO) {
+    /** Real OpenRouter limit, spend and remaining balance. */
+    suspend fun loadUsageLimits(): UsageLimits = withContext(Dispatchers.IO) {
+        aiClient.usageLimits()
+    }
+
+    /** One page of the usage log; pass the previous [cursor] to append. */
+    suspend fun loadUsageRequests(
+        month: String,
+        cursor: String? = null,
+    ): UsagePage = withContext(Dispatchers.IO) {
         val (from, to) = monthBounds(month)
-        aiClient.usageRequests(from, to)
+        aiClient.usageRequests(from, to, cursor)
     }
 
     /** AI backdrop for one photo: "none", a built-in id, or a custom id. */

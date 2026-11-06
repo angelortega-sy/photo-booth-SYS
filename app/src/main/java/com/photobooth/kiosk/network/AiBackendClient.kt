@@ -41,21 +41,49 @@ data class StylizeResult(
 
 data class UsageMonth(val month: String, val requestCount: Int, val totalCostUsd: Double)
 
+data class UsageModelCost(val modelId: String, val requestCount: Int, val totalCostUsd: Double)
+
+data class UsageDayCost(val day: String, val requestCount: Int, val totalCostUsd: Double)
+
 data class UsageSummary(
     val month: String,
     val requestCount: Int,
+    val successCount: Int,
+    val failedCount: Int,
     val totalCostUsd: Double,
+    val estimatedCount: Int,
+    val byModel: List<UsageModelCost>,
+    val byDay: List<UsageDayCost>,
 )
+
+/** Real OpenRouter account numbers: limit, spend and what is left. */
+data class UsageLimits(
+    val label: String?,
+    val limitUsd: Double?,
+    val usageUsd: Double,
+    val remainingUsd: Double?,
+    val percentUsed: Double?,
+    val isFreeTier: Boolean,
+    val rateLimitRequests: Int?,
+    val rateLimitInterval: String?,
+    val totalCreditsUsd: Double?,
+    val totalUsageUsd: Double?,
+)
+
+/** One page of usage rows plus the cursor for the next one. */
+data class UsagePage(val requests: List<UsageRequest>, val nextCursor: String?)
 
 data class UsageRequest(
     val id: String,
     val createdAt: String,
     val modelId: String,
     val styleId: String,
+    val deviceName: String?,
     val status: String,
     val priceUnit: String?,
     val costUsd: Double?,
     val estimatedCostUsd: Double?,
+    val latencyMs: Int?,
 )
 
 /**
@@ -141,15 +169,51 @@ class AiBackendClient(
         return UsageSummary(
             month = json.optString("month", month),
             requestCount = json.optInt("requestCount"),
-            totalCostUsd = json.optDouble("totalCostUsd"),
+            successCount = json.optInt("successCount"),
+            failedCount = json.optInt("failedCount"),
+            totalCostUsd = json.optDouble("totalCostUsd", 0.0),
+            estimatedCount = json.optInt("estimatedCount"),
+            byModel = readModelCosts(json.optJSONArray("byModel")),
+            byDay = readDayCosts(json.optJSONArray("byDay")),
         )
     }
 
-    fun usageRequests(from: String, to: String): List<UsageRequest> {
-        val path = "/v1/usage/requests?from=${query(from)}&to=${query(to)}&limit=50"
+    /** Real OpenRouter account numbers; the server caches them for a minute. */
+    fun usageLimits(): UsageLimits {
+        val (_, text) = open("GET", "/v1/usage/limits", ByteArray(0), null, sign = true)
+        val json = JSONObject(text)
+        val rateLimit = json.optJSONObject("rateLimit")
+        return UsageLimits(
+            label = json.optString("label").ifBlank { null },
+            limitUsd = json.optDoubleOrNull("limitUsd"),
+            usageUsd = json.optDouble("usageUsd", 0.0),
+            remainingUsd = json.optDoubleOrNull("remainingUsd"),
+            percentUsed = json.optDoubleOrNull("percentUsed"),
+            isFreeTier = json.optBoolean("isFreeTier"),
+            rateLimitRequests = rateLimit?.optInt("requests"),
+            rateLimitInterval = rateLimit?.optString("interval")?.ifBlank { null },
+            totalCreditsUsd = json.optDoubleOrNull("totalCreditsUsd"),
+            totalUsageUsd = json.optDoubleOrNull("totalUsageUsd"),
+        )
+    }
+
+    /** One page of the usage log. Pass [cursor] back in to append the next page. */
+    fun usageRequests(
+        from: String,
+        to: String,
+        cursor: String? = null,
+        limit: Int = DEFAULT_USAGE_PAGE,
+    ): UsagePage {
+        val path = buildString {
+            append("/v1/usage/requests?from=").append(query(from))
+            append("&to=").append(query(to))
+            append("&limit=").append(limit)
+            if (!cursor.isNullOrBlank()) append("&cursor=").append(query(cursor))
+        }
         val (_, text) = open("GET", path, ByteArray(0), null, sign = true)
-        val array = JSONObject(text).optJSONArray("requests") ?: return emptyList()
-        return buildList {
+        val json = JSONObject(text)
+        val array = json.optJSONArray("requests") ?: JSONArray()
+        val requests = buildList {
             for (index in 0 until array.length()) {
                 val item = array.getJSONObject(index)
                 add(
@@ -158,14 +222,48 @@ class AiBackendClient(
                         createdAt = item.optString("createdAt"),
                         modelId = item.optString("modelId"),
                         styleId = item.optString("styleId"),
+                        deviceName = item.optString("deviceName").ifBlank { null },
                         status = item.optString("status"),
                         priceUnit = item.optString("priceUnit").ifBlank { null },
-                        costUsd = if (item.isNull("costUsd")) null else item.optDouble("costUsd"),
-                        estimatedCostUsd = if (item.isNull("estimatedCostUsd")) {
-                            null
-                        } else {
-                            item.optDouble("estimatedCostUsd")
-                        },
+                        costUsd = item.optDoubleOrNull("costUsd"),
+                        estimatedCostUsd = item.optDoubleOrNull("estimatedCostUsd"),
+                        latencyMs = if (item.isNull("latencyMs")) null else item.optInt("latencyMs"),
+                    ),
+                )
+            }
+        }
+        return UsagePage(
+            requests = requests,
+            nextCursor = json.optString("nextCursor").ifBlank { null },
+        )
+    }
+
+    private fun readModelCosts(array: JSONArray?): List<UsageModelCost> {
+        if (array == null) return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val item = array.getJSONObject(index)
+                add(
+                    UsageModelCost(
+                        modelId = item.optString("modelId"),
+                        requestCount = item.optInt("requestCount"),
+                        totalCostUsd = item.optDouble("totalCostUsd", 0.0),
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun readDayCosts(array: JSONArray?): List<UsageDayCost> {
+        if (array == null) return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val item = array.getJSONObject(index)
+                add(
+                    UsageDayCost(
+                        day = item.optString("day"),
+                        requestCount = item.optInt("requestCount"),
+                        totalCostUsd = item.optDouble("totalCostUsd", 0.0),
                     ),
                 )
             }
@@ -211,6 +309,19 @@ class AiBackendClient(
         )
     }
 
+    /** Uploads the exact background the guest picked so the server can keep it while restyling the person. */
+    fun uploadBackground(sessionId: String, background: File) {
+        val boundary = "----Booth${UUID.randomUUID().toString().replace("-", "")}"
+        val body = multipart(boundary, listOf("background" to background))
+        open(
+            "POST",
+            "/v1/sessions/$sessionId/background",
+            body,
+            "multipart/form-data; boundary=$boundary",
+            sign = true,
+        )
+    }
+
     fun stylize(
         sessionId: String,
         modelId: String,
@@ -218,12 +329,15 @@ class AiBackendClient(
         source: String = "strip",
         backgroundId: String? = null,
         accessoryIds: List<String> = emptyList(),
+        useCustomBackground: Boolean = false,
     ): StylizeResult {
         val payload = JSONObject()
             .put("modelId", modelId)
             .put("styleId", styleId)
             .put("source", source)
-        if (!backgroundId.isNullOrBlank() && backgroundId != "none" && backgroundId != "original") {
+        if (useCustomBackground) {
+            payload.put("useCustomBackground", true)
+        } else if (!backgroundId.isNullOrBlank() && backgroundId != "none" && backgroundId != "original") {
             payload.put("backgroundId", backgroundId)
         }
         if (accessoryIds.isNotEmpty()) {
@@ -343,6 +457,9 @@ class AiBackendClient(
     companion object {
         private const val JSON = "application/json; charset=utf-8"
 
+        /** Rows per usage page; keep the log short instead of loading a whole month. */
+        const val DEFAULT_USAGE_PAGE = 40
+
         fun canonicalString(
             method: String,
             resource: String,
@@ -377,3 +494,10 @@ class AiBackendClient(
 
 /** Kept so call sites can decode the stylized JPEG without importing android.util twice. */
 fun decodeImage(base64: String): ByteArray = Base64.decode(base64, Base64.DEFAULT)
+
+/** null instead of NaN for absent or non-numeric JSON numbers. */
+private fun JSONObject.optDoubleOrNull(name: String): Double? {
+    if (isNull(name)) return null
+    val value = optDouble(name)
+    return if (value.isNaN() || value.isInfinite()) null else value
+}
