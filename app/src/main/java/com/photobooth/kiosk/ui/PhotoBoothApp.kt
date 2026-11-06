@@ -1251,7 +1251,10 @@ private fun PhotoBoothScreen(
                 onSelectBorderStyle = viewModel::selectPhotoBorderStyle,
                 onSelectBadgePreset = viewModel::selectBadgePreset,
                 onToggleDateStamp = viewModel::toggleDateStamp,
-                onShare = { showDeliveryOptions = true },
+                delivery = deliverySession,
+                onStartDelivery = { if (deliverySession == null) showQrDelivery() },
+                onQuickShare = { showDeliveryOptions = false; sharePhoto() },
+                onFinish = onHome,
                 onRetake = {
                     autoSequenceActive = false
                     cameraReady = false
@@ -1272,14 +1275,6 @@ private fun PhotoBoothScreen(
                     showDeliveryOptions = false
                     showQrDelivery()
                 },
-            )
-        }
-
-        deliverySession?.let { session ->
-            QrDeliveryDialog(
-                session = session,
-                preview = state.stripPreview,
-                onDismiss = { closeQrDelivery() },
             )
         }
 

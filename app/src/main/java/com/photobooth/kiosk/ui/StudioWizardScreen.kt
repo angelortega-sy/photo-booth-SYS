@@ -89,6 +89,10 @@ import com.photobooth.kiosk.ui.theme.SyscomBlueDeep
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import com.photobooth.kiosk.delivery.DeliverySession
+import com.photobooth.kiosk.photo.QrCodeGenerator
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -107,7 +111,10 @@ fun StudioWizardScreen(
     onSelectBorderStyle: (PhotoBorderStyle) -> Unit,
     onSelectBadgePreset: (EventBadgePreset) -> Unit,
     onToggleDateStamp: (Boolean) -> Unit,
-    onShare: () -> Unit,
+    delivery: DeliverySession?,
+    onStartDelivery: () -> Unit,
+    onQuickShare: () -> Unit,
+    onFinish: () -> Unit,
     onRetake: () -> Unit,
     onHome: () -> Unit,
 ) {
@@ -233,6 +240,14 @@ fun StudioWizardScreen(
             Spacer(Modifier.height(10.dp))
 
             // Central Live Preview Area
+            if (state.wizardStep >= WIZARD_STEPS.lastIndex) {
+                CollageDeliveryContent(
+                    state = state,
+                    delivery = delivery,
+                    modifier = Modifier.weight(1f),
+                    onQuickShare = onQuickShare,
+                )
+            } else {
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -369,7 +384,7 @@ fun StudioWizardScreen(
                         onSelectBorderStyle = onSelectBorderStyle,
                     )
 
-                    else -> StepBadgeAndDeliveryPanel(
+                    2 -> StepBadgeAndDeliveryPanel(
                         state = state,
                         enabled = enabled,
                         onSelectBadgePreset = onSelectBadgePreset,
@@ -377,13 +392,17 @@ fun StudioWizardScreen(
                     )
                 }
             }
+            }
 
             Spacer(Modifier.height(10.dp))
 
             var finishArmed by remember { mutableStateOf(true) }
             LaunchedEffect(state.wizardStep) {
                 finishArmed = false
-                if (state.wizardStep >= WIZARD_STEPS.lastIndex) delay(3_000)
+                if (state.wizardStep >= WIZARD_STEPS.lastIndex) {
+                    onStartDelivery()
+                    delay(3_000)
+                }
                 finishArmed = true
             }
             WizardBottomBar(
@@ -393,7 +412,7 @@ fun StudioWizardScreen(
                 finishArmed = finishArmed,
                 onBack = { onStepSelected(state.wizardStep - 1) },
                 onNext = { onStepSelected(state.wizardStep + 1) },
-                onShare = onShare,
+                onFinish = onFinish,
             )
         }
     }
@@ -404,7 +423,162 @@ private val WIZARD_STEPS = listOf(
     R.string.wizard_step_title_backgrounds,
     R.string.wizard_step_title_collage,
     R.string.wizard_step_title_badge,
+    R.string.wizard_step_title_delivery,
 )
+
+/**
+ * Final collage screen: the finished strip, the download QR and the sharing
+ * actions, laid out like the AI flow's delivery step instead of a modal.
+ */
+@Composable
+private fun CollageDeliveryContent(
+    state: PhotoBoothUiState,
+    delivery: DeliverySession?,
+    modifier: Modifier = Modifier,
+    onQuickShare: () -> Unit,
+) {
+    val strip = state.stripPreview
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    var zoomed by remember { mutableStateOf(false) }
+    val qr = remember(delivery?.pageUrl) {
+        delivery?.pageUrl?.let { QrCodeGenerator.generate(it, 720) }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(R.string.qr_title),
+            color = Cream,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = stringResource(
+                if (delivery?.token == "drive") R.string.qr_hint_drive else R.string.qr_hint,
+            ),
+            color = Cream.copy(alpha = 0.68f),
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(14.dp))
+
+        if (strip != null && !strip.isRecycled) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Ink),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    bitmap = strip.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
+        if (qr != null) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color.White)
+                    .clickable { zoomed = true }
+                    .padding(12.dp),
+            ) {
+                Image(
+                    bitmap = qr.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.size(200.dp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.qr_tap_zoom),
+                color = Cream.copy(alpha = 0.5f),
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = delivery?.pageUrl.orEmpty(),
+                color = Cream.copy(alpha = 0.58f),
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = {
+                    clipboard.setText(AnnotatedString(delivery?.pageUrl.orEmpty()))
+                    copied = true
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, SyscomBlueLight.copy(alpha = 0.7f)),
+            ) {
+                Text(
+                    text = stringResource(if (copied) R.string.qr_copied else R.string.qr_copy_link),
+                    color = SyscomBlueLight,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        } else if (state.isExporting) {
+            CircularProgressIndicator(color = SyscomBlueLight, strokeWidth = 3.dp)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.wizard_preparing_shot, 1),
+                color = Cream.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = onQuickShare,
+            enabled = !state.isExporting,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Share,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.quick_share_option),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        state.shareError?.let { message ->
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = message,
+                color = Color(0xFFFFB4AB),
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+
+    if (zoomed && qr != null) {
+        QrZoomDialog(bitmap = qr, onDismiss = { zoomed = false })
+    }
+}
 
 @Composable
 private fun WizardBottomBar(
@@ -414,7 +588,7 @@ private fun WizardBottomBar(
     finishArmed: Boolean,
     onBack: () -> Unit,
     onNext: () -> Unit,
-    onShare: () -> Unit,
+    onFinish: () -> Unit,
 ) {
     val isLast = step >= WIZARD_STEPS.lastIndex
     Row(
@@ -463,14 +637,16 @@ private fun WizardBottomBar(
                 colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
             ) {
                 Text(
-                    text = stringResource(R.string.wizard_next),
+                    text = stringResource(
+                        if (step == WIZARD_STEPS.lastIndex - 1) R.string.finish else R.string.wizard_next,
+                    ),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                 )
             }
         } else {
             Button(
-                onClick = onShare,
+                onClick = onFinish,
                 enabled = enabled && !exporting && finishArmed,
                 modifier = primaryModifier,
                 shape = RoundedCornerShape(16.dp),

@@ -27,6 +27,9 @@
     <string name="qr_title">Escanea para descargar</string>
     <string name="qr_tap_zoom">Toca el código para agrandarlo</string>
     <string name="qr_zoom_close">Toca fuera para cerrar</string>
+    <string name="qr_copy_link">Copiar enlace</string>
+    <string name="qr_copied">Enlace copiado</string>
+    <string name="wizard_step_title_delivery">Entrega</string>
     <string name="finish">Finalizar</string>
     <string name="finish_session">Terminar</string>
     <string name="qr_hint">Abre la cámara de tu iPhone o Android y escanea el código. Ambos dispositivos deben estar en el mismo Wi-Fi.</string>
