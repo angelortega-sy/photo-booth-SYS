@@ -251,6 +251,14 @@
     <string name="ai_accessory_ssj_rose">Pelo morado</string>
     <string name="ai_accessory_gi_syscom">Gi con la S de Syscom</string>
     <string name="ai_accessory_bulma_style">Traje tipo heroína</string>
+    <string name="ai_accessory_gown">Vestido de gala</string>
+    <string name="ai_accessory_tux">Esmoquin</string>
+    <string name="ai_accessory_santa_hat">Gorro de Santa</string>
+    <string name="ai_accessory_cowboy">Sombrero vaquero</string>
+    <string name="ai_accessory_flower_crown">Corona de flores</string>
+    <string name="ai_accessory_mustache">Bigote</string>
+    <string name="ai_accessory_guitar">Guitarra</string>
+    <string name="ai_accessory_balloons">Globos</string>
     <string name="ai_accessory_none">Ninguno</string>
     <string name="ai_style_ghibli">Estudio Ghibli</string>
     <string name="ai_style_anime">Anime</string>
@@ -258,6 +266,11 @@
     <string name="ai_style_comic">Cómic pop</string>
     <string name="ai_style_oil">Óleo</string>
     <string name="ai_style_dragonball">Dragon Ball</string>
+    <string name="ai_style_actionfigure">Figura de acción</string>
+    <string name="ai_style_vinyl">Vinilo cabezón</string>
+    <string name="ai_style_catrina">Catrina</string>
+    <string name="ai_style_mariachi">Mariachi</string>
+    <string name="ai_style_xmas">Navideño</string>
     <string name="ai_generate">Generar con IA</string>
     <string name="ai_regenerate">Generar de nuevo</string>
     <string name="ai_cancel">Cancelar</string>

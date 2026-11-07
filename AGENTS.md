@@ -64,6 +64,8 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - La app envía `stylePrompt` además de `styleId`; el backend no debe depender de prompts hardcodeados.
 - `app/src/debug/AndroidManifest.xml` permite HTTP en debug para el backend provisional local. **Producción debe usar HTTPS** y no habilitar cleartext.
 - MVP app-side: estilos globales, tarjeta “Generar con IA”, progreso/costo, hashtag editable, sin “Guardar”; el fondo se elige antes y se bloquea durante/después de generar.
+- Catálogo de estilos (19): los 14 originales más `actionfigure`, `vinyl`, `catrina`, `mariachi` y `xmas`. Viven en `ServerPhotoBoot/styles.json` (fuente de verdad), `AiStyles.ALL` (fallback offline) y `assets/style_previews/<id>.webp` (270×480). Para agregar uno nuevo hay que tocar los tres y actualizar el test `test/expo-folder.test.ts`.
+- Accesorios (24): además de los 16 previos hay `gown`, `tux`, `santa_hat`, `cowboy`, `flower_crown`, `mustache`, `guitar` y `balloons`. Se agrupan por `head`/`face`/`extra`/`hair`/`outfit` con selección única por grupo; el backend los valida en `accessories.json` y responde 400 si la app manda un id que el servidor aún no tiene (desplegar backend antes que el APK).
 
 ## Descarga / Quick Share
 
