@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.BusinessCenter
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.Celebration
 import androidx.compose.material.icons.rounded.Check
@@ -36,7 +37,10 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Face
 import androidx.compose.material.icons.rounded.FilterVintage
 import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.Landscape
 import androidx.compose.material.icons.rounded.LocalFlorist
+import androidx.compose.material.icons.rounded.Mood
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pets
 import androidx.compose.material.icons.rounded.Spa
 import androidx.compose.material.icons.rounded.Style
@@ -144,6 +148,14 @@ private fun accessoryIcon(id: String?): ImageVector = when (id) {
     "ssj_rose" -> Icons.Rounded.Spa
     "gi_syscom" -> Icons.Rounded.FitnessCenter
     "bulma_style" -> Icons.Rounded.Style
+    "gown" -> Icons.Rounded.Checkroom
+    "tux" -> Icons.Rounded.BusinessCenter
+    "santa_hat" -> Icons.Rounded.AcUnit
+    "cowboy" -> Icons.Rounded.Landscape
+    "flower_crown" -> Icons.Rounded.LocalFlorist
+    "mustache" -> Icons.Rounded.Mood
+    "guitar" -> Icons.Rounded.MusicNote
+    "balloons" -> Icons.Rounded.Celebration
     else -> Icons.Rounded.Category
 }
 

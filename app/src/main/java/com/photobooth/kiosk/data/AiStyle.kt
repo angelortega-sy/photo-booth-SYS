@@ -66,6 +66,22 @@ object AiAccessories {
             labelRes = R.string.ai_accessory_bunny_ears,
             promptFragment = "cute bunny ears matching the art style",
         ),
+        AiAccessory(
+            id = "santa_hat",
+            labelRes = R.string.ai_accessory_santa_hat,
+            promptFragment = "a red Santa hat with a white fur trim and a pom-pom, sitting above " +
+                "the eyebrows so the whole face stays visible",
+        ),
+        AiAccessory(
+            id = "cowboy",
+            labelRes = R.string.ai_accessory_cowboy,
+            promptFragment = "a classic cowboy hat with a shaped brim and a leather band",
+        ),
+        AiAccessory(
+            id = "flower_crown",
+            labelRes = R.string.ai_accessory_flower_crown,
+            promptFragment = "a delicate crown of fresh flowers resting over the hair",
+        ),
     )
 
     val FACE_OPTIONS: List<AiAccessory> = listOf(
@@ -78,6 +94,11 @@ object AiAccessories {
             id = "mask",
             labelRes = R.string.ai_accessory_mask,
             promptFragment = "an elegant party mask matching the art style",
+        ),
+        AiAccessory(
+            id = "mustache",
+            labelRes = R.string.ai_accessory_mustache,
+            promptFragment = "a thick curled moustache above the upper lip",
         ),
     )
 
@@ -96,6 +117,16 @@ object AiAccessories {
             id = "lei",
             labelRes = R.string.ai_accessory_lei,
             promptFragment = "a festive flower lei necklace matching the art style",
+        ),
+        AiAccessory(
+            id = "guitar",
+            labelRes = R.string.ai_accessory_guitar,
+            promptFragment = "an acoustic guitar held in front of the body",
+        ),
+        AiAccessory(
+            id = "balloons",
+            labelRes = R.string.ai_accessory_balloons,
+            promptFragment = "a bunch of colourful party balloons floating beside the person",
         ),
     )
 
@@ -146,6 +177,18 @@ object AiAccessories {
             labelRes = R.string.ai_accessory_bulma_style,
             promptFragment = "the person wears a retro sci-fi adventurer outfit: a short cropped " +
                 "jacket, shorts, gloves and a scarf, styled like a confident heroine",
+        ),
+        AiAccessory(
+            id = "gown",
+            labelRes = R.string.ai_accessory_gown,
+            promptFragment = "the person wears an elegant floor-length evening gown in a deep " +
+                "jewel tone with a fitted bodice and a soft drape",
+        ),
+        AiAccessory(
+            id = "tux",
+            labelRes = R.string.ai_accessory_tux,
+            promptFragment = "the person wears a tailored black tuxedo with satin lapels, a white " +
+                "shirt and a black bow tie",
         ),
     )
 
@@ -262,10 +305,13 @@ object AiStyles {
         AiStyle(
             id = "cyberpunk",
             labelRes = R.string.ai_style_cyberpunk,
-            prompt = "Transform the person in this photo into a cyberpunk portrait with a glowing " +
-                "optical eye implant, chrome face plates and a mechanical prosthetic hand, lit by " +
-                "neon magenta and cyan light. Preserve the person's identity, face, pose, framing " +
-                "and clothing colors. Family friendly, no text, no logos, no watermark.",
+            prompt = "Transform the person in this photo into a cinematic cyberpunk night portrait " +
+                "that keeps the same face, skin tone, eyes, hairline and expression. Keep both " +
+                "eyes real, with no glowing ring, and only a tiny vent below one eye plus a thin " +
+                "metal seam at the temple. Replace one forearm with a chrome prosthetic hand with " +
+                "visible joints. Dress them in a high-collar dark techwear jacket with reflective " +
+                "cyan piping. Neon city bokeh, rain, wet asphalt reflections, teal shadows and " +
+                "magenta rim light. Family friendly, no text, no logos, no watermark.",
         ),
         AiStyle(
             id = "clay",
@@ -315,6 +361,53 @@ object AiStyles {
                 "are crossed or partly behind a neighbour. The background is empty LEGO bricks, " +
                 "with zero extra minifigures. Preserve each person's hairstyle colour, pose, " +
                 "spacing and clothing colours. Family friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "actionfigure",
+            labelRes = R.string.ai_style_actionfigure,
+            prompt = "Recreate the portrait as a macro photograph of a collectible action figure on " +
+                "a display base: moulded plastic, ball joints, matte factory paint and subtle " +
+                "seams. Sculpt the face from the person's real features so the likeness survives " +
+                "the plastic. One figure per person, same order and spacing, no extra figures. " +
+                "Studio key light, dark seamless backdrop. Family friendly, no text, no logos, " +
+                "no watermark.",
+        ),
+        AiStyle(
+            id = "vinyl",
+            labelRes = R.string.ai_style_vinyl,
+            prompt = "Recreate the portrait as a glossy collectible vinyl toy figure on a studio " +
+                "table: oversized head, small stubby body, soft rounded edges and a bright " +
+                "specular highlight. Keep the person's hairstyle, glasses, facial hair and " +
+                "clothing colours so friends still recognise them, with dot eyes and a painted " +
+                "smile. One figure per person, pastel backdrop. Family friendly, no text, no " +
+                "logos, no watermark.",
+        ),
+        AiStyle(
+            id = "catrina",
+            labelRes = R.string.ai_style_catrina,
+            prompt = "Recreate the portrait as an elegant Day of the Dead catrina photograph, not " +
+                "gory: a refined sugar-skull makeup that follows the person's real bone structure, " +
+                "delicate black filigree around the eyes, a flower on the temple and a crown of " +
+                "marigolds. Black embroidered outfit with lace trim, warm candlelight, dark altar " +
+                "with candles out of focus. Family friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "mariachi",
+            labelRes = R.string.ai_style_mariachi,
+            prompt = "Recreate the portrait as an elegant mariachi photograph at night: a fitted " +
+                "charro jacket with silver embroidery, a red bow tie and a wide-brimmed sombrero " +
+                "with silver trim tilted so the whole face stays visible. A woman may wear an " +
+                "embroidered china poblana dress. Warm lantern light, Mexican plaza with strings " +
+                "of lights out of focus. Family friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "xmas",
+            labelRes = R.string.ai_style_xmas,
+            prompt = "Recreate the portrait as a warm Christmas card photograph: a cosy knit " +
+                "sweater with a fair-isle pattern, golden string lights and candles turned into " +
+                "soft bokeh, falling snow in front of the lens and a dark evergreen forest out of " +
+                "focus. Keep skin texture, no hat over the eyes, no cartoon reindeer. Family " +
+                "friendly, no text, no logos, no watermark.",
         ),
     )
 
