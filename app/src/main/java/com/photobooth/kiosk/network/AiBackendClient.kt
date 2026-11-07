@@ -308,6 +308,19 @@ class AiBackendClient(
         )
     }
 
+    /** Uploads the finished, locally framed AI photo used by the Drive delivery link. */
+    fun uploadFinalResult(sessionId: String, result: File) {
+        val boundary = "----Booth${UUID.randomUUID().toString().replace("-", "")}"
+        val body = multipart(boundary, listOf("result" to result))
+        open(
+            "POST",
+            "/v1/sessions/$sessionId/result",
+            body,
+            "multipart/form-data; boundary=$boundary",
+            sign = true,
+        )
+    }
+
     fun uploadPhotos(sessionId: String, photo0: File, photo1: File, photo2: File, strip: File) {
         val boundary = "----Booth${UUID.randomUUID().toString().replace("-", "")}"
         val body = multipart(
