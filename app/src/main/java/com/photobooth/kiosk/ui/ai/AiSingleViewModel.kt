@@ -193,7 +193,13 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
     fun driveShareUrl(): String? {
         val sessionId = remoteSessionId ?: return null
         if (!identityStore.load().enrolled) return null
+        val result = _uiState.value.resultFile
+        if (result?.isFile != true) {
+            showError(getApplication<Application>().getString(R.string.ai_error_network))
+            return null
+        }
         return try {
+            aiClient.uploadFinalResult(sessionId, result)
             aiClient.finalize(sessionId)
         } catch (error: AiBackendException) {
             showError(userMessage(error))
