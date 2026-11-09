@@ -112,6 +112,7 @@ data class PhotoBoothUiState(
     val backgroundRevision: Int = 0,
     val eventProfiles: List<EventProfile> = emptyList(),
     val activeEventProfileId: String = EventProfileStore.SYSCOM_ID,
+    val selectedEventProfileId: String = EventProfileStore.SYSCOM_ID,
     /** When true a copy of every finished photo is kept in the device gallery. */
     val savePhotosToDevice: Boolean = false,
     val errorMessage: String? = null,
@@ -190,6 +191,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             selectedModelId = aiSettings.load().modelId,
             eventProfiles = profileStore.loadAll(),
             activeEventProfileId = profileStore.active().id,
+            selectedEventProfileId = profileStore.active().id,
             savePhotosToDevice = photoSettings.saveToDevice(),
         ),
     )
@@ -657,6 +659,22 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             state.copy(
                 customization = state.customization.copy(layout = layout),
                 selectedPhotoIndex = null,
+            )
+        }
+        requestPreviewUpdate(sessionToken)
+    }
+
+    fun selectEventProfile(profileId: String) {
+        val profile = _uiState.value.eventProfiles.firstOrNull { it.id == profileId } ?: return
+        if (_uiState.value.selectedEventProfileId == profileId) return
+        exportedStateSignature = null
+        _uiState.update { state ->
+            state.copy(
+                selectedEventProfileId = profile.id,
+                customization = state.customization.copy(
+                    eventBranding = profile.branding,
+                    badgePreset = EventBadgePreset.CUSTOM,
+                ),
             )
         }
         requestPreviewUpdate(sessionToken)
@@ -1455,6 +1473,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             adminBackgrounds = repository.allOptions,
             eventProfiles = profileStore.loadAll(),
             activeEventProfileId = profileStore.active().id,
+            selectedEventProfileId = profileStore.active().id,
         )
 
         oldBitmaps.forEach(::recycleLater)

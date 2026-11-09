@@ -32,7 +32,7 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - Después de descargar/compartir, se cierra la sesión y vuelve a bienvenida. Guardar mantiene el resultado en pantalla.
 - Paleta **azul Syscom** sobre fondo oscuro: `SyscomBlue #0B63CE`, `SyscomBlueLight #5EA8FF`, `Ink #050B14`, `InkSoft #0B1727`, `Cream #F3F8FF`.
 - Los dos modos comparten el **mismo shell** (`AiSingleFlow` y `ui/collage/CollageFlow`): barra superior con “Paso X de N + nombre”, progreso lineal, contenido scrolleable, barra inferior fija Regresar / Continuar y QR en línea en el último paso. **No volver a usar modales para la entrega ni contadores distintos**: el collage usa el mismo 3-2-1 de 700 ms por segundo que el modo IA.
-- `CollageFlow` pasos: Captura (3 fotos, un toque = 3 tomas con pausa “Posa 2 de 3”) → Fondo (selector híbrido: “Las 3 fotos” o una foto en particular) → Diseño (marco, adorno, formato y borde) → Entrega (pager con foto 1/2/3 y la tira, QR automático, copiar liga y Quick Share). `StudioWizardScreen` y los diálogos de entrega se eliminaron.
+- `CollageFlow` pasos: Captura (un toque = 3 tomas con pausa “Posa 2 de 3”; rail lateral 1/2/3 para ver o repetir una foto, **nunca muestra la tira ni marcos**) → Fondo (las 3 fotos en un pager grande de una en una y los fondos como cuadritos de 3 columnas; selector híbrido “Las 3 fotos” o una foto en particular) → Diseño (marca del evento si hay más de una, marco, adorno, formato y borde) → Entrega (pager con foto 1/2/3 y la tira, QR automático, copiar liga y Quick Share). `StudioWizardScreen` y los diálogos de entrega se eliminaron.
 
 ## Modo administrador
 

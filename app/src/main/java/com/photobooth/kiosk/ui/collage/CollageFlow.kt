@@ -65,6 +65,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -73,6 +74,7 @@ import com.photobooth.kiosk.camera.CameraPreview
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
+import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.PhotoBorderStyle
 import com.photobooth.kiosk.data.palette
@@ -423,6 +425,10 @@ fun CollageFlow(
 
                         CollageStep.DESIGN -> CollageDesignContent(
                             state = state,
+                            onSelectProfile = {
+                                viewModel.selectEventProfile(it)
+                                onInteraction()
+                            },
                             onSelectFrame = {
                                 viewModel.selectFrameStyle(it)
                                 onInteraction()
@@ -576,15 +582,35 @@ private fun CollageCaptureContent(
                 }
 
                 done -> {
-                    val result = state.stripPreview
-                    if (result != null && !result.isRecycled) {
-                        Image(
-                            bitmap = result.asImageBitmap(),
-                            contentDescription = stringResource(R.string.result_title),
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit,
-                        )
+                    // Only the raw shots belong in the capture step: the strip
+                    // with frames is built later, in the design step.
+                    val donePager = rememberPagerState(pageCount = { PhotoBoothUiState.PHOTO_COUNT })
+                    HorizontalPager(
+                        state = donePager,
+                        modifier = Modifier.fillMaxSize(),
+                    ) { page ->
+                        val shot = state.photoPreviews.getOrNull(page)
+                            ?: state.captureThumbnails.getOrNull(page)
+                        if (shot != null && !shot.isRecycled) {
+                            Image(
+                                bitmap = shot.asImageBitmap(),
+                                contentDescription = stringResource(R.string.collage_photo_label, page + 1),
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit,
+                            )
+                        }
                     }
+                    Text(
+                        text = stringResource(R.string.collage_photo_label, donePager.currentPage + 1),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(10.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Ink.copy(alpha = 0.72f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        color = Cream,
+                        fontSize = 13.sp,
+                    )
                 }
 
                 else -> CameraPreview(
@@ -761,48 +787,57 @@ private fun CollageBackgroundContent(
         color = Cream.copy(alpha = 0.7f),
         fontSize = 15.sp,
     )
-    // Preview of the three shots with their current background so the guest
-    // can see what each choice changes.
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
-            val preview = state.photoPreviews.getOrNull(index)
-                ?: state.captureThumbnails.getOrNull(index)
-            val selected = targetIndex == index
+    // One big shot at a time: swipe to review the three photos and tap the one
+    // that should take the next background. No frames are drawn here on purpose.
+    val pager = rememberPagerState(pageCount = { PhotoBoothUiState.PHOTO_COUNT })
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(3f / 4f)
+            .clip(RoundedCornerShape(20.dp))
+            .background(InkSoft),
+    ) {
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
+            val preview = state.photoPreviews.getOrNull(page)
+                ?: state.captureThumbnails.getOrNull(page)
             Box(
                 Modifier
-                    .weight(1f)
-                    .aspectRatio(3f / 4f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(InkSoft)
-                    .border(
-                        width = if (selected) 2.dp else 1.dp,
-                        color = if (selected) SyscomBlue else Cream.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(12.dp),
-                    )
-                    .clickable { onSelectPhoto(index) },
+                    .fillMaxSize()
+                    .clickable { onSelectPhoto(page) },
                 contentAlignment = Alignment.Center,
             ) {
                 if (preview != null && !preview.isRecycled) {
                     Image(
                         bitmap = preview.asImageBitmap(),
-                        contentDescription = stringResource(R.string.collage_photo_label, index + 1),
+                        contentDescription = stringResource(R.string.collage_photo_label, page + 1),
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
+                        contentScale = ContentScale.Fit,
                     )
                 }
-                if (selected) {
-                    Box(
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp)
-                            .size(24.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(SyscomBlue),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Rounded.Check, null, tint = Cream, modifier = Modifier.size(15.dp))
-                    }
-                }
+            }
+        }
+        Text(
+            text = stringResource(R.string.collage_photo_label, pager.currentPage + 1),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(10.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(Ink.copy(alpha = 0.72f))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            color = Cream,
+            fontSize = 13.sp,
+        )
+        if (targetIndex == pager.currentPage) {
+            Box(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(10.dp)
+                    .size(26.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(SyscomBlue),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.Check, null, tint = Cream, modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -822,10 +857,11 @@ private fun CollageBackgroundContent(
             )
         }
     }
-    options.chunked(2).forEach { row ->
+    // Backgrounds stay small squares: the big canvas above belongs to the photos.
+    options.chunked(3).forEach { row ->
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             row.forEach { option ->
                 val selected = if (targetIndex == null) {
@@ -833,7 +869,7 @@ private fun CollageBackgroundContent(
                 } else {
                     state.photoBackgroundIds.getOrNull(targetIndex) == option.id
                 }
-                BackgroundCard(
+                BackgroundTile(
                     title = option.name,
                     preview = previews[option.id],
                     selected = selected,
@@ -841,7 +877,7 @@ private fun CollageBackgroundContent(
                     modifier = Modifier.weight(1f),
                 )
             }
-            if (row.size == 1) Spacer(Modifier.weight(1f))
+            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
         }
     }
 }
@@ -849,6 +885,7 @@ private fun CollageBackgroundContent(
 @Composable
 private fun CollageDesignContent(
     state: PhotoBoothUiState,
+    onSelectProfile: (String) -> Unit,
     onSelectFrame: (CollageFrameStyle) -> Unit,
     onSelectDecoration: (FrameDecoration) -> Unit,
     onSelectLayout: (CollageLayout) -> Unit,
@@ -878,6 +915,43 @@ private fun CollageDesignContent(
         color = Cream.copy(alpha = 0.7f),
         fontSize = 15.sp,
     )
+    // Same "Marca del evento" row as the AI flow: only when there is more than
+    // one enabled brand, so a single-brand booth stays uncluttered.
+    if (state.eventProfiles.size > 1) {
+        SectionTitle(stringResource(R.string.ai_section_brand))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            state.eventProfiles.forEach { profile: EventProfile ->
+                val isSelected = profile.id == state.selectedEventProfileId
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable { onSelectProfile(profile.id) }
+                        .then(
+                            if (isSelected) {
+                                Modifier.border(2.dp, SyscomBlue, RoundedCornerShape(18.dp))
+                            } else {
+                                Modifier
+                            },
+                        ),
+                    color = if (isSelected) SyscomBlue.copy(alpha = 0.22f) else InkSoft,
+                    shape = RoundedCornerShape(18.dp),
+                ) {
+                    Text(
+                        profile.name,
+                        color = Cream,
+                        fontSize = 15.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                }
+            }
+        }
+    }
     val palette = state.customization.palette()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         CollageFrameStyle.entries.forEach { style ->
@@ -1236,6 +1310,69 @@ private fun BackgroundCard(
                 maxLines = 1,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun BackgroundTile(
+    title: String,
+    preview: Bitmap?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .then(if (selected) Modifier.border(2.dp, SyscomBlue, RoundedCornerShape(14.dp)) else Modifier),
+        color = InkSoft,
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .background(Ink),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (preview != null && !preview.isRecycled) {
+                Image(
+                    bitmap = preview.asImageBitmap(),
+                    contentDescription = title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+            if (selected) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(5.dp)
+                        .size(20.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(SyscomBlue),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Check, null, tint = Cream, modifier = Modifier.size(13.dp))
+                }
+            }
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Ink.copy(alpha = 0.62f))
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    title,
+                    color = Cream,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
