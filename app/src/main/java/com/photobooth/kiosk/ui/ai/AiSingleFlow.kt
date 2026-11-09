@@ -123,13 +123,13 @@ import kotlinx.coroutines.withContext
 
 private const val FINISH_GUARD_MS = 3_000L
 
-private enum class AiStep(val index: Int, val title: String) {
-    CAPTURE(0, "Foto"),
-    STYLE(1, "Estilo"),
-    BACKGROUND(2, "Fondo"),
-    ACCESSORIES(3, "Accesorios"),
-    FRAMED(4, "Marco"),
-    SHARE(5, "Compartir"),
+private enum class AiStep(val index: Int, val titleRes: Int) {
+    CAPTURE(0, R.string.ai_step_capture),
+    STYLE(1, R.string.ai_step_style),
+    BACKGROUND(2, R.string.ai_step_background),
+    ACCESSORIES(3, R.string.ai_step_accessories),
+    FRAMED(4, R.string.ai_step_frame),
+    SHARE(5, R.string.ai_step_share),
 }
 
 private const val TOTAL_STEPS = 6
@@ -167,15 +167,6 @@ private fun accessoryTint(id: String?): Color = when (id) {
     "ssj_rose" -> Color(0xFFF48FB1)
     null -> Cream.copy(alpha = 0.55f)
     else -> Cream
-}
-
-private fun accessoryGroupTitle(id: String): String = when (id) {
-    "head" -> "Cabeza"
-    "face" -> "Cara"
-    "extra" -> "Extra"
-    "hair" -> "Cabello"
-    "outfit" -> "Ropa"
-    else -> "Accesorio"
 }
 
 /**
@@ -323,7 +314,7 @@ fun AiSingleFlow(
             }
             val srv = LocalDeliveryServer()
             val session = withContext(Dispatchers.IO) {
-                srv.start(listOf(file), "Cabina IA")
+                srv.start(listOf(file), context.getString(R.string.ai_delivery_title))
             }
             if (session == null) {
                 shareStarting = false
@@ -360,15 +351,15 @@ fun AiSingleFlow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Foto IA", color = Cream, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.ai_flow_title), color = Cream, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Paso ${step.index + 1} de $TOTAL_STEPS · ${step.title}",
+                        stringResource(R.string.ai_step_counter, step.index + 1, TOTAL_STEPS, stringResource(step.titleRes)),
                         color = Cream.copy(alpha = 0.65f),
                         fontSize = 14.sp,
                     )
                 }
                 IconButton(onClick = { exit() }) {
-                    Icon(Icons.Rounded.Close, contentDescription = "Salir", tint = Cream)
+                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.ai_exit), tint = Cream)
                 }
             }
             LinearProgressIndicator(
@@ -470,7 +461,7 @@ fun AiSingleFlow(
                             onCopyLink = {
                                 deliveryUrl?.let {
                                     clipboard.setText(AnnotatedString(it))
-                                    scope.launch { snackbar.showSnackbar("Enlace copiado") }
+                                    scope.launch { snackbar.showSnackbar(context.getString(R.string.link_copied)) }
                                 }
                                 onInteraction()
                             },
@@ -587,7 +578,7 @@ private fun CaptureContent(
     var showPreview by remember { mutableStateOf(false) }
     if (!hasPhoto) {
         Text(
-            if (gestureActive) "Palma o botón" else "Toca para tomar la foto",
+            stringResource(if (gestureActive) R.string.ai_hint_palm else R.string.ai_hint_tap),
             color = Cream.copy(alpha = 0.8f),
             fontSize = 16.sp,
         )
@@ -626,7 +617,7 @@ private fun CaptureContent(
         ) {
             Icon(Icons.Rounded.Visibility, contentDescription = null, tint = Cream)
             Spacer(Modifier.width(8.dp))
-            Text("Ver mi foto", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Cream)
+            Text(stringResource(R.string.ai_view_photo), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Cream)
         }
     }
     Button(
@@ -635,7 +626,7 @@ private fun CaptureContent(
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
     ) {
-        Text(if (hasPhoto) "Repetir foto" else "Tomar foto", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+        Text(text = stringResource(if (hasPhoto) R.string.ai_retake_photo else R.string.ai_take_photo), fontSize = 19.sp, fontWeight = FontWeight.Bold)
     }
 
     // Full-size preview in a modal: the inline thumbnail was too small to judge the shot.
@@ -649,7 +640,7 @@ private fun CaptureContent(
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("Tu foto", color = Cream, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.ai_your_photo), color = Cream, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(14.dp))
                 Box(
                     modifier = Modifier
@@ -661,7 +652,7 @@ private fun CaptureContent(
                 ) {
                     Image(
                         photoPreview.asImageBitmap(),
-                        contentDescription = "Tu foto",
+                        contentDescription = stringResource(R.string.ai_your_photo),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit,
                     )
@@ -673,7 +664,7 @@ private fun CaptureContent(
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
                 ) {
-                    Text("Cerrar", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.close), fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -690,17 +681,17 @@ private fun StyleContent(
     onSelect: (String) -> Unit,
     onPreview: (String, Bitmap?) -> Unit,
 ) {
-    SectionTitle("Estilo")
+    SectionTitle(stringResource(R.string.ai_section_style_title))
     if (!modelReady) {
         Text(
-            "El modelo se configura en el administrador.",
+            stringResource(R.string.ai_model_admin_hint),
             color = Cream.copy(alpha = 0.7f),
             fontSize = 15.sp,
         )
     }
     if (styles.isEmpty()) {
         Text(
-            "Registra el tótem en el administrador para cargar los estilos.",
+            stringResource(R.string.ai_register_hint),
             color = Cream.copy(alpha = 0.7f),
             fontSize = 15.sp,
         )
@@ -762,7 +753,7 @@ private fun StyleCard(
                     if (selected) {
                         Icon(
                             Icons.Rounded.Check,
-                            contentDescription = "Seleccionado",
+                            contentDescription = stringResource(R.string.ai_cd_selected),
                             tint = Cream,
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
@@ -778,7 +769,7 @@ private fun StyleCard(
                     ) {
                         Icon(
                             Icons.Rounded.Visibility,
-                            contentDescription = "Ver $title",
+                            contentDescription = stringResource(R.string.ai_cd_view, title),
                             tint = Cream,
                         )
                     }
@@ -836,7 +827,7 @@ private fun PreviewDialog(
                 if (preview != null) {
                     Image(
                         preview.asImageBitmap(),
-                        contentDescription = "Vista previa de $title",
+                        contentDescription = stringResource(R.string.ai_cd_preview, title),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit,
                     )
@@ -856,7 +847,7 @@ private fun PreviewDialog(
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
             ) {
-                Text("Cerrar", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.close), fontSize = 17.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -879,15 +870,21 @@ private fun GenerationExperience(
     }
 
     val generating = status == AiStatus.GENERATING
-    val title = if (generating) "Tu foto está cobrando vida" else "Preparando tu foto"
-    val detail = when {
-        !generating -> "Subiendo una copia segura para transformarla."
-        progress < 62 -> "La IA está aplicando el estilo que elegiste."
-        progress < 78 -> "Afinando colores, rostro y detalles."
-        else -> "Dando los últimos toques. Ya casi está lista."
-    }
-    val estimated = if (generating) "Esto suele tomar entre 15 y 20 segundos." else "Solo tomará un momento."
-    val stages = listOf("Foto lista", "Estilo en proceso", "Detalles finales")
+    val title = stringResource(if (generating) R.string.ai_gen_title_alive else R.string.ai_gen_title_preparing)
+    val detail = stringResource(
+        when {
+            !generating -> R.string.ai_gen_detail_upload
+            progress < 62 -> R.string.ai_gen_detail_applying
+            progress < 78 -> R.string.ai_gen_detail_refining
+            else -> R.string.ai_gen_detail_final
+        },
+    )
+    val estimated = stringResource(if (generating) R.string.ai_gen_eta_long else R.string.ai_gen_eta_short)
+    val stages = listOf(
+        stringResource(R.string.ai_gen_stage_ready),
+        stringResource(R.string.ai_gen_stage_styling),
+        stringResource(R.string.ai_gen_stage_details),
+    )
     val currentStage = when {
         !generating -> 0
         progress < 78 -> 1
@@ -919,7 +916,7 @@ private fun GenerationExperience(
                 photoPreview?.let { preview ->
                     Image(
                         preview.asImageBitmap(),
-                        contentDescription = "Foto en proceso",
+                        contentDescription = stringResource(R.string.ai_cd_processing_photo),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(94.dp)
@@ -1020,13 +1017,13 @@ private fun BackgroundContent(
     onSelect: (String) -> Unit,
     onPreview: (String, Bitmap?) -> Unit,
 ) {
-    SectionTitle("Fondo")
+    SectionTitle(stringResource(R.string.ai_section_background_title))
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         BackgroundOptionGrid(
             options = listOf(
                 BackgroundOption(
                     id = BackgroundRepository.NO_BACKGROUND_ID,
-                    name = "Sin fondo",
+                    name = stringResource(R.string.ai_background_none),
                 ),
             ),
             previews = previews,
@@ -1128,7 +1125,7 @@ private fun BackgroundCard(
                 if (selected) {
                     Icon(
                         Icons.Rounded.Check,
-                        contentDescription = "Seleccionado",
+                        contentDescription = stringResource(R.string.ai_cd_selected),
                         tint = Cream,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -1144,7 +1141,7 @@ private fun BackgroundCard(
                 ) {
                     Icon(
                         Icons.Rounded.Visibility,
-                        contentDescription = "Ver ${option.name}",
+                        contentDescription = stringResource(R.string.ai_cd_view, option.name),
                         tint = Cream,
                     )
                 }
@@ -1171,13 +1168,13 @@ private fun AccessoriesContent(
     onResetPersonalization: () -> Unit,
 ) {
     val blocked = AiAccessories.blockedIds(styleId, selected)
-    SectionTitle("Accesorios")
+    SectionTitle(stringResource(R.string.ai_section_accessories_title))
     AiAccessories.GROUPS.forEach { group ->
         val options = group.options.filterNot { it.id in blocked }
         if (options.isEmpty()) return@forEach
         val selectedOption = options.firstOrNull { it.id in selected }
         Text(
-            accessoryGroupTitle(group.id),
+            stringResource(group.labelRes),
             color = Cream,
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
@@ -1214,7 +1211,7 @@ private fun AccessoriesContent(
         modifier = Modifier.fillMaxWidth().height(56.dp),
         shape = RoundedCornerShape(18.dp),
     ) {
-        Text("Reiniciar", fontSize = 16.sp)
+        Text(stringResource(R.string.ai_reset), fontSize = 16.sp)
     }
 }
 
@@ -1268,7 +1265,7 @@ private fun AccessoryCard(
             if (selected) {
                 Icon(
                     Icons.Rounded.Check,
-                    contentDescription = "Seleccionado",
+                    contentDescription = stringResource(R.string.ai_cd_selected),
                     tint = Cream,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -1304,11 +1301,11 @@ private fun FramedContent(
     decoration: FrameDecoration,
     onSelectDecoration: (FrameDecoration) -> Unit,
 ) {
-    SectionTitle("Tu foto")
+    SectionTitle(stringResource(R.string.ai_your_photo))
     if (preview != null) {
         Image(
             preview.asImageBitmap(),
-            contentDescription = "Foto con marco",
+            contentDescription = stringResource(R.string.ai_cd_framed_photo),
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(9f / 16f)
@@ -1324,16 +1321,16 @@ private fun FramedContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 CircularProgressIndicator(color = SyscomBlueLight)
                 Spacer(Modifier.height(12.dp))
-                Text("Generando tu foto…", color = Cream.copy(alpha = 0.8f), fontSize = 16.sp)
+                Text(stringResource(R.string.ai_generating_photo), color = Cream.copy(alpha = 0.8f), fontSize = 16.sp)
             }
         }
     }
-    cost?.let { Text("Costo de generación: $${it}", color = Cream.copy(alpha = 0.7f), fontSize = 14.sp) }
+    cost?.let { Text(stringResource(R.string.ai_generation_cost, it.toString()), color = Cream.copy(alpha = 0.7f), fontSize = 14.sp) }
     if (status == AiStatus.ERROR) {
-        Text("Hubo un error. Vuelve a accesorios e intenta de nuevo.", color = Cream, fontSize = 15.sp)
+        Text(stringResource(R.string.ai_generation_error), color = Cream, fontSize = 15.sp)
     }
     if (profiles.size > 1) {
-        SectionTitle("Marca del evento")
+        SectionTitle(stringResource(R.string.ai_section_brand))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1367,7 +1364,7 @@ private fun FramedContent(
             }
         }
     }
-    SectionTitle("Marco")
+    SectionTitle(stringResource(R.string.ai_section_frame))
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         CollageFrameStyle.entries.forEach { frame ->
             val isSelected = frame == selected
@@ -1393,7 +1390,7 @@ private fun FramedContent(
             }
         }
     }
-    SectionTitle("Adorno")
+    SectionTitle(stringResource(R.string.ai_section_decoration))
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1439,7 +1436,7 @@ private fun ShareContent(
     onRetryQr: () -> Unit,
     onQuickShare: () -> Unit,
 ) {
-    SectionTitle("Comparte")
+    SectionTitle(stringResource(R.string.ai_section_share))
     var zoomed by remember { mutableStateOf(false) }
     preview?.let {
         // Show the whole strip instead of a center crop: guests need to see the real result.
@@ -1453,7 +1450,7 @@ private fun ShareContent(
         ) {
             Image(
                 it.asImageBitmap(),
-                contentDescription = "Tu foto final",
+                contentDescription = stringResource(R.string.ai_cd_final_photo),
                 modifier = Modifier.fillMaxHeight().fillMaxWidth(),
                 contentScale = ContentScale.Fit,
             )
@@ -1471,7 +1468,7 @@ private fun ShareContent(
             if (qr != null) {
                 Image(
                     qr.asImageBitmap(),
-                    contentDescription = "QR de descarga",
+                    contentDescription = stringResource(R.string.ai_cd_qr),
                     modifier = Modifier
                         .widthIn(max = 240.dp)
                         .fillMaxWidth()
@@ -1494,7 +1491,7 @@ private fun ShareContent(
                         CircularProgressIndicator(color = SyscomBlueLight)
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            if (starting) "Preparando descarga…" else "Tocando reintentar…",
+                            text = stringResource(if (starting) R.string.ai_preparing_download else R.string.ai_retrying_qr),
                             color = Cream.copy(alpha = 0.8f),
                             fontSize = 15.sp,
                             textAlign = TextAlign.Center,
@@ -1513,7 +1510,7 @@ private fun ShareContent(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Conéctate a la misma red WiFi del tótem y escanea.",
+                    stringResource(R.string.ai_same_wifi),
                     color = Cream.copy(alpha = 0.7f),
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
@@ -1521,7 +1518,7 @@ private fun ShareContent(
                 )
             } else if (!starting) {
                 OutlinedButton(onClick = onRetryQr, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                    Text("Reintentar código QR", fontSize = 16.sp)
+                    Text(stringResource(R.string.ai_retry_qr), fontSize = 16.sp)
                 }
             }
         }
@@ -1534,7 +1531,7 @@ private fun ShareContent(
     ) {
         Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(10.dp))
-        Text("Copiar enlace", fontSize = 17.sp)
+        Text(stringResource(R.string.copy_link), fontSize = 17.sp)
     }
     Button(
         onClick = onQuickShare,
@@ -1544,13 +1541,13 @@ private fun ShareContent(
     ) {
         Icon(Icons.Rounded.Share, null, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(10.dp))
-        Text("Quick Share · Android", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.quick_share_option), fontSize = 19.sp, fontWeight = FontWeight.Bold)
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Rounded.QrCode2, null, tint = SyscomBlueLight, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(8.dp))
         Text(
-            "El QR funciona con iPhone y Android.",
+            stringResource(R.string.ai_qr_works_both),
             color = Cream.copy(alpha = 0.7f),
             fontSize = 14.sp,
         )
@@ -1581,11 +1578,11 @@ private fun BottomBar(
     onNext: () -> Unit,
 ) {
     val nextLabel = when (step) {
-        AiStep.CAPTURE -> "Continuar"
-        AiStep.STYLE -> "Continuar"
-        AiStep.BACKGROUND -> "Continuar"
-        AiStep.ACCESSORIES -> if (retryGeneration) "Reintentar con IA" else "Generar con IA"
-        AiStep.FRAMED, AiStep.SHARE -> "Finalizar"
+        AiStep.CAPTURE -> stringResource(R.string.wizard_next)
+        AiStep.STYLE -> stringResource(R.string.wizard_next)
+        AiStep.BACKGROUND -> stringResource(R.string.wizard_next)
+        AiStep.ACCESSORIES -> if (retryGeneration) stringResource(R.string.ai_regenerate) else stringResource(R.string.ai_generate)
+        AiStep.FRAMED, AiStep.SHARE -> stringResource(R.string.finish)
     }
     val nextEnabled = when (step) {
         AiStep.CAPTURE -> canContinueFromCapture
@@ -1609,7 +1606,7 @@ private fun BottomBar(
                 modifier = Modifier.weight(1f).height(68.dp),
                 shape = RoundedCornerShape(20.dp),
             ) {
-                Text(if (step == AiStep.CAPTURE) "Salir" else "Atrás", fontSize = 18.sp)
+                Text(text = stringResource(if (step == AiStep.CAPTURE) R.string.ai_exit else R.string.wizard_back), fontSize = 18.sp)
             }
         }
         Button(
