@@ -237,15 +237,6 @@ object AiAccessories {
         "cyberpunk" to setOf("outfit"),
         // K-pop dictates gender-matched stage outfits.
         "kpop" to setOf("outfit"),
-        // These styles rebuild the hair as a fixed material or silhouette,
-        // so dyed spiky hair would fight the prompt.
-        "lego" to setOf("hair"),
-        "vinyl" to setOf("hair"),
-        "actionfigure" to setOf("hair"),
-        "clay" to setOf("hair"),
-        "pixelart" to setOf("hair"),
-        "anime" to setOf("hair"),
-        "simpson" to setOf("hair"),
     )
 
     /** Individual ids a style blocks even though the rest of the group stays available. */
