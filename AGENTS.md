@@ -66,6 +66,8 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - MVP app-side: estilos globales, tarjeta “Generar con IA”, progreso/costo, hashtag editable, sin “Guardar”; el fondo se elige antes y se bloquea durante/después de generar.
 - Catálogo de estilos (19): los 14 originales más `actionfigure`, `vinyl`, `catrina`, `mariachi` y `xmas`. Viven en `ServerPhotoBoot/styles.json` (fuente de verdad), `AiStyles.ALL` (fallback offline) y `assets/style_previews/<id>.webp` (270×480). Para agregar uno nuevo hay que tocar los tres y actualizar el test `test/expo-folder.test.ts`.
 - Accesorios (24): además de los 16 previos hay `gown`, `tux`, `santa_hat`, `cowboy`, `flower_crown`, `mustache`, `guitar` y `balloons`. Se agrupan por `head`/`face`/`extra`/`hair`/`outfit` con selección única por grupo; el backend los valida en `accessories.json` y responde 400 si la app manda un id que el servidor aún no tiene (desplegar backend antes que el APK).
+- `AiAccessories.blockedForStyle()` oculta los grupos que un estilo ya define (`mariachi`/`catrina`/`noir`: cabeza y ropa; `xmas`: ropa; `catrina` además `mask`) y `blockedBySelection()` evita combinar pelo teñido con sombrero. `AiSingleViewModel.selectStyle` limpia los accesorios que dejan de ser válidos.
+- Los iconos de accesorios son vector drawables propios en `res/drawable/ic_accessory_*.xml` (línea blanca, tint de Compose); no volver a mapearlos a iconos de Material.
 
 ## Descarga / Quick Share
 

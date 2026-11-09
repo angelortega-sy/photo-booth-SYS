@@ -84,6 +84,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
@@ -130,33 +131,30 @@ private enum class AiStep(val index: Int, val title: String) {
 
 private const val TOTAL_STEPS = 6
 
-private fun accessoryIcon(id: String?): ImageVector = when (id) {
-    null -> Icons.Rounded.Block
-    "cap" -> Icons.Rounded.Checkroom
-    "headband" -> Icons.Rounded.Face
-    "crown" -> Icons.Rounded.WorkspacePremium
-    "party_hat" -> Icons.Rounded.Celebration
-    "bunny_ears" -> Icons.Rounded.Pets
-    "sunglasses" -> Icons.Rounded.DarkMode
-    "mask" -> Icons.Rounded.TheaterComedy
-    "flowers" -> Icons.Rounded.LocalFlorist
-    "scarf" -> Icons.Rounded.Waves
-    "lei" -> Icons.Rounded.FilterVintage
-    "ssj_yellow" -> Icons.Rounded.WbSunny
-    "ssj_red" -> Icons.Rounded.Whatshot
-    "ssj_blue" -> Icons.Rounded.AcUnit
-    "ssj_rose" -> Icons.Rounded.Spa
-    "gi_syscom" -> Icons.Rounded.FitnessCenter
-    "bulma_style" -> Icons.Rounded.Style
-    "gown" -> Icons.Rounded.Checkroom
-    "tux" -> Icons.Rounded.BusinessCenter
-    "santa_hat" -> Icons.Rounded.AcUnit
-    "cowboy" -> Icons.Rounded.Landscape
-    "flower_crown" -> Icons.Rounded.LocalFlorist
-    "mustache" -> Icons.Rounded.Mood
-    "guitar" -> Icons.Rounded.MusicNote
-    "balloons" -> Icons.Rounded.Celebration
-    else -> Icons.Rounded.Category
+private fun accessoryIcon(id: String?): Int? = when (id) {
+    null -> null
+    "cap" -> R.drawable.ic_accessory_cap
+    "headband" -> R.drawable.ic_accessory_headband
+    "crown" -> R.drawable.ic_accessory_crown
+    "party_hat" -> R.drawable.ic_accessory_party_hat
+    "bunny_ears" -> R.drawable.ic_accessory_bunny_ears
+    "sunglasses" -> R.drawable.ic_accessory_sunglasses
+    "mask" -> R.drawable.ic_accessory_mask
+    "mustache" -> R.drawable.ic_accessory_mustache
+    "flowers" -> R.drawable.ic_accessory_flowers
+    "scarf" -> R.drawable.ic_accessory_scarf
+    "lei" -> R.drawable.ic_accessory_lei
+    "ssj_yellow", "ssj_red", "ssj_blue", "ssj_rose" -> R.drawable.ic_accessory_ssj_hair
+    "gi_syscom" -> R.drawable.ic_accessory_gi_syscom
+    "bulma_style" -> R.drawable.ic_accessory_bulma_style
+    "gown" -> R.drawable.ic_accessory_gown
+    "tux" -> R.drawable.ic_accessory_tux
+    "santa_hat" -> R.drawable.ic_accessory_santa_hat
+    "cowboy" -> R.drawable.ic_accessory_cowboy
+    "flower_crown" -> R.drawable.ic_accessory_flower_crown
+    "guitar" -> R.drawable.ic_accessory_guitar
+    "balloons" -> R.drawable.ic_accessory_balloons
+    else -> null
 }
 
 private fun accessoryTint(id: String?): Color = when (id) {
@@ -444,6 +442,7 @@ fun AiSingleFlow(
                         )
                         AiStep.ACCESSORIES -> AccessoriesContent(
                             selected = state.accessories,
+                            styleId = state.selectedStyleId,
                             onToggle = { viewModel.selectAccessoryExclusive(it); onInteraction() },
                             onClearGroup = { viewModel.clearAccessoryGroup(it); onInteraction() },
                             onResetPersonalization = { viewModel.resetPersonalization(); onInteraction() },
@@ -1158,13 +1157,17 @@ private fun BackgroundCard(
 @Composable
 private fun AccessoriesContent(
     selected: Set<String>,
+    styleId: String?,
     onToggle: (String) -> Unit,
     onClearGroup: (String) -> Unit,
     onResetPersonalization: () -> Unit,
 ) {
+    val blocked = AiAccessories.blockedIds(styleId, selected)
     SectionTitle("Accesorios")
     AiAccessories.GROUPS.forEach { group ->
-        val selectedOption = group.options.firstOrNull { it.id in selected }
+        val options = group.options.filterNot { it.id in blocked }
+        if (options.isEmpty()) return@forEach
+        val selectedOption = options.firstOrNull { it.id in selected }
         Text(
             accessoryGroupTitle(group.id),
             color = Cream,
@@ -1172,7 +1175,7 @@ private fun AccessoriesContent(
             fontWeight = FontWeight.Bold,
         )
         val choices = listOf<AiAccessoryChoice?>(null) +
-            group.options.map { AiAccessoryChoice(it.id, stringResource(it.labelRes)) }
+            options.map { AiAccessoryChoice(it.id, stringResource(it.labelRes)) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             choices.chunked(2).forEach { row ->
                 Row(
@@ -1183,7 +1186,7 @@ private fun AccessoriesContent(
                         val isNone = choice == null
                         AccessoryCard(
                             title = choice?.name ?: stringResource(R.string.ai_accessory_none),
-                            icon = accessoryIcon(choice?.id),
+                            iconRes = accessoryIcon(choice?.id),
                             tint = accessoryTint(choice?.id),
                             selected = if (isNone) selectedOption == null else choice.id in selected,
                             onClick = {
@@ -1215,7 +1218,7 @@ private data class AiAccessoryChoice(
 @Composable
 private fun AccessoryCard(
     title: String,
-    icon: ImageVector,
+    iconRes: Int?,
     tint: Color,
     selected: Boolean,
     onClick: () -> Unit,
@@ -1235,14 +1238,25 @@ private fun AccessoryCard(
                 .height(118.dp)
                 .padding(10.dp),
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(42.dp),
-            )
+            if (iconRes != null) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(42.dp),
+                )
+            } else {
+                Icon(
+                    Icons.Rounded.Block,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(42.dp),
+                )
+            }
             if (selected) {
                 Icon(
                     Icons.Rounded.Check,

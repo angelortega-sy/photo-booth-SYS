@@ -2,9 +2,14 @@ from pathlib import Path
 import sys
 from PIL import Image
 
-src = Path("out/style-previews-new")
+args = sys.argv[1:]
+src_dir = "out/style-previews-new"
+if len(args) >= 2 and args[0] == "--src":
+    src_dir = args[1]
+    args = args[2:]
+src = Path(src_dir)
 dst = Path("app/src/main/assets/style_previews")
-ids = sys.argv[1:] or [p.stem for p in sorted(src.glob("*.png"))]
+ids = args or [p.stem for p in sorted(src.glob("*.png"))]
 
 for style_id in ids:
     source = src / f"{style_id}.png"
