@@ -224,10 +224,11 @@ fun CameraPreview(
             mainExecutor,
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
-                    // CameraX reports 270 for this vertical USB webcam, which leaves the
-                    // saved photo on its side. Another 270 turned it upside down. 90
-                    // brings that report back to upright without moving the live preview.
-                    val rotationDegrees = (image.imageInfo.rotationDegrees + 90) % 360
+                    // CameraX already bakes the target rotation into the JPEG buffer, so the
+                    // decoded bitmap is upright on its own. The old +90 compensation rotated an
+                    // already-portrait 1080x1920 shot to 1920x1080, which the 9:16 center crop
+                    // then zoomed to a ~3x slice of the frame.
+                    val rotationDegrees = image.imageInfo.rotationDegrees
                     val buffer = image.planes[0].buffer
                     val bytes = ByteArray(buffer.remaining())
                     buffer.get(bytes)

@@ -53,7 +53,7 @@
     <string name="background_estudio">Studio</string>
     <string name="background_retro80s">Retro 80s</string>
     <string name="background_jardin">Garden</string>
-    <string name="background_original">Real camera</string>
+    <string name="background_original">No background</string>
     <string name="background_custom_default">Custom backdrop</string>
 
     <string name="layout_poster_hero">Poster 1+2</string>
@@ -63,10 +63,10 @@
     <string name="layout_editorial_grid">Editorial Poster</string>
     <string name="layout_editorial_grid_sub">Magazine mosaic + seal</string>
 
-    <string name="frame_syscom_dark">Syscom Blue</string>
-    <string name="frame_classic_pearl">Pearl Gallery</string>
-    <string name="frame_cyber_neon">Cyber Neon</string>
-    <string name="frame_gala_gold">VIP Gala</string>
+    <string name="frame_syscom_dark">Octagon</string>
+    <string name="frame_classic_pearl">Polaroid</string>
+    <string name="frame_cyber_neon">Cyber</string>
+    <string name="frame_gala_gold">Arch</string>
     <string name="decoration_none">Clean</string>
     <string name="decoration_corners">Corners</string>
     <string name="decoration_confetti">Confetti</string>

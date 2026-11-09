@@ -9,6 +9,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.QrCode2
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -54,6 +57,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -359,7 +363,12 @@ fun CollageFlow(
                         .widthIn(max = maxWidth)
                         .fillMaxWidth()
                         .padding(horizontal = hPad)
-                        .verticalScroll(contentScroll),
+                        .then(
+                            // The capture step owns the whole height: the camera
+                            // grows with the screen instead of scrolling.
+                            if (step == CollageStep.CAPTURE) Modifier
+                            else Modifier.verticalScroll(contentScroll),
+                        ),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     when (step) {
@@ -500,15 +509,24 @@ fun CollageFlow(
                     CollageStep.SHARE -> finishArmed
                     else -> true
                 },
+                backLabelRes = if (step == CollageStep.CAPTURE && viewPhotoIndex != null) {
+                    R.string.collage_back_to_camera
+                } else {
+                    null
+                },
                 onBack = {
-                    step = when (step) {
-                        CollageStep.CAPTURE -> {
-                            exit()
-                            CollageStep.CAPTURE
+                    if (step == CollageStep.CAPTURE && viewPhotoIndex != null) {
+                        viewPhotoIndex = null
+                    } else {
+                        step = when (step) {
+                            CollageStep.CAPTURE -> {
+                                exit()
+                                CollageStep.CAPTURE
+                            }
+                            CollageStep.BACKGROUND -> CollageStep.CAPTURE
+                            CollageStep.DESIGN -> CollageStep.BACKGROUND
+                            CollageStep.SHARE -> CollageStep.DESIGN
                         }
-                        CollageStep.BACKGROUND -> CollageStep.CAPTURE
-                        CollageStep.DESIGN -> CollageStep.BACKGROUND
-                        CollageStep.SHARE -> CollageStep.DESIGN
                     }
                     onInteraction()
                 },
@@ -528,7 +546,7 @@ fun CollageFlow(
 }
 
 @Composable
-private fun CollageCaptureContent(
+private fun ColumnScope.CollageCaptureContent(
     state: PhotoBoothUiState,
     countdown: Int,
     flash: Boolean,
@@ -559,24 +577,23 @@ private fun CollageCaptureContent(
     }
     Text(hint, color = Cream.copy(alpha = 0.8f), fontSize = 16.sp)
 
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Box(Modifier.fillMaxWidth().weight(1f)) {
         Box(
             Modifier
-                .weight(1f)
-                .aspectRatio(3f / 4f)
+                .fillMaxSize()
                 .clip(RoundedCornerShape(24.dp))
                 .background(InkSoft),
         ) {
             when {
                 viewing != null -> {
-                    val visible = state.photoPreviews.getOrNull(viewing)
+                    val visible = state.rawPhotoPreviews.getOrNull(viewing)
                         ?: state.captureThumbnails.getOrNull(viewing)
                     if (visible != null && !visible.isRecycled) {
                         Image(
                             bitmap = visible.asImageBitmap(),
                             contentDescription = stringResource(R.string.collage_photo_label, viewing + 1),
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit,
+                            contentScale = ContentScale.Crop,
                         )
                     }
                 }
@@ -589,14 +606,14 @@ private fun CollageCaptureContent(
                         state = donePager,
                         modifier = Modifier.fillMaxSize(),
                     ) { page ->
-                        val shot = state.photoPreviews.getOrNull(page)
+                        val shot = state.rawPhotoPreviews.getOrNull(page)
                             ?: state.captureThumbnails.getOrNull(page)
                         if (shot != null && !shot.isRecycled) {
                             Image(
                                 bitmap = shot.asImageBitmap(),
                                 contentDescription = stringResource(R.string.collage_photo_label, page + 1),
                                 modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Fit,
+                                contentScale = ContentScale.Crop,
                             )
                         }
                     }
@@ -663,10 +680,14 @@ private fun CollageCaptureContent(
             if (flash) Box(Modifier.fillMaxSize().background(Cream))
         }
 
-        // Slot rail on the side: tap a photo to inspect it without moving the buttons.
+        // Slots float over the camera so the preview keeps the full width.
         Column(
-            Modifier.width(78.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier
+                .align(Alignment.BottomEnd)
+                .padding(12.dp)
+                .width(64.dp)
+                .alpha(0.72f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
                 val thumb = state.captureThumbnails.getOrNull(index)
@@ -741,18 +762,13 @@ private fun CollageCaptureContent(
             }
         }
 
-        done -> Button(
+        done -> OutlinedButton(
             onClick = onRetakeAll,
             enabled = !busy,
-            modifier = Modifier.fillMaxWidth().height(64.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(18.dp),
         ) {
-            Text(
-                text = stringResource(R.string.collage_retake_three),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            Text(stringResource(R.string.collage_retake_three), fontSize = 16.sp)
         }
 
         else -> Button(
@@ -790,15 +806,16 @@ private fun CollageBackgroundContent(
     // One big shot at a time: swipe to review the three photos and tap the one
     // that should take the next background. No frames are drawn here on purpose.
     val pager = rememberPagerState(pageCount = { PhotoBoothUiState.PHOTO_COUNT })
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .aspectRatio(3f / 4f)
-            .clip(RoundedCornerShape(20.dp))
-            .background(InkSoft),
-    ) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .fillMaxWidth(0.56f)
+                .aspectRatio(9f / 16f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(InkSoft),
+        ) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
-            val preview = state.photoPreviews.getOrNull(page)
+            val preview = state.rawPhotoPreviews.getOrNull(page)
                 ?: state.captureThumbnails.getOrNull(page)
             Box(
                 Modifier
@@ -810,8 +827,8 @@ private fun CollageBackgroundContent(
                     Image(
                         bitmap = preview.asImageBitmap(),
                         contentDescription = stringResource(R.string.collage_photo_label, page + 1),
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
                     )
                 }
             }
@@ -840,6 +857,7 @@ private fun CollageBackgroundContent(
                 Icon(Icons.Rounded.Check, null, tint = Cream, modifier = Modifier.size(16.dp))
             }
         }
+    }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         TargetChip(
@@ -894,18 +912,15 @@ private fun CollageDesignContent(
     val preview = state.resultBitmap ?: state.stripPreview
     SectionTitle(stringResource(R.string.ai_section_frame))
     if (preview != null && !preview.isRecycled) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(300.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(InkSoft),
-            contentAlignment = Alignment.Center,
-        ) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Image(
                 bitmap = preview.asImageBitmap(),
                 contentDescription = stringResource(R.string.result_title),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .height(360.dp)
+                    .aspectRatio(preview.width.toFloat() / preview.height.toFloat())
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(InkSoft),
                 contentScale = ContentScale.Fit,
             )
         }
@@ -1040,22 +1055,20 @@ private fun CollageShareContent(
             modifier = Modifier.fillMaxWidth(),
         ) { page ->
             val (label, bitmap) = pages[page]
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(300.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = label,
+                    modifier = Modifier
+                        .height(if (page == pages.lastIndex) 380.dp else 320.dp)
+                        .aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat())
                         .clip(RoundedCornerShape(20.dp))
                         .background(InkSoft),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = label,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit,
-                    )
-                }
+                    contentScale = ContentScale.Fit,
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(label, color = Cream.copy(alpha = 0.75f), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -1155,19 +1168,18 @@ private fun CollageShareContent(
             }
         }
     }
-    OutlinedButton(
+    TextButton(
         onClick = onCopyLink,
         enabled = deliveryUrl != null,
-        modifier = Modifier.fillMaxWidth().height(60.dp),
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(10.dp))
-        Text(stringResource(R.string.copy_link), fontSize = 17.sp)
+        Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.copy_link), fontSize = 15.sp)
     }
     Button(
         onClick = onQuickShare,
-        modifier = Modifier.fillMaxWidth().height(72.dp),
+        modifier = Modifier.fillMaxWidth().height(64.dp),
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
     ) {
@@ -1191,9 +1203,13 @@ private fun CollageBottomBar(
     hPad: androidx.compose.ui.unit.Dp,
     step: CollageStep,
     nextEnabled: Boolean,
+    backLabelRes: Int?,
     onBack: () -> Unit,
     onNext: () -> Unit,
 ) {
+    // The capture step has its own big action button, and the header X already
+    // exits the flow: nothing to show until the three shots exist.
+    if (step == CollageStep.CAPTURE && !nextEnabled && backLabelRes == null) return
     val nextLabel = when (step) {
         CollageStep.SHARE -> stringResource(R.string.finish)
         else -> stringResource(R.string.wizard_next)
@@ -1205,20 +1221,24 @@ private fun CollageBottomBar(
             .padding(horizontal = hPad, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        OutlinedButton(
-            onClick = onBack,
-            modifier = Modifier.weight(1f).height(68.dp),
-            shape = RoundedCornerShape(20.dp),
-        ) {
-            Text(
-                text = stringResource(if (step == CollageStep.CAPTURE) R.string.ai_exit else R.string.wizard_back),
-                fontSize = 18.sp,
-            )
+        if (step != CollageStep.CAPTURE || backLabelRes != null) {
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.weight(1f).height(68.dp),
+                shape = RoundedCornerShape(20.dp),
+            ) {
+                Text(
+                    text = stringResource(backLabelRes ?: R.string.wizard_back),
+                    fontSize = 18.sp,
+                )
+            }
         }
         Button(
             onClick = onNext,
             enabled = nextEnabled,
-            modifier = Modifier.weight(1.4f).height(68.dp),
+            modifier = Modifier
+                .weight(if (step == CollageStep.CAPTURE) 1f else 1.4f)
+                .height(68.dp),
             shape = RoundedCornerShape(20.dp),
             colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
         ) {
@@ -1343,6 +1363,15 @@ private fun BackgroundTile(
                     contentDescription = title,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
+                )
+            } else {
+                // "Sin fondo" has no artwork: show a camera glyph instead of an
+                // empty box with a title floating in it.
+                Icon(
+                    Icons.Rounded.PhotoCamera,
+                    contentDescription = title,
+                    tint = Cream.copy(alpha = 0.55f),
+                    modifier = Modifier.size(38.dp),
                 )
             }
             if (selected) {

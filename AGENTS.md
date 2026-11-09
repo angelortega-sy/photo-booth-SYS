@@ -169,6 +169,10 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - `adb install -r app\build\outputs\apk\debug\app-debug.apk`
 - `adb shell dpm set-device-owner <paquete>/.<AdminReceiver>`
 
+## Pruebas en el kiosko
+
+- El **usuario** opera la app en el tótem y da el feedback; no manejar la UI por `adb shell input tap` ni recorrer flujos automáticamente. Sí se puede instalar el APK, leer `logcat` y tomar capturas cuando lo pida.
+
 ## Estado de build (2026-11-04)
 
 - `assembleDebug` compila correctamente con el flujo de 3 fotos/tira, el wizard, el modo administrador, eventos personalizables y Quick Share.

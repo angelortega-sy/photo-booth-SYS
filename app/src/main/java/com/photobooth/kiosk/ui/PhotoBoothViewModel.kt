@@ -72,6 +72,8 @@ data class PhotoBoothUiState(
     /** Slot being retaken by itself; when set the next capture replaces it. */
     val retakeIndex: Int? = null,
     val captureThumbnails: List<Bitmap> = emptyList(),
+    /** Raw shots without any frame, safe to show before the design step. */
+    val rawPhotoPreviews: List<Bitmap> = emptyList(),
     val isCapturing: Boolean = false,
     val isProcessing: Boolean = false,
     val isExporting: Boolean = false,
@@ -502,6 +504,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 current.copy(
                     capturedCount = newCount,
                     captureThumbnails = updatedThumbs,
+                    rawPhotoPreviews = rawPreviews.filterNotNull().toList(),
                     photoBackgroundIds = bgIds,
                     retakeIndex = null,
                     isCapturing = false,
@@ -1167,7 +1170,9 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                         val previewBg = if (targetBgId == BackgroundRepository.ORIGINAL_ID) {
                             null
                         } else {
-                            repository.loadPreview(targetBgId)
+                            // Fall back to the thumbnail so a missing preview asset
+                            // never silently drops the background.
+                            repository.loadPreview(targetBgId) ?: repository.loadThumbnail(targetBgId)
                         }
                         val nextBitmap = when {
                             cutout != null -> processor.compositePreview(cutout, previewBg).bitmap
