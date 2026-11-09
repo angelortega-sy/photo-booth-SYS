@@ -175,7 +175,14 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         val known = state.serverStyles.any { it.id == id } ||
             (state.serverStyles.isEmpty() && AiStyles.ALL.any { it.id == id })
         if (!known || isLocked()) return
-        _uiState.update { it.copy(selectedStyleId = id, error = null) }
+        _uiState.update {
+            val blocked = AiAccessories.blockedForStyle(id)
+            it.copy(
+                selectedStyleId = id,
+                accessories = it.accessories - blocked,
+                error = null,
+            )
+        }
     }
 
     fun selectModel(id: String) {
@@ -218,6 +225,8 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
     fun selectAccessoryExclusive(id: String) {
         if (isLocked()) return
         _uiState.update {
+            val blocked = AiAccessories.blockedIds(it.selectedStyleId, it.accessories)
+            if (id in blocked) return@update it
             it.copy(accessories = AiAccessories.selectExclusive(it.accessories, id), error = null)
         }
     }

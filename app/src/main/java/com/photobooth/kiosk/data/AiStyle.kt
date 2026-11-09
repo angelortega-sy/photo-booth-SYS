@@ -211,11 +211,56 @@ object AiAccessories {
         OUTFIT_OPTIONS.forEach { put(it.id, "outfit") }
     }
 
+    private val HEAD_IDS: Set<String> = HEAD_OPTIONS.map { it.id }.toSet()
+    private val HAIR_IDS: Set<String> = HAIR_OPTIONS.map { it.id }.toSet()
+    private val GROUP_IDS: Map<String, Set<String>> =
+        GROUPS.associate { it.id to it.options.map { option -> option.id }.toSet() }
+
+    /**
+     * A style that already builds its own headwear or outfit hides those
+     * accessory groups so the guest cannot stack a sombrero on a sombrero.
+     */
+    private val STYLE_LOCKED_GROUPS: Map<String, Set<String>> = mapOf(
+        "mariachi" to setOf("head", "outfit"),
+        "catrina" to setOf("head", "outfit"),
+        "xmas" to setOf("outfit"),
+        "noir" to setOf("head", "outfit"),
+    )
+
+    /** Individual ids a style blocks even though the rest of the group stays available. */
+    private val STYLE_LOCKED_IDS: Map<String, Set<String>> = mapOf(
+        "catrina" to setOf("mask"),
+    )
+
+    /** Accessories that would fight the look the selected style already creates. */
+    fun blockedForStyle(styleId: String?): Set<String> {
+        if (styleId == null) return emptySet()
+        val lockedGroups = STYLE_LOCKED_GROUPS[styleId].orEmpty()
+        val fromGroups = lockedGroups.flatMap { GROUP_IDS[it].orEmpty() }
+        return (fromGroups + STYLE_LOCKED_IDS[styleId].orEmpty()).toSet()
+    }
+
+    /**
+     * Cross-group clash: dyed spiky hair and a hat cannot both sit on the head,
+     * so picking one hides the other group.
+     */
+    fun blockedBySelection(selected: Set<String>): Set<String> = buildSet {
+        if (selected.any { it in HAIR_IDS }) addAll(HEAD_IDS)
+        if (selected.any { it in HEAD_IDS }) addAll(HAIR_IDS)
+    }
+
+    /** Everything the accessory cards must hide for the current style and picks. */
+    fun blockedIds(styleId: String?, selected: Set<String>): Set<String> =
+        blockedForStyle(styleId) + blockedBySelection(selected)
+
     /** Single-select within a group: toggles off when the same id is tapped again. */
     fun selectExclusive(current: Set<String>, id: String): Set<String> {
         val group = GROUP_BY_ID[id] ?: return current
         val updated = current.filterNot { GROUP_BY_ID[it] == group }.toMutableSet()
-        if (id !in current) updated.add(id)
+        if (id !in current) {
+            updated.add(id)
+            updated.removeAll(blockedBySelection(setOf(id)))
+        }
         return updated
     }
 
@@ -365,22 +410,27 @@ object AiStyles {
         AiStyle(
             id = "actionfigure",
             labelRes = R.string.ai_style_actionfigure,
-            prompt = "Recreate the portrait as a macro photograph of a collectible action figure on " +
-                "a display base: moulded plastic, ball joints, matte factory paint and subtle " +
-                "seams. Sculpt the face from the person's real features so the likeness survives " +
-                "the plastic. One figure per person, same order and spacing, no extra figures. " +
-                "Studio key light, dark seamless backdrop. Family friendly, no text, no logos, " +
-                "no watermark.",
+            prompt = "Recreate the portrait as a macro photograph of a collectible action figure on a " +
+                "display base. Body and head are injection-moulded plastic: the face is sculpted " +
+                "and painted, never a photograph and never real skin. Keep the person's face " +
+                "structure and painted skin tone, but as a toy head with painted eyes, no pores, " +
+                "no stubble hair by hair, no wet highlights and no real eyelashes; glasses, beard " +
+                "and freckles become sculpted or painted details. Ball joints, hard folds, " +
+                "mould seams, dark seamless backdrop. One figure per person, no extra figures. " +
+                "The face must read as painted plastic, not as a real human face. Family " +
+                "friendly, no text, no logos, no watermark.",
         ),
         AiStyle(
             id = "vinyl",
             labelRes = R.string.ai_style_vinyl,
-            prompt = "Recreate the portrait as a glossy collectible vinyl toy figure on a studio " +
-                "table: oversized head, small stubby body, soft rounded edges and a bright " +
-                "specular highlight. Keep the person's hairstyle, glasses, facial hair and " +
-                "clothing colours so friends still recognise them, with dot eyes and a painted " +
-                "smile. One figure per person, pastel backdrop. Family friendly, no text, no " +
-                "logos, no watermark.",
+            prompt = "Recreate the portrait as a glossy vinyl figure in the style of a Funko Pop on " +
+                "a studio table: oversized squared head about half of the total height, flat top, " +
+                "no neck, small stubby body and tiny feet. The face is toy paint, never a " +
+                "photograph: two large round glossy black eyes with one white highlight each, no " +
+                "mouth, no nose, no eyebrows, no real skin texture. Hair is moulded vinyl in the " +
+                "person's own silhouette and colour; glasses and beard become moulded pieces. One " +
+                "figure per person, pastel backdrop, no box, no human face. Family friendly, no " +
+                "text, no logos, no watermark.",
         ),
         AiStyle(
             id = "catrina",
@@ -389,15 +439,19 @@ object AiStyles {
                 "gory: a refined sugar-skull makeup that follows the person's real bone structure, " +
                 "delicate black filigree around the eyes, a flower on the temple and a crown of " +
                 "marigolds. Black embroidered outfit with lace trim, warm candlelight, dark altar " +
-                "with candles out of focus. Family friendly, no text, no logos, no watermark.",
+                "with candles out of focus. Dress each person by their apparent gender and never " +
+                "swap it: a man in a black charro jacket and trousers, a woman in a black gown. " +
+                "Never put a man in a dress. Family friendly, no text, no logos, no watermark.",
         ),
         AiStyle(
             id = "mariachi",
             labelRes = R.string.ai_style_mariachi,
             prompt = "Recreate the portrait as an elegant mariachi photograph at night: a fitted " +
                 "charro jacket with silver embroidery, a red bow tie and a wide-brimmed sombrero " +
-                "with silver trim tilted so the whole face stays visible. A woman may wear an " +
-                "embroidered china poblana dress. Warm lantern light, Mexican plaza with strings " +
+                "with silver trim tilted so the whole face stays visible. Dress each person by " +
+                "their apparent gender: a man in the full charro suit, a woman in an embroidered " +
+                "china poblana dress or a fitted women's charro suit; never put a man in a dress. " +
+                "Warm lantern light, Mexican plaza with strings " +
                 "of lights out of focus. Family friendly, no text, no logos, no watermark.",
         ),
         AiStyle(
