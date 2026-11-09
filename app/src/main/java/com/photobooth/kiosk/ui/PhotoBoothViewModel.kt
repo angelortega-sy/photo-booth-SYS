@@ -27,6 +27,7 @@ import com.photobooth.kiosk.data.EventBadgePreset
 import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.EventProfileStore
+import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.PhotoBorderStyle
 import com.photobooth.kiosk.data.PhotoSettingsStore
 import com.photobooth.kiosk.delivery.DeliverySession
@@ -654,6 +655,15 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         exportedStateSignature = null
         _uiState.update { state ->
             state.copy(customization = state.customization.copy(photoBorderStyle = borderStyle))
+        }
+        requestPreviewUpdate(sessionToken)
+    }
+
+    fun selectDecoration(decoration: FrameDecoration) {
+        if (_uiState.value.customization.decoration == decoration) return
+        exportedStateSignature = null
+        _uiState.update { state ->
+            state.copy(customization = state.customization.copy(decoration = decoration))
         }
         requestPreviewUpdate(sessionToken)
     }
