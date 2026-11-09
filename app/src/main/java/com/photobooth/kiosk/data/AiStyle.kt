@@ -223,13 +223,27 @@ object AiAccessories {
     private val STYLE_LOCKED_GROUPS: Map<String, Set<String>> = mapOf(
         "mariachi" to setOf("head", "outfit"),
         "catrina" to setOf("head", "outfit"),
-        "xmas" to setOf("outfit"),
+        "xmas" to setOf("head", "outfit"),
         "noir" to setOf("head", "outfit"),
+        // Cyberpunk dictates the techno jacket and forbids masks or helmets.
+        "cyberpunk" to setOf("outfit"),
+        // K-pop dictates gender-matched stage outfits.
+        "kpop" to setOf("outfit"),
+        // These styles rebuild the hair as a fixed material or silhouette,
+        // so dyed spiky hair would fight the prompt.
+        "lego" to setOf("hair"),
+        "vinyl" to setOf("hair"),
+        "actionfigure" to setOf("hair"),
+        "clay" to setOf("hair"),
+        "pixelart" to setOf("hair"),
+        "anime" to setOf("hair"),
+        "simpson" to setOf("hair"),
     )
 
     /** Individual ids a style blocks even though the rest of the group stays available. */
     private val STYLE_LOCKED_IDS: Map<String, Set<String>> = mapOf(
         "catrina" to setOf("mask"),
+        "cyberpunk" to setOf("mask"),
     )
 
     /** Accessories that would fight the look the selected style already creates. */
