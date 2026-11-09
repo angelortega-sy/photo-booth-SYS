@@ -130,6 +130,7 @@ fun CollageFlow(
     var flash by remember { mutableStateOf(false) }
     var sequenceActive by remember { mutableStateOf(false) }
     var poseBanner by remember { mutableStateOf<String?>(null) }
+    var viewPhotoIndex by remember { mutableStateOf<Int?>(null) }
     var deliveryUrl by remember { mutableStateOf<String?>(null) }
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var shareStarting by remember { mutableStateOf(false) }
@@ -162,7 +163,8 @@ fun CollageFlow(
                 runCatching { viewModel.loadThumbnail(option.id)?.let { option.id to it } }.getOrNull()
             }.toMap()
         }
-        backgroundPreviews.values.forEach { if (!it.isRecycled) it.recycle() }
+        // Thumbnails are owned by BackgroundRepository's cache: never recycle them
+        // here or the AI flow loses its previews too.
         backgroundPreviews = loaded
     }
 
@@ -180,16 +182,18 @@ fun CollageFlow(
         }
     }
 
-    // Same 3-2-1 as the AI flow, repeated once per shot.
-    LaunchedEffect(sequenceActive, state.capturedCount, cameraReady) {
+    // Same 3-2-1 as the AI flow, repeated once per shot. When a single slot is
+    // being retaken the countdown still runs but only that photo is replaced.
+    LaunchedEffect(sequenceActive, state.capturedCount, state.retakeIndex, cameraReady) {
         if (!sequenceActive || !cameraReady) return@LaunchedEffect
-        val shotIndex = state.capturedCount
-        if (shotIndex >= PhotoBoothUiState.PHOTO_COUNT) {
+        val retake = state.retakeIndex
+        val shotIndex = retake ?: state.capturedCount
+        if (retake == null && shotIndex >= PhotoBoothUiState.PHOTO_COUNT) {
             sequenceActive = false
             return@LaunchedEffect
         }
         onInteraction()
-        if (shotIndex > 0) {
+        if (retake == null && shotIndex > 0) {
             poseBanner = context.getString(
                 R.string.collage_pose_banner,
                 shotIndex + 1,
@@ -212,10 +216,28 @@ fun CollageFlow(
     }
 
     fun startSequence() {
-        if (!cameraReady || state.isProcessing || state.isCapturing ||
-            state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT || sequenceActive || countdown > 0
-        ) return
+        if (!cameraReady || state.isProcessing || state.isCapturing || sequenceActive || countdown > 0) return
+        if (state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT && state.retakeIndex == null) return
         sequenceActive = true
+    }
+
+    /** Throws away the three photos and starts the sequence from scratch. */
+    fun retakeAll() {
+        if (state.isProcessing || state.isCapturing || sequenceActive || countdown > 0) return
+        viewPhotoIndex = null
+        viewModel.clearResult()
+        sequenceActive = true
+        onInteraction()
+    }
+
+    /** Replaces only the visible photo, keeping the other two. */
+    fun retakeOne(index: Int) {
+        if (index !in 0 until state.capturedCount) return
+        if (state.isProcessing || state.isCapturing || sequenceActive || countdown > 0) return
+        viewPhotoIndex = null
+        viewModel.beginRetake(index)
+        sequenceActive = true
+        onInteraction()
     }
 
     fun startShare() {
@@ -265,7 +287,6 @@ fun CollageFlow(
             viewModel.stopDelivery()
             qrBitmap?.recycle()
             qrBitmap = null
-            backgroundPreviews.values.forEach { if (!it.isRecycled) it.recycle() }
         }
     }
 
@@ -276,7 +297,8 @@ fun CollageFlow(
         countdown == 0 &&
         !sequenceActive
 
-    val canContinueFromCapture = state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT && !state.isProcessing
+    val canContinueFromCapture = state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT &&
+        !state.isProcessing && !sequenceActive && state.retakeIndex == null
 
     Box(Modifier.fillMaxSize().background(Ink)) {
         Column(Modifier.fillMaxSize()) {
@@ -350,7 +372,11 @@ fun CollageFlow(
                             poseBanner = poseBanner,
                             gestureActive = gestureActive,
                             previewRotationDegrees = previewRotationDegrees,
+                            viewIndex = viewPhotoIndex,
+                            onViewPhoto = { index -> viewPhotoIndex = if (viewPhotoIndex == index) null else index },
                             onCapture = { startSequence() },
+                            onRetakeOne = { index -> retakeOne(index) },
+                            onRetakeAll = { retakeAll() },
                             onReady = {
                                 cameraReady = true
                                 cameraError = null
@@ -507,129 +533,215 @@ private fun CollageCaptureContent(
     poseBanner: String?,
     gestureActive: Boolean,
     previewRotationDegrees: Int,
+    viewIndex: Int?,
+    onViewPhoto: (Int) -> Unit,
     onCapture: () -> Unit,
+    onRetakeOne: (Int) -> Unit,
+    onRetakeAll: () -> Unit,
     onReady: () -> Unit,
     onCaptured: (Bitmap, Int, Boolean) -> Unit,
     onError: (String) -> Unit,
     onPalm: () -> Unit,
 ) {
     val done = state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT
-    Text(
-        stringResource(
-            if (done) R.string.collage_captured_all else if (gestureActive) R.string.ai_hint_palm else R.string.ai_hint_tap,
-        ),
-        color = Cream.copy(alpha = 0.8f),
-        fontSize = 16.sp,
-    )
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .aspectRatio(3f / 4f)
-            .heightIn(max = 560.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(InkSoft),
-    ) {
-        if (!done) {
-            CameraPreview(
-                modifier = Modifier.fillMaxSize(),
-                captureRequest = captureRequest,
-                handDetectionEnabled = gestureActive,
-                previewRotationDegrees = previewRotationDegrees,
-                onPalmDetected = onPalm,
-                onReady = onReady,
-                onCaptured = onCaptured,
-                onError = onError,
-            )
-        } else {
-            val result = state.stripPreview ?: state.photoPreviews.firstOrNull()
-            if (result != null && !result.isRecycled) {
-                Image(
-                    bitmap = result.asImageBitmap(),
-                    contentDescription = stringResource(R.string.result_title),
+    val viewing = viewIndex?.takeIf { it < state.capturedCount }
+    val hint = when {
+        viewing != null -> stringResource(R.string.collage_photo_label, viewing + 1)
+        done -> stringResource(R.string.collage_captured_all)
+        gestureActive -> stringResource(R.string.ai_hint_palm)
+        else -> stringResource(R.string.ai_hint_tap)
+    }
+    Text(hint, color = Cream.copy(alpha = 0.8f), fontSize = 16.sp)
+
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(
+            Modifier
+                .weight(1f)
+                .aspectRatio(3f / 4f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(InkSoft),
+        ) {
+            when {
+                viewing != null -> {
+                    val visible = state.photoPreviews.getOrNull(viewing)
+                        ?: state.captureThumbnails.getOrNull(viewing)
+                    if (visible != null && !visible.isRecycled) {
+                        Image(
+                            bitmap = visible.asImageBitmap(),
+                            contentDescription = stringResource(R.string.collage_photo_label, viewing + 1),
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
+                }
+
+                done -> {
+                    val result = state.stripPreview
+                    if (result != null && !result.isRecycled) {
+                        Image(
+                            bitmap = result.asImageBitmap(),
+                            contentDescription = stringResource(R.string.result_title),
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
+                }
+
+                else -> CameraPreview(
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit,
+                    captureRequest = captureRequest,
+                    handDetectionEnabled = gestureActive,
+                    previewRotationDegrees = previewRotationDegrees,
+                    onPalmDetected = onPalm,
+                    onReady = onReady,
+                    onCaptured = onCaptured,
+                    onError = onError,
                 )
             }
+            if (viewing != null) {
+                Row(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .padding(10.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Ink.copy(alpha = 0.72f))
+                        .clickable { onViewPhoto(viewing) }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Close, null, tint = Cream, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.collage_back_to_camera), color = Cream, fontSize = 13.sp)
+                }
+            }
+            if (countdown > 0) {
+                Box(
+                    Modifier.fillMaxSize().background(Ink.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("$countdown", color = Cream, fontSize = 110.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+            poseBanner?.let { banner ->
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(18.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Ink.copy(alpha = 0.72f))
+                        .padding(horizontal = 18.dp, vertical = 8.dp),
+                ) {
+                    Text(banner, color = Cream, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (flash) Box(Modifier.fillMaxSize().background(Cream))
         }
-        if (countdown > 0) {
-            Box(
-                Modifier.fillMaxSize().background(Ink.copy(alpha = 0.35f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("$countdown", color = Cream, fontSize = 110.sp, fontWeight = FontWeight.ExtraBold)
+
+        // Slot rail on the side: tap a photo to inspect it without moving the buttons.
+        Column(
+            Modifier.width(78.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
+                val thumb = state.captureThumbnails.getOrNull(index)
+                val isViewing = viewing == index
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(3f / 4f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            if (index == state.capturedCount && !done) SyscomBlue.copy(alpha = 0.35f) else InkSoft,
+                        )
+                        .border(
+                            width = if (isViewing) 2.dp else 1.dp,
+                            color = when {
+                                isViewing -> SyscomBlue
+                                thumb != null -> SyscomBlueLight
+                                index == state.capturedCount && !done -> Cream
+                                else -> Cream.copy(alpha = 0.25f)
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                        )
+                        .clickable(enabled = thumb != null) { onViewPhoto(index) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (thumb != null && !thumb.isRecycled) {
+                        Image(
+                            bitmap = thumb.asImageBitmap(),
+                            contentDescription = stringResource(R.string.collage_photo_label, index + 1),
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        Text(
+                            "${index + 1}",
+                            color = Cream.copy(alpha = 0.45f),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
             }
         }
-        poseBanner?.let { banner ->
-            Box(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(18.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Ink.copy(alpha = 0.72f))
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
-            ) {
-                Text(banner, color = Cream, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-        if (flash) Box(Modifier.fillMaxSize().background(Cream))
     }
     if (cameraError != null) {
         Text(cameraError, color = Cream.copy(alpha = 0.8f), fontSize = 13.sp)
     }
 
-    // Same three-slot strip as the camera HUD, now inside the flow shell.
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
-            val thumb = state.captureThumbnails.getOrNull(index)
-            val current = index == state.capturedCount && !done
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .aspectRatio(3f / 4f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (current) SyscomBlue.copy(alpha = 0.35f) else InkSoft)
-                    .border(
-                        width = if (current) 2.dp else 1.dp,
-                        color = when {
-                            thumb != null -> SyscomBlueLight
-                            current -> Cream
-                            else -> Cream.copy(alpha = 0.25f)
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                    ),
-                contentAlignment = Alignment.Center,
+    val busy = sequenceActive || state.isProcessing || state.isCapturing || countdown > 0
+    when {
+        viewing != null -> {
+            Button(
+                onClick = { onRetakeOne(viewing) },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().height(64.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
             ) {
-                if (thumb != null && !thumb.isRecycled) {
-                    Image(
-                        bitmap = thumb.asImageBitmap(),
-                        contentDescription = stringResource(R.string.collage_photo_label, index + 1),
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Text(
-                        "${index + 1}",
-                        color = if (current) Cream else Cream.copy(alpha = 0.45f),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+                Text(
+                    text = stringResource(R.string.collage_retake_one),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            OutlinedButton(
+                onClick = onRetakeAll,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(18.dp),
+            ) {
+                Text(stringResource(R.string.collage_retake_three), fontSize = 16.sp)
             }
         }
-    }
 
-    Button(
-        onClick = onCapture,
-        enabled = !sequenceActive && !state.isProcessing && !state.isCapturing && countdown == 0,
-        modifier = Modifier.fillMaxWidth().height(72.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
-    ) {
-        Text(
-            text = stringResource(if (done) R.string.collage_retake_three else R.string.collage_take_three),
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-        )
+        done -> Button(
+            onClick = onRetakeAll,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+        ) {
+            Text(
+                text = stringResource(R.string.collage_retake_three),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        else -> Button(
+            onClick = onCapture,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+        ) {
+            Text(
+                text = stringResource(R.string.collage_take_three),
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
@@ -649,6 +761,51 @@ private fun CollageBackgroundContent(
         color = Cream.copy(alpha = 0.7f),
         fontSize = 15.sp,
     )
+    // Preview of the three shots with their current background so the guest
+    // can see what each choice changes.
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        repeat(PhotoBoothUiState.PHOTO_COUNT) { index ->
+            val preview = state.photoPreviews.getOrNull(index)
+                ?: state.captureThumbnails.getOrNull(index)
+            val selected = targetIndex == index
+            Box(
+                Modifier
+                    .weight(1f)
+                    .aspectRatio(3f / 4f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(InkSoft)
+                    .border(
+                        width = if (selected) 2.dp else 1.dp,
+                        color = if (selected) SyscomBlue else Cream.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                    .clickable { onSelectPhoto(index) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (preview != null && !preview.isRecycled) {
+                    Image(
+                        bitmap = preview.asImageBitmap(),
+                        contentDescription = stringResource(R.string.collage_photo_label, index + 1),
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+                if (selected) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(SyscomBlue),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Rounded.Check, null, tint = Cream, modifier = Modifier.size(15.dp))
+                    }
+                }
+            }
+        }
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         TargetChip(
             label = stringResource(R.string.collage_all_photos),

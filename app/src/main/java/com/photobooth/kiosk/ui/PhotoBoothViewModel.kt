@@ -69,6 +69,8 @@ data class PhotoBoothUiState(
     val selectedBackgroundId: String = BackgroundRepository.ORIGINAL_ID,
     val applyBackgroundToAll: Boolean = true,
     val capturedCount: Int = 0,
+    /** Slot being retaken by itself; when set the next capture replaces it. */
+    val retakeIndex: Int? = null,
     val captureThumbnails: List<Bitmap> = emptyList(),
     val isCapturing: Boolean = false,
     val isProcessing: Boolean = false,
@@ -403,10 +405,22 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
     fun beginCapture() {
         val state = _uiState.value
-        if (state.isCapturing || state.isProcessing || state.hasResult ||
-            state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT
-        ) return
+        if (state.isCapturing || state.isProcessing || state.hasResult) return
+        if (state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT && state.retakeIndex == null) return
         _uiState.update { it.copy(isCapturing = true, errorMessage = null) }
+    }
+
+    /** Marks one already captured slot so the next shot replaces only that photo. */
+    fun beginRetake(index: Int) {
+        val state = _uiState.value
+        if (index !in 0 until PhotoBoothUiState.PHOTO_COUNT) return
+        if (index >= state.capturedCount) return
+        if (state.isCapturing || state.isProcessing) return
+        _uiState.update { it.copy(retakeIndex = index, errorMessage = null) }
+    }
+
+    fun cancelRetake() {
+        _uiState.update { it.copy(retakeIndex = null) }
     }
 
     fun captureFailed() {
@@ -419,13 +433,16 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
      */
     fun processPhoto(photo: Bitmap, rotationDegrees: Int, mirror: Boolean) {
         val state = _uiState.value
-        if (!state.isCapturing || state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT) {
+        val retake = state.retakeIndex
+        if (!state.isCapturing ||
+            (retake == null && state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT)
+        ) {
             if (!photo.isRecycled) photo.recycle()
             return
         }
 
         val token = sessionToken
-        val index = state.capturedCount
+        val index = retake ?: state.capturedCount
         viewModelScope.launch {
             val oriented = withContext(Dispatchers.Default) {
                 orientAndRelease(photo, rotationDegrees, mirror)
@@ -468,10 +485,13 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             rawPreviews[index]?.let(::recycleLater)
             rawPreviews[index] = preview540
 
-            val newCount = index + 1
             val currentBg = _uiState.value.selectedBackgroundId
             _uiState.update { current ->
-                val updatedThumbs = current.captureThumbnails + thumb
+                val updatedThumbs = current.captureThumbnails.toMutableList().apply {
+                    while (size <= index) add(thumb)
+                    this[index] = thumb
+                }
+                val newCount = maxOf(current.capturedCount, index + 1)
                 val bgIds = if (newCount == 1) {
                     List(PhotoBoothUiState.PHOTO_COUNT) { currentBg }
                 } else {
@@ -481,6 +501,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                     capturedCount = newCount,
                     captureThumbnails = updatedThumbs,
                     photoBackgroundIds = bgIds,
+                    retakeIndex = null,
                     isCapturing = false,
                     errorMessage = null,
                 )
@@ -488,7 +509,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
             // If all 3 photos are captured, build the initial studio preview immediately
             // using whatever cutouts are already finished (Shots 1 & 2) + raw Shot 3.
-            if (newCount == PhotoBoothUiState.PHOTO_COUNT) {
+            if (maxOf(state.capturedCount, index + 1) == PhotoBoothUiState.PHOTO_COUNT) {
                 requestPreviewUpdate(token, forceIndex = index)
             }
 

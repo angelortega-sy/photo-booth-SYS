@@ -444,6 +444,9 @@
     <string name="collage_step_share">Entrega</string>
     <string name="collage_take_three">Tomar 3 fotos</string>
     <string name="collage_retake_three">Repetir 3 fotos</string>
+    <string name="collage_retake_one">Repetir esta foto</string>
+    <string name="collage_back_to_camera">Volver a la cámara</string>
+    <string name="collage_photos_title">Tus fotos</string>
     <string name="collage_captured_all">Listo, revisa tus fotos</string>
     <string name="collage_pose_banner">Posa %1$d de %2$d</string>
     <string name="collage_photo_label">Foto %1$d</string>
