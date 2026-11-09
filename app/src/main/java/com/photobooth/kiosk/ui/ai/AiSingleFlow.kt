@@ -105,6 +105,7 @@ import com.photobooth.kiosk.data.AiStatus
 import com.photobooth.kiosk.data.AiStyles
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BackgroundRepository
+import com.photobooth.kiosk.ui.backgroundLabel
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.FrameDecoration
@@ -1069,12 +1070,13 @@ private fun BackgroundOptionGrid(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 row.forEach { option ->
+                    val label = backgroundLabel(option)
                     BackgroundCard(
                         option = option,
                         preview = previews[option.id],
                         selected = option.id == selectedId,
                         onClick = { onSelect(option.id) },
-                        onPreview = { onPreview(option.name, previews[option.id]) },
+                        onPreview = { onPreview(label, previews[option.id]) },
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -1093,6 +1095,7 @@ private fun BackgroundCard(
     onPreview: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val label = backgroundLabel(option)
     Surface(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
@@ -1116,7 +1119,7 @@ private fun BackgroundCard(
                 if (preview != null) {
                     Image(
                         preview.asImageBitmap(),
-                        contentDescription = option.name,
+                        contentDescription = label,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -1147,14 +1150,14 @@ private fun BackgroundCard(
                 ) {
                     Icon(
                         Icons.Rounded.Visibility,
-                        contentDescription = stringResource(R.string.ai_cd_view, option.name),
+                        contentDescription = stringResource(R.string.ai_cd_view, label),
                         tint = Cream,
                     )
                 }
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                option.name,
+                label,
                 color = Cream,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,

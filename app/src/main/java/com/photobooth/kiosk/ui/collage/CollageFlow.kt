@@ -79,6 +79,7 @@ import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
 import com.photobooth.kiosk.data.EventProfile
+import com.photobooth.kiosk.ui.backgroundLabel
 import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.PhotoBorderStyle
 import com.photobooth.kiosk.data.palette
@@ -886,7 +887,7 @@ private fun CollageBackgroundContent(
                     state.photoBackgroundIds.getOrNull(targetIndex) == option.id
                 }
                 BackgroundTile(
-                    title = option.name,
+                    title = backgroundLabel(option),
                     preview = previews[option.id],
                     selected = selected,
                     onClick = { onSelectBackground(option.id) },

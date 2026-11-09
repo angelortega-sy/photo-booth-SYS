@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photobooth.kiosk.R
 import com.photobooth.kiosk.data.BackgroundOption
+import com.photobooth.kiosk.ui.backgroundLabel
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
@@ -137,6 +138,7 @@ private fun BackgroundsAdminCard(
         backgrounds
             .filter { it.id != BackgroundRepository.ORIGINAL_ID }
             .forEach { option ->
+                val label = backgroundLabel(option)
                 BackgroundAdminRow(
                     option = option,
                     loadThumbnail = loadThumbnail,
@@ -144,7 +146,7 @@ private fun BackgroundsAdminCard(
                     onDelete = { onDelete(option.id) },
                     onRename = {
                         renameTarget = option
-                        renameText = option.name
+                        renameText = label
                     },
                 )
             }
@@ -223,7 +225,7 @@ private fun BackgroundAdminRow(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = option.name,
+                text = backgroundLabel(option),
                 color = Cream,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
