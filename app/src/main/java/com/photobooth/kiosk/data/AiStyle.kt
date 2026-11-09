@@ -163,6 +163,14 @@ object AiAccessories {
                 "character. Their own hair stands straight up in tall sharp Super Saiyan spikes " +
                 "turned vivid purple, with a faint purple aura behind the hair only",
         ),
+        AiAccessory(
+            id = "naruto",
+            labelRes = R.string.ai_accessory_naruto,
+            promptFragment = "Change only the hair and cheeks. Keep this person's face, age, skin, eyes, " +
+                "nose, mouth, expression, and personality. Do not redraw them as Naruto or any anime " +
+                "character. Their own hair turns spiky bright blond, and three thin whisker-like lines " +
+                "appear on each cheek, with nothing else changed",
+        ),
     )
 
     val OUTFIT_OPTIONS: List<AiAccessory> = listOf(
@@ -223,13 +231,27 @@ object AiAccessories {
     private val STYLE_LOCKED_GROUPS: Map<String, Set<String>> = mapOf(
         "mariachi" to setOf("head", "outfit"),
         "catrina" to setOf("head", "outfit"),
-        "xmas" to setOf("outfit"),
+        "xmas" to setOf("head", "outfit"),
         "noir" to setOf("head", "outfit"),
+        // Cyberpunk dictates the techno jacket and forbids masks or helmets.
+        "cyberpunk" to setOf("outfit"),
+        // K-pop dictates gender-matched stage outfits.
+        "kpop" to setOf("outfit"),
+        // These styles rebuild the hair as a fixed material or silhouette,
+        // so dyed spiky hair would fight the prompt.
+        "lego" to setOf("hair"),
+        "vinyl" to setOf("hair"),
+        "actionfigure" to setOf("hair"),
+        "clay" to setOf("hair"),
+        "pixelart" to setOf("hair"),
+        "anime" to setOf("hair"),
+        "simpson" to setOf("hair"),
     )
 
     /** Individual ids a style blocks even though the rest of the group stays available. */
     private val STYLE_LOCKED_IDS: Map<String, Set<String>> = mapOf(
         "catrina" to setOf("mask"),
+        "cyberpunk" to setOf("mask"),
     )
 
     /** Accessories that would fight the look the selected style already creates. */
@@ -485,7 +507,10 @@ object AiStyles {
                 "bokeh light sticks and a light haze, no visible crowd and no readable " +
                 "text. Keep the vertical framing and a full body from head to mid-thigh or " +
                 "waist, and keep their own pose and expression. It must read as a " +
-                "high-end idol concept photo, not a cartoon and not a costume party. Do " +
+                "high-end idol concept photo, not a cartoon and not a costume party. " +
+                "Keep each person's face and identity recognizable as the same person: " +
+                "same facial structure, eyes, nose, mouth and expression; restyle the " +
+                "look without turning them into a different person. Do " +
                 "not add text, logos, watermarks, or frames.",
         ),
     )

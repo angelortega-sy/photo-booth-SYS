@@ -165,7 +165,7 @@ private fun accessoryIcon(id: String?): Int? = when (id) {
     "flowers" -> R.drawable.ic_accessory_flowers
     "scarf" -> R.drawable.ic_accessory_scarf
     "lei" -> R.drawable.ic_accessory_lei
-    "ssj_yellow", "ssj_red", "ssj_blue", "ssj_rose" -> R.drawable.ic_accessory_ssj_hair
+    "ssj_yellow", "ssj_red", "ssj_blue", "ssj_rose", "naruto" -> R.drawable.ic_accessory_ssj_hair
     "gi_syscom" -> R.drawable.ic_accessory_gi_syscom
     "bulma_style" -> R.drawable.ic_accessory_bulma_style
     "gown" -> R.drawable.ic_accessory_gown
