@@ -327,6 +327,14 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         activateEventProfile(profile.id)
     }
 
+    fun renameEventProfile(profileId: String, name: String) {
+        profileStore.rename(profileId, name)
+        exportedStateSignature = null
+        _uiState.update {
+            it.copy(eventProfiles = profileStore.loadAll())
+        }
+    }
+
     fun deleteEventProfile(profileId: String) {
         if (!profileStore.delete(profileId)) return
         val active = profileStore.active()
