@@ -25,6 +25,21 @@ enum class CollageLayout(
     ),
 }
 
+/** Silhouette and text layout of a frame; the palette alone does not define the look. */
+enum class FrameShape(val id: String) {
+    /** Cut-corner tech panel, brand pill top-left, footer text left of a circular seal. */
+    TECH(id = "tech"),
+
+    /** White print with a square photo and a centered caption underneath. */
+    POLAROID(id = "polaroid"),
+
+    /** Chamfered panel, brand running vertically, HUD footer with a top rule. */
+    CYBER(id = "cyber"),
+
+    /** Arched photo window framed by stars, centered serif-style title. */
+    GALA(id = "gala"),
+}
+
 enum class CollageFrameStyle(
     val id: String,
     @param:StringRes val titleRes: Int,
@@ -34,6 +49,7 @@ enum class CollageFrameStyle(
     val secondaryAccentHex: Long,
     val textPrimaryHex: Long,
     val textSecondaryHex: Long,
+    val shape: FrameShape,
 ) {
     SYSCOM_DARK(
         id = "syscom_dark",
@@ -44,6 +60,7 @@ enum class CollageFrameStyle(
         secondaryAccentHex = 0xFF5EA8FF,
         textPrimaryHex = 0xFFF3F8FF,
         textSecondaryHex = 0xFF9AC2F4,
+        shape = FrameShape.TECH,
     ),
     CLASSIC_PEARL(
         id = "classic_pearl",
@@ -54,6 +71,7 @@ enum class CollageFrameStyle(
         secondaryAccentHex = 0xFF063E86,
         textPrimaryHex = 0xFF050B14,
         textSecondaryHex = 0xFF4A607A,
+        shape = FrameShape.POLAROID,
     ),
     CYBER_NEON(
         id = "cyber_neon",
@@ -64,6 +82,7 @@ enum class CollageFrameStyle(
         secondaryAccentHex = 0xFF5EA8FF,
         textPrimaryHex = 0xFFFFFFFF,
         textSecondaryHex = 0xFF7CE8FF,
+        shape = FrameShape.CYBER,
     ),
     GALA_GOLD(
         id = "gala_gold",
@@ -74,6 +93,7 @@ enum class CollageFrameStyle(
         secondaryAccentHex = 0xFFF6DC92,
         textPrimaryHex = 0xFFFFFBF2,
         textSecondaryHex = 0xFFD9C089,
+        shape = FrameShape.GALA,
     ),
 }
 
