@@ -486,13 +486,6 @@ object PhotoFrameComposer {
         var textStartX = leftX
         val brand = branding.brand.trim().uppercase(Locale.ROOT)
         if (brand.isNotEmpty()) {
-            val pillRect = RectF(leftX, top, leftX + 218f * scale, top + 58f * scale)
-            val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = style.accentHex.toInt()
-                alpha = if (style == CollageFrameStyle.CLASSIC_PEARL) 255 else 220
-            }
-            canvas.drawRoundRect(pillRect, 29f * scale, 29f * scale, pillPaint)
-
             val brandTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = if (style == CollageFrameStyle.GALA_GOLD) Color.rgb(12, 14, 20) else Color.WHITE
                 textAlign = Paint.Align.CENTER
@@ -500,6 +493,17 @@ object PhotoFrameComposer {
                 typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
                 letterSpacing = 0.18f
             }
+            // Grow the pill with the brand so HIKVISION or UNITREE ROBOTICS stay readable,
+            // but never past 45% of the frame: the right side belongs to the tag + date.
+            val maxPillWidth = ((rightX - leftX) * 0.45f).coerceAtLeast(218f * scale)
+            val pillWidth = (brandTextPaint.measureText(brand) + 56f * scale)
+                .coerceIn(218f * scale, maxPillWidth)
+            val pillRect = RectF(leftX, top, leftX + pillWidth, top + 58f * scale)
+            val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = style.accentHex.toInt()
+                alpha = if (style == CollageFrameStyle.CLASSIC_PEARL) 255 else 220
+            }
+            canvas.drawRoundRect(pillRect, 29f * scale, 29f * scale, pillPaint)
             canvas.drawText(
                 ellipsized(brand, brandTextPaint, pillRect.width() - 28f * scale),
                 pillRect.centerX(),
