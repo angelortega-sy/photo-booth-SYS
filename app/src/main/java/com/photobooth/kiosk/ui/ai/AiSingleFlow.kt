@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -103,6 +104,8 @@ import com.photobooth.kiosk.data.AiStyles
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CollageFrameStyle
+import com.photobooth.kiosk.data.EventProfile
+import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.delivery.LocalDeliveryServer
 import com.photobooth.kiosk.network.BoothStyle
 import com.photobooth.kiosk.photo.PhotoSaver
@@ -189,7 +192,7 @@ fun AiSingleFlow(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // The admin may have switched styles on or off since the last guest run.
-    LaunchedEffect(Unit) { viewModel.refreshStyleSettings() }
+    LaunchedEffect(Unit) { viewModel.refreshStyleSettings(); viewModel.refreshEventProfiles() }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
@@ -453,6 +456,11 @@ fun AiSingleFlow(
                             status = state.status,
                             selected = state.frameStyle,
                             onSelectFrame = { viewModel.selectFrame(it); onInteraction() },
+                            profiles = state.eventProfiles,
+                            selectedProfileId = state.selectedEventProfileId,
+                            onSelectProfile = { viewModel.selectEventProfile(it); onInteraction() },
+                            decoration = state.frameDecoration,
+                            onSelectDecoration = { viewModel.selectDecoration(it); onInteraction() },
                         )
                         AiStep.SHARE -> ShareContent(
                             preview = state.resultPreview,
@@ -1290,8 +1298,13 @@ private fun FramedContent(
     status: AiStatus,
     selected: CollageFrameStyle,
     onSelectFrame: (CollageFrameStyle) -> Unit,
+    profiles: List<EventProfile>,
+    selectedProfileId: String,
+    onSelectProfile: (String) -> Unit,
+    decoration: FrameDecoration,
+    onSelectDecoration: (FrameDecoration) -> Unit,
 ) {
-    SectionTitle("Marco")
+    SectionTitle("Tu foto")
     if (preview != null) {
         Image(
             preview.asImageBitmap(),
@@ -1319,6 +1332,42 @@ private fun FramedContent(
     if (status == AiStatus.ERROR) {
         Text("Hubo un error. Vuelve a accesorios e intenta de nuevo.", color = Cream, fontSize = 15.sp)
     }
+    if (profiles.size > 1) {
+        SectionTitle("Marca del evento")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            profiles.forEach { profile ->
+                val isSelected = profile.id == selectedProfileId
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable(role = Role.Button) { onSelectProfile(profile.id) }
+                        .then(
+                            if (isSelected) {
+                                Modifier.border(2.dp, SyscomBlue, RoundedCornerShape(18.dp))
+                            } else {
+                                Modifier
+                            },
+                        ),
+                    shape = RoundedCornerShape(18.dp),
+                    color = if (isSelected) SyscomBlue.copy(alpha = 0.22f) else InkSoft,
+                ) {
+                    Text(
+                        profile.name,
+                        color = Cream,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                    )
+                }
+            }
+        }
+    }
+    SectionTitle("Marco")
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         CollageFrameStyle.entries.forEach { frame ->
             val isSelected = frame == selected
@@ -1341,6 +1390,39 @@ private fun FramedContent(
                     )
                     if (isSelected) Icon(Icons.Rounded.Check, null, tint = SyscomBlueLight)
                 }
+            }
+        }
+    }
+    SectionTitle("Adorno")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        FrameDecoration.entries.forEach { option ->
+            val isSelected = option == decoration
+            Surface(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .clickable(role = Role.Button) { onSelectDecoration(option) }
+                    .then(
+                        if (isSelected) {
+                            Modifier.border(2.dp, SyscomBlue, RoundedCornerShape(18.dp))
+                        } else {
+                            Modifier
+                        },
+                    ),
+                shape = RoundedCornerShape(18.dp),
+                color = if (isSelected) SyscomBlue.copy(alpha = 0.22f) else InkSoft,
+            ) {
+                Text(
+                    stringResource(option.titleRes),
+                    color = Cream,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                )
             }
         }
     }

@@ -25,7 +25,8 @@ import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
 import com.photobooth.kiosk.data.EventBadgePreset
 import com.photobooth.kiosk.data.EventBranding
-import com.photobooth.kiosk.data.EventBrandingStore
+import com.photobooth.kiosk.data.EventProfile
+import com.photobooth.kiosk.data.EventProfileStore
 import com.photobooth.kiosk.data.PhotoBorderStyle
 import com.photobooth.kiosk.delivery.DeliverySession
 import com.photobooth.kiosk.delivery.LocalDeliveryServer
@@ -104,6 +105,8 @@ data class PhotoBoothUiState(
     val backgrounds: List<BackgroundOption> = emptyList(),
     val adminBackgrounds: List<BackgroundOption> = emptyList(),
     val backgroundRevision: Int = 0,
+    val eventProfiles: List<EventProfile> = emptyList(),
+    val activeEventProfileId: String = EventProfileStore.SYSCOM_ID,
     val errorMessage: String? = null,
     val shareError: String? = null,
 ) {
@@ -134,7 +137,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private val cameraSettings = CameraSettingsStore(application)
     private val gestureSettings = GestureSettingsStore(application)
     private val styleSettings = StyleSettingsStore(application)
-    private val brandingStore = EventBrandingStore(application)
+    private val profileStore = EventProfileStore(application)
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
     private val deviceKeys = DeviceKeyStore()
@@ -170,12 +173,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
             disabledStyleIds = styleSettings.disabledIds,
             customization = CollageCustomization(
-                eventBranding = brandingStore.load(),
-                badgePreset = if (brandingStore.hasSaved()) {
-                    EventBadgePreset.CUSTOM
-                } else {
-                    EventBadgePreset.EXPO_2027
-                },
+                eventBranding = profileStore.activeBranding(),
+                badgePreset = defaultBadgePreset(),
             ),
             backgrounds = repository.visibleOptions,
             adminBackgrounds = repository.allOptions,
@@ -290,7 +289,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun updateEventBranding(branding: EventBranding) {
-        brandingStore.save(branding)
+        val activeId = _uiState.value.activeEventProfileId
+        profileStore.updateBranding(activeId, branding)
         exportedStateSignature = null
         _uiState.update {
             it.copy(
@@ -298,10 +298,75 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                     eventBranding = branding,
                     badgePreset = EventBadgePreset.CUSTOM,
                 ),
+                eventProfiles = profileStore.loadAll(),
             )
         }
         requestPreviewUpdate(sessionToken)
     }
+
+    /** Switches every screen to the branding of [profileId]. */
+    fun activateEventProfile(profileId: String) {
+        val profile = profileStore.loadAll().firstOrNull { it.id == profileId } ?: return
+        profileStore.setActive(profileId)
+        exportedStateSignature = null
+        _uiState.update {
+            it.copy(
+                activeEventProfileId = profile.id,
+                eventProfiles = profileStore.loadAll(),
+                customization = it.customization.copy(
+                    eventBranding = profile.branding,
+                    badgePreset = EventBadgePreset.CUSTOM,
+                ),
+            )
+        }
+        requestPreviewUpdate(sessionToken)
+    }
+
+    fun addEventProfile(name: String) {
+        val profile = profileStore.add(name)
+        activateEventProfile(profile.id)
+    }
+
+    fun deleteEventProfile(profileId: String) {
+        if (!profileStore.delete(profileId)) return
+        val active = profileStore.active()
+        exportedStateSignature = null
+        _uiState.update {
+            it.copy(
+                eventProfiles = profileStore.loadAll(),
+                activeEventProfileId = active.id,
+                customization = it.customization.copy(
+                    eventBranding = active.branding,
+                    badgePreset = EventBadgePreset.CUSTOM,
+                ),
+            )
+        }
+        requestPreviewUpdate(sessionToken)
+    }
+
+    fun setEventProfileEnabled(profileId: String, enabled: Boolean) {
+        profileStore.setEnabled(profileId, enabled)
+        val active = profileStore.active()
+        exportedStateSignature = null
+        _uiState.update {
+            it.copy(
+                eventProfiles = profileStore.loadAll(),
+                activeEventProfileId = active.id,
+                customization = it.customization.copy(
+                    eventBranding = active.branding,
+                    badgePreset = EventBadgePreset.CUSTOM,
+                ),
+            )
+        }
+        requestPreviewUpdate(sessionToken)
+    }
+
+    private fun defaultBadgePreset(): EventBadgePreset =
+        if (profileStore.activeBranding() == EventBranding()) {
+            EventBadgePreset.EXPO_2027
+        } else {
+            EventBadgePreset.CUSTOM
+        }
 
     fun beginCapture() {
         val state = _uiState.value
@@ -567,7 +632,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         exportedStateSignature = null
         _uiState.update { state ->
             val branding = if (badgePreset == EventBadgePreset.CUSTOM) {
-                brandingStore.load()
+                profileStore.activeBranding()
             } else {
                 state.customization.eventBranding.withBadge(badgePreset)
             }
@@ -1314,15 +1379,13 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             disabledStyleIds = styleSettings.disabledIds,
             selectedModelId = state.selectedModelId,
             customization = CollageCustomization(
-                eventBranding = brandingStore.load(),
-                badgePreset = if (brandingStore.hasSaved()) {
-                    EventBadgePreset.CUSTOM
-                } else {
-                    EventBadgePreset.EXPO_2027
-                },
+                eventBranding = profileStore.activeBranding(),
+                badgePreset = defaultBadgePreset(),
             ),
             backgrounds = repository.visibleOptions,
             adminBackgrounds = repository.allOptions,
+            eventProfiles = profileStore.loadAll(),
+            activeEventProfileId = profileStore.active().id,
         )
 
         oldBitmaps.forEach(::recycleLater)

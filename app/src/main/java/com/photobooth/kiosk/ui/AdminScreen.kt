@@ -117,6 +117,7 @@ import com.photobooth.kiosk.network.UsageSummary
 import com.photobooth.kiosk.network.UsageLimits
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.EventBranding
+import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.admin.AdminAuth
 import com.photobooth.kiosk.admin.CameraOption
 import com.photobooth.kiosk.admin.DeviceDiagnostics
@@ -772,7 +773,13 @@ private fun AdminScreen(
                         }
                         item {
                             EventBrandingAdminCard(
+                                profiles = appState.eventProfiles,
+                                activeProfileId = appState.activeEventProfileId,
                                 branding = appState.customization.eventBranding,
+                                onActivate = viewModel::activateEventProfile,
+                                onToggleEnabled = viewModel::setEventProfileEnabled,
+                                onDelete = viewModel::deleteEventProfile,
+                                onAdd = viewModel::addEventProfile,
                                 onSave = {
                                     viewModel.updateEventBranding(it)
                                     scope.launch {
@@ -1085,16 +1092,127 @@ private fun BackgroundAdminRow(
 
 @Composable
 private fun EventBrandingAdminCard(
+    profiles: List<EventProfile>,
+    activeProfileId: String,
     branding: EventBranding,
+    onActivate: (String) -> Unit,
+    onToggleEnabled: (String, Boolean) -> Unit,
+    onDelete: (String) -> Unit,
+    onAdd: (String) -> Unit,
     onSave: (EventBranding) -> Unit,
 ) {
     var draft by remember { mutableStateOf(branding) }
-    LaunchedEffect(branding) { draft = branding }
+    LaunchedEffect(branding, activeProfileId) { draft = branding }
+    var newBrandName by remember { mutableStateOf("") }
+    var pendingDelete by remember { mutableStateOf<EventProfile?>(null) }
+
+    pendingDelete?.let { profile ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(stringResource(R.string.admin_profiles_delete_title)) },
+            text = {
+                Text(stringResource(R.string.admin_profiles_delete_body, profile.name))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete(profile.id)
+                        pendingDelete = null
+                    },
+                ) { Text(stringResource(R.string.admin_profiles_delete_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text(stringResource(R.string.admin_profiles_cancel))
+                }
+            },
+        )
+    }
 
     AdminCard(
-        title = stringResource(R.string.admin_event_title),
-        subtitle = stringResource(R.string.admin_event_subtitle),
+        title = stringResource(R.string.admin_profiles_title),
+        subtitle = stringResource(R.string.admin_profiles_subtitle),
     ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            profiles.forEach { profile ->
+                val isActive = profile.id == activeProfileId
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isActive) SyscomBlue.copy(alpha = 0.18f) else Ink)
+                        .clickable(role = Role.Button) { onActivate(profile.id) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            profile.name,
+                            color = Cream,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            stringResource(
+                                if (isActive) {
+                                    R.string.admin_profiles_active
+                                } else {
+                                    R.string.admin_profiles_tap_to_activate
+                                },
+                            ),
+                            color = Cream.copy(alpha = 0.6f),
+                            fontSize = 12.sp,
+                        )
+                    }
+                    if (profile.builtIn) {
+                        Text(
+                            "SYSCOM",
+                            color = SyscomBlueLight,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    } else {
+                        Switch(
+                            checked = profile.enabled,
+                            onCheckedChange = { onToggleEnabled(profile.id, it) },
+                        )
+                        IconButton(onClick = { pendingDelete = profile }) {
+                            Icon(
+                                Icons.Rounded.Delete,
+                                contentDescription = stringResource(R.string.admin_profiles_delete_confirm),
+                                tint = Cream.copy(alpha = 0.7f),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = newBrandName,
+                onValueChange = { newBrandName = it },
+                label = { Text(stringResource(R.string.admin_profiles_new_hint)) },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = {
+                    if (newBrandName.isNotBlank()) {
+                        onAdd(newBrandName)
+                        newBrandName = ""
+                    }
+                },
+            ) {
+                Icon(
+                    Icons.Rounded.Add,
+                    contentDescription = stringResource(R.string.admin_profiles_add),
+                    tint = SyscomBlueLight,
+                )
+            }
+        }
         BrandingField(
             label = stringResource(R.string.admin_event_brand),
             value = draft.brand,
@@ -1145,7 +1263,7 @@ private fun EventBrandingAdminCard(
             ),
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(50.dp),
         ) {
-            Text(stringResource(R.string.admin_event_save))
+            Text(stringResource(R.string.admin_profiles_save))
         }
     }
 }

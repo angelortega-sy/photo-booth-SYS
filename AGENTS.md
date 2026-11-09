@@ -48,8 +48,12 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - **Admin → Evento** permite importar fondos desde el almacenamiento con SAF (`OpenMultipleDocuments("image/*")`), ocultar/mostrar fondos integrados y renombrar/eliminar los personalizados.
 - Los fondos importados se copian a `filesDir/backgrounds/custom_<timestamp>.webp`, normalizados a **1080×1920**. No van a `assets/` ni al repo; se pierden si se borran los datos de la app.
 - El catálogo se persiste en `SharedPreferences("background_catalog")`; los invitados solo ven los fondos habilitados + “Cámara real”.
-- `EventBranding` se persiste en `SharedPreferences("event_branding")`: marca, tagline, título/subtítulo de bienvenida, headline/subheadline/tag del badge. Admin → Evento los edita.
-- La bienvenida y `PhotoFrameComposer` leen `eventBranding`; `EventBadgePreset.CUSTOM` conserva los textos personalizados. **No volver a hardcodear “EXPO SYSCOM 2027”** en la UI.
+- `EventBranding` agrupa marca, tagline, título/subtítulo de bienvenida y headline/subheadline/tag del badge. **No volver a hardcodear “EXPO SYSCOM 2027”** en la UI.
+- Las marcas viven en `EventProfileStore` (`SharedPreferences("event_profiles")`, `profiles` + `active_id`). `EventProfile = id + name + branding + enabled + builtIn`; **SYSCOM siempre existe**, no se puede borrar ni deshabilitar, y es el default. Cualquier otra marca se agrega desde Admin → Evento y se puede activar/deshabilitar/borrar.
+- `SharedPreferences("event_branding")` queda solo como migración legacy: `EventProfileStore` lo lee una vez si no hay perfiles guardados.
+- Admin edita las etiquetas de la marca **activa** (`updateEventBranding` escribe sobre el perfil activo). Activar una marca actualiza la bienvenida y el marco de inmediato.
+- El paso “Tu foto” del flujo IA muestra la fila “Marca del evento” solo cuando hay más de un perfil habilitado, más el selector de marco (`CollageFrameStyle`, solo paleta) y el de adorno (`FrameDecoration`: Limpio/Esquinas/Confeti/Tech/Festivo, dibujado en `PhotoFrameComposer.drawDecoration`). Los adornos se reinician con cada foto nueva.
+- `PhotoFrameComposer` es defensivo: si la marca está vacía no dibuja la píldora, si no hay headline/subheadline no dibuja el pie ni el sello, y todo texto largo se recorta con `ellipsized` antes de chocar con el sello o salir del marco.
 - Al cambiar de fondo en el resultado, `requestPreviewUpdate` recompone con el catálogo actual; si el fondo elegido se oculta o borra, el ViewModel cae al primer fondo visible.
 
 ## IA y servidor (MVP aprobado)

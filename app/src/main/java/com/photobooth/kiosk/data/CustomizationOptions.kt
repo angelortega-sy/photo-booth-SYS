@@ -77,6 +77,17 @@ enum class CollageFrameStyle(
     ),
 }
 
+enum class FrameDecoration(
+    val id: String,
+    @param:StringRes val titleRes: Int,
+) {
+    NONE(id = "none", titleRes = R.string.decoration_none),
+    CORNERS(id = "corners", titleRes = R.string.decoration_corners),
+    CONFETTI(id = "confetti", titleRes = R.string.decoration_confetti),
+    TECH(id = "tech", titleRes = R.string.decoration_tech),
+    FESTIVE(id = "festive", titleRes = R.string.decoration_festive),
+}
+
 enum class PhotoBorderStyle(
     val id: String,
     @param:StringRes val titleRes: Int,
@@ -178,4 +189,5 @@ data class CollageCustomization(
     val badgePreset: EventBadgePreset = EventBadgePreset.EXPO_2027,
     val eventBranding: EventBranding = EventBranding(),
     val showDateStamp: Boolean = true,
+    val decoration: FrameDecoration = FrameDecoration.NONE,
 )

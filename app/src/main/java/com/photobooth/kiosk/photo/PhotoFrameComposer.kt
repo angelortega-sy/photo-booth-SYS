@@ -17,6 +17,7 @@ import android.text.TextUtils
 import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
+import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.PhotoBorderStyle
 import java.io.File
 import java.io.FileOutputStream
@@ -47,14 +48,14 @@ object PhotoFrameComposer {
         val output = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
 
-        drawFrameBackground(canvas, outWidth.toFloat(), outHeight.toFloat(), scale, customization.frameStyle)
+        drawFrameBackground(canvas, outWidth.toFloat(), outHeight.toFloat(), scale, customization.frameStyle, customization.decoration)
         drawTopHeader(canvas, outWidth.toFloat(), 44f * scale, scale, customization)
 
         val photoRect = RectF(
             48f * scale,
             136f * scale,
             outWidth - 48f * scale,
-            outHeight - 236f * scale,
+            if (hasFooterContent(customization)) outHeight - 236f * scale else outHeight - 64f * scale,
         )
         drawPhotoPanel(
             canvas = canvas,
@@ -96,7 +97,7 @@ object PhotoFrameComposer {
         val output = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
 
-        drawFrameBackground(canvas, outWidth.toFloat(), outHeight.toFloat(), scale, customization.frameStyle)
+        drawFrameBackground(canvas, outWidth.toFloat(), outHeight.toFloat(), scale, customization.frameStyle, customization.decoration)
         drawTopHeader(canvas, outWidth.toFloat(), 42f * scale, scale, customization)
 
         val slots = slotRects(customization.layout, scale)
@@ -229,6 +230,7 @@ object PhotoFrameComposer {
         height: Float,
         scale: Float,
         style: CollageFrameStyle,
+        decoration: FrameDecoration,
     ) {
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
@@ -276,6 +278,197 @@ object PhotoFrameComposer {
                 innerPaint,
             )
         }
+
+        drawDecoration(canvas, width, height, scale, style, decoration)
+    }
+
+    /**
+     * Draws the decorative shape that gives each frame its own silhouette.
+     * All geometry scales with the canvas so the 1080×1920 export and the preview match.
+     */
+    private fun drawDecoration(
+        canvas: Canvas,
+        width: Float,
+        height: Float,
+        scale: Float,
+        style: CollageFrameStyle,
+        decoration: FrameDecoration,
+    ) {
+        when (decoration) {
+            FrameDecoration.NONE -> Unit
+
+            FrameDecoration.CORNERS -> {
+                val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.style = Paint.Style.STROKE
+                    strokeWidth = 4f * scale
+                    color = style.secondaryAccentHex.toInt()
+                    alpha = 200
+                    strokeCap = Paint.Cap.ROUND
+                }
+                val inset = 40f * scale
+                val arm = 78f * scale
+                val right = width - inset
+                val bottom = height - inset
+                canvas.drawLine(inset, inset, inset + arm, inset, stroke)
+                canvas.drawLine(inset, inset, inset, inset + arm, stroke)
+                canvas.drawLine(right - arm, inset, right, inset, stroke)
+                canvas.drawLine(right, inset, right, inset + arm, stroke)
+                canvas.drawLine(inset, bottom - arm, inset, bottom, stroke)
+                canvas.drawLine(inset, bottom, inset + arm, bottom, stroke)
+                canvas.drawLine(right - arm, bottom, right, bottom, stroke)
+                canvas.drawLine(right, bottom - arm, right, bottom, stroke)
+
+                val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = style.accentHex.toInt()
+                }
+                listOf(
+                    inset to inset,
+                    right to inset,
+                    inset to bottom,
+                    right to bottom,
+                ).forEach { (x, y) ->
+                    canvas.drawCircle(x, y, 6f * scale, dotPaint)
+                }
+            }
+
+            FrameDecoration.CONFETTI -> {
+                // Seeded so the same photo always renders the same pattern.
+                val random = kotlin.random.Random(20270101)
+                val palette = intArrayOf(
+                    style.accentHex.toInt(),
+                    style.secondaryAccentHex.toInt(),
+                    style.textSecondaryHex.toInt(),
+                )
+                repeat(70) {
+                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = palette[random.nextInt(palette.size)]
+                        alpha = 170
+                    }
+                    val x = random.nextFloat() * width
+                    val y = random.nextFloat() * height
+                    val size = (4f + random.nextFloat() * 7f) * scale
+                    if (random.nextBoolean()) {
+                        canvas.drawCircle(x, y, size, paint)
+                    } else {
+                        canvas.save()
+                        canvas.rotate(random.nextFloat() * 90f, x, y)
+                        canvas.drawRect(
+                            x - size,
+                            y - size * 1.7f,
+                            x + size,
+                            y + size * 1.7f,
+                            paint,
+                        )
+                        canvas.restore()
+                    }
+                }
+            }
+
+            FrameDecoration.TECH -> {
+                val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.style = Paint.Style.STROKE
+                    strokeWidth = 1f * scale
+                    color = style.secondaryAccentHex.toInt()
+                    alpha = 24
+                }
+                val step = 72f * scale
+                var x = step
+                while (x < width) {
+                    canvas.drawLine(x, 0f, x, height, gridPaint)
+                    x += step
+                }
+                var y = step
+                while (y < height) {
+                    canvas.drawLine(0f, y, width, y, gridPaint)
+                    y += step
+                }
+
+                val bracket = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.style = Paint.Style.STROKE
+                    strokeWidth = 3.5f * scale
+                    strokeCap = Paint.Cap.SQUARE
+                    color = style.accentHex.toInt()
+                    alpha = 195
+                }
+                val inset = 34f * scale
+                val arm = 58f * scale
+                val right = width - inset
+                val bottom = height - inset
+                canvas.drawLine(inset, inset, inset + arm, inset, bracket)
+                canvas.drawLine(inset, inset, inset, inset + arm, bracket)
+                canvas.drawLine(right - arm, inset, right, inset, bracket)
+                canvas.drawLine(right, inset, right, inset + arm, bracket)
+                canvas.drawLine(inset, bottom - arm, inset, bottom, bracket)
+                canvas.drawLine(inset, bottom, inset + arm, bottom, bracket)
+                canvas.drawLine(right - arm, bottom, right, bottom, bracket)
+                canvas.drawLine(right, bottom - arm, right, bottom, bracket)
+            }
+
+            FrameDecoration.FESTIVE -> {
+                val palette = intArrayOf(
+                    style.accentHex.toInt(),
+                    style.secondaryAccentHex.toInt(),
+                    style.textSecondaryHex.toInt(),
+                )
+                var y = 150f * scale
+                var index = 0
+                while (y < height - 280f * scale) {
+                    drawPennant(canvas, 34f * scale, y, 15f * scale, palette[index % palette.size], pointRight = true)
+                    drawPennant(
+                        canvas,
+                        width - 34f * scale,
+                        y,
+                        15f * scale,
+                        palette[index % palette.size],
+                        pointRight = false,
+                    )
+                    y += 96f * scale
+                    index++
+                }
+
+                val sparkle = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = style.textSecondaryHex.toInt()
+                    alpha = 190
+                }
+                val random = kotlin.random.Random(771)
+                repeat(26) {
+                    val cx = random.nextFloat() * width
+                    val cy = if (random.nextBoolean()) {
+                        random.nextFloat() * 120f * scale
+                    } else {
+                        height - 120f * scale + random.nextFloat() * 100f * scale
+                    }
+                    canvas.drawCircle(cx, cy, (2f + random.nextFloat() * 2.5f) * scale, sparkle)
+                }
+            }
+        }
+    }
+
+    private fun drawPennant(
+        canvas: Canvas,
+        x: Float,
+        y: Float,
+        size: Float,
+        color: Int,
+        pointRight: Boolean,
+    ) {
+        val path = Path().apply {
+            if (pointRight) {
+                moveTo(x - size, y - size)
+                lineTo(x + size, y)
+                lineTo(x - size, y + size)
+            } else {
+                moveTo(x + size, y - size)
+                lineTo(x - size, y)
+                lineTo(x + size, y + size)
+            }
+            close()
+        }
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            alpha = 205
+        }
+        canvas.drawPath(path, paint)
     }
 
     private fun drawTopHeader(
@@ -288,37 +481,50 @@ object PhotoFrameComposer {
         val style = customization.frameStyle
         val leftX = 48f * scale
         val rightX = width - 48f * scale
+        val branding = customization.eventBranding
 
-        // SYSCOM brand pill
-        val pillRect = RectF(leftX, top, leftX + 218f * scale, top + 58f * scale)
-        val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = style.accentHex.toInt()
-            alpha = if (style == CollageFrameStyle.CLASSIC_PEARL) 255 else 220
+        var textStartX = leftX
+        val brand = branding.brand.trim().uppercase(Locale.ROOT)
+        if (brand.isNotEmpty()) {
+            val pillRect = RectF(leftX, top, leftX + 218f * scale, top + 58f * scale)
+            val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = style.accentHex.toInt()
+                alpha = if (style == CollageFrameStyle.CLASSIC_PEARL) 255 else 220
+            }
+            canvas.drawRoundRect(pillRect, 29f * scale, 29f * scale, pillPaint)
+
+            val brandTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = if (style == CollageFrameStyle.GALA_GOLD) Color.rgb(12, 14, 20) else Color.WHITE
+                textAlign = Paint.Align.CENTER
+                textSize = 26f * scale
+                typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
+                letterSpacing = 0.18f
+            }
+            canvas.drawText(
+                ellipsized(brand, brandTextPaint, pillRect.width() - 28f * scale),
+                pillRect.centerX(),
+                pillRect.centerY() + 9f * scale,
+                brandTextPaint,
+            )
+            textStartX = pillRect.right + 20f * scale
         }
-        canvas.drawRoundRect(pillRect, 29f * scale, 29f * scale, pillPaint)
 
-        val brandTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (style == CollageFrameStyle.GALA_GOLD) Color.rgb(12, 14, 20) else Color.WHITE
-            textAlign = Paint.Align.CENTER
-            textSize = 26f * scale
-            typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
-            letterSpacing = 0.18f
-        }
-        canvas.drawText(
-            customization.eventBranding.brand.uppercase().ifBlank { "SYSCOM" },
-            pillRect.centerX(),
-            pillRect.centerY() + 9f * scale,
-            brandTextPaint,
-        )
-
-        // Right-aligned tag chip + optional date
-        val dateSuffix = if (customization.showDateStamp) {
-            " · " + SimpleDateFormat("dd MMM yyyy", Locale.forLanguageTag("es-MX"))
+        // Right-aligned tag chip + optional date. Never leave a dangling " · " separator.
+        val dateText = if (customization.showDateStamp) {
+            SimpleDateFormat("dd MMM yyyy", Locale.forLanguageTag("es-MX"))
                 .format(Date())
                 .uppercase(Locale.ROOT)
         } else {
             ""
         }
+        val tagText = branding.badgeTag.trim()
+        val headerRight = when {
+            tagText.isNotEmpty() && dateText.isNotEmpty() -> "$tagText · $dateText"
+            tagText.isNotEmpty() -> tagText
+            else -> dateText
+        }
+        if (headerRight.isEmpty()) return
+
         val tagPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = style.textSecondaryHex.toInt()
             textAlign = Paint.Align.RIGHT
@@ -327,9 +533,9 @@ object PhotoFrameComposer {
             letterSpacing = 0.10f
         }
         canvas.drawText(
-            customization.eventBranding.badgeTag + dateSuffix,
+            ellipsized(headerRight, tagPaint, (rightX - textStartX).coerceAtLeast(48f * scale)),
             rightX,
-            pillRect.centerY() + 8f * scale,
+            top + 37f * scale,
             tagPaint,
         )
     }
@@ -585,6 +791,13 @@ object PhotoFrameComposer {
     ) {
         val style = customization.frameStyle
         val badge = customization.eventBranding
+        val headline = badge.badgeHeadline.trim()
+        val subLine = listOf(badge.badgeSubheadline.trim(), badge.hashtag.trim())
+            .filter { it.isNotEmpty() }
+            .joinToString("  •  ")
+        // An empty profile (no badge text at all) should leave a clean photo, not an empty panel.
+        if (headline.isEmpty() && subLine.isEmpty()) return
+
         val left = 48f * scale
         val right = width - 48f * scale
 
@@ -616,6 +829,7 @@ object PhotoFrameComposer {
         canvas.drawRoundRect(barRect, 6f * scale, 6f * scale, barPaint)
 
         val textLeft = left + 56f * scale
+        val centerY = footerRect.centerY()
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = style.textPrimaryHex.toInt()
             textAlign = Paint.Align.LEFT
@@ -623,9 +837,6 @@ object PhotoFrameComposer {
             typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
             letterSpacing = 0.08f
         }
-        val centerY = footerRect.centerY()
-        canvas.drawText(badge.badgeHeadline, textLeft, centerY - 6f * scale, titlePaint)
-
         val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = style.textSecondaryHex.toInt()
             textAlign = Paint.Align.LEFT
@@ -633,42 +844,66 @@ object PhotoFrameComposer {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             letterSpacing = 0.12f
         }
-        val hashtag = badge.hashtag.trim()
-        val footerSub = if (hashtag.isNotEmpty()) {
-            "${badge.badgeSubheadline}  •  $hashtag"
-        } else {
-            badge.badgeSubheadline
-        }
-        canvas.drawText(footerSub, textLeft, centerY + 34f * scale, subtitlePaint)
 
-        // Right emblem seal
+        // Reserve room for the seal only when there is a headline to sit next to.
         val sealRadius = 46f * scale
         val sealCx = right - 68f * scale
         val sealCy = centerY
-        val sealPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = style.accentHex.toInt()
-            alpha = 38
-        }
-        canvas.drawCircle(sealCx, sealCy, sealRadius, sealPaint)
-        val sealStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.style = Paint.Style.STROKE
-            strokeWidth = 2.5f * scale
-            color = style.secondaryAccentHex.toInt()
-            alpha = 180
-        }
-        canvas.drawCircle(sealCx, sealCy, sealRadius, sealStroke)
+        val showSeal = headline.isNotEmpty()
+        val textRight = if (showSeal) sealCx - sealRadius - 24f * scale else right - 40f * scale
+        val textWidth = (textRight - textLeft).coerceAtLeast(80f * scale)
 
-        val diamond = Path().apply {
-            moveTo(sealCx, sealCy - 20f * scale)
-            lineTo(sealCx + 20f * scale, sealCy)
-            lineTo(sealCx, sealCy + 20f * scale)
-            lineTo(sealCx - 20f * scale, sealCy)
-            close()
+        if (headline.isNotEmpty()) {
+            canvas.drawText(
+                ellipsized(headline, titlePaint, textWidth),
+                textLeft,
+                centerY - 6f * scale,
+                titlePaint,
+            )
         }
-        val diamondPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = style.accentHex.toInt()
+        if (subLine.isNotEmpty()) {
+            val baseline = if (headline.isEmpty()) centerY + 8f * scale else centerY + 34f * scale
+            canvas.drawText(
+                ellipsized(subLine, subtitlePaint, textWidth),
+                textLeft,
+                baseline,
+                subtitlePaint,
+            )
         }
-        canvas.drawPath(diamond, diamondPaint)
+
+        if (showSeal) {
+            val sealPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = style.accentHex.toInt()
+                alpha = 38
+            }
+            canvas.drawCircle(sealCx, sealCy, sealRadius, sealPaint)
+            val sealStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.style = Paint.Style.STROKE
+                strokeWidth = 2.5f * scale
+                color = style.secondaryAccentHex.toInt()
+                alpha = 180
+            }
+            canvas.drawCircle(sealCx, sealCy, sealRadius, sealStroke)
+
+            val diamond = Path().apply {
+                moveTo(sealCx, sealCy - 20f * scale)
+                lineTo(sealCx + 20f * scale, sealCy)
+                lineTo(sealCx, sealCy + 20f * scale)
+                lineTo(sealCx - 20f * scale, sealCy)
+                close()
+            }
+            val diamondPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = style.accentHex.toInt()
+            }
+            canvas.drawPath(diamond, diamondPaint)
+        }
+    }
+
+    private fun hasFooterContent(customization: CollageCustomization): Boolean {
+        val branding = customization.eventBranding
+        return branding.badgeHeadline.isNotBlank() ||
+            branding.badgeSubheadline.isNotBlank() ||
+            branding.hashtag.isNotBlank()
     }
 
     fun writeJpeg(bitmap: Bitmap, target: File): Boolean = runCatching {

@@ -67,7 +67,11 @@
     <string name="frame_classic_pearl">Galería Perla</string>
     <string name="frame_cyber_neon">Cyber Neón</string>
     <string name="frame_gala_gold">Gala VIP</string>
-
+    <string name="decoration_none">Limpio</string>
+    <string name="decoration_corners">Esquinas</string>
+    <string name="decoration_confetti">Confeti</string>
+    <string name="decoration_tech">Tech</string>
+    <string name="decoration_festive">Festivo</string>
     <string name="border_clean_rounded">Borde Suave</string>
     <string name="border_polaroid_white">Marco Blanco</string>
     <string name="border_tech_hud">Visor Tech</string>
@@ -184,7 +188,6 @@
     <string name="admin_background_imported">Fondo agregado</string>
     <string name="admin_background_import_error">No se pudo agregar el fondo</string>
     <string name="admin_event_title">Etiquetas del evento</string>
-    <string name="admin_event_subtitle">Estos textos aparecen en la bienvenida y en la tira.</string>
     <string name="admin_event_brand">Marca</string>
     <string name="admin_event_tagline">Tagline</string>
     <string name="admin_event_welcome_title">Título de bienvenida</string>
@@ -194,6 +197,17 @@
     <string name="admin_event_badge_tag">Etiqueta corta</string>
     <string name="admin_event_save">Guardar etiquetas</string>
     <string name="admin_event_saved">Etiquetas guardadas</string>
+    <string name="admin_profiles_title">Marcas del evento</string>
+    <string name="admin_profiles_subtitle">SYSCOM siempre está disponible. Agrega una marca por stand o evento; el invitado elige entre las activas.</string>
+    <string name="admin_profiles_active">Activa · se usa en bienvenida y fotos</string>
+    <string name="admin_profiles_tap_to_activate">Toca para activar</string>
+    <string name="admin_profiles_new_hint">Nueva marca</string>
+    <string name="admin_profiles_add">Agregar marca</string>
+    <string name="admin_profiles_save">Guardar etiquetas de la marca</string>
+    <string name="admin_profiles_delete_title">¿Eliminar marca?</string>
+    <string name="admin_profiles_delete_body">Se borrarán las etiquetas de “%1$s”. SYSCOM no se puede eliminar.</string>
+    <string name="admin_profiles_delete_confirm">Eliminar</string>
+    <string name="admin_profiles_cancel">Cancelar</string>
     <string name="admin_status_title">Estado de la cabina</string>
     <string name="admin_status_subtitle">Resumen rápido del equipo y sus conexiones</string>
     <string name="admin_security_title">Seguridad</string>
