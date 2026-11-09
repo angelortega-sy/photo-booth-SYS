@@ -507,7 +507,10 @@ object AiStyles {
                 "bokeh light sticks and a light haze, no visible crowd and no readable " +
                 "text. Keep the vertical framing and a full body from head to mid-thigh or " +
                 "waist, and keep their own pose and expression. It must read as a " +
-                "high-end idol concept photo, not a cartoon and not a costume party. Do " +
+                "high-end idol concept photo, not a cartoon and not a costume party. " +
+                "Keep each person's face and identity recognizable as the same person: " +
+                "same facial structure, eyes, nose, mouth and expression; restyle the " +
+                "look without turning them into a different person. Do " +
                 "not add text, logos, watermarks, or frames.",
         ),
     )
