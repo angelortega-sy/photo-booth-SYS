@@ -466,4 +466,14 @@
     <string name="admin_brand_name_label">Brand name</string>
     <string name="admin_brand_active_badge">Active</string>
     <string name="admin_event_edit_active">Edit active brand</string>
-</resources>
+    <string name="admin_brand_colors_title">Brand colors</string>
+    <string name="admin_brand_colors_subtitle">The background and line colors apply to all four frames.</string>
+    <string name="admin_brand_primary_color">Background color</string>
+    <string name="admin_brand_secondary_color">Line color</string>
+    <string name="admin_brand_logo_title">Logo</string>
+    <string name="admin_brand_logo_hint">PNG or WebP with a transparent background. Without a logo the brand name is used.</string>
+    <string name="admin_brand_logo_choose">Choose image</string>
+    <string name="admin_brand_logo_remove">Remove logo</string>
+    <string name="admin_brand_logo_error">The image could not be read. Try another one.</string>
+    <string name="admin_brand_preview_title">Preview</string>
+    <string name="admin_brand_preview_hint">This is how the four frames look with this brand.</string></resources>

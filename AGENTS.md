@@ -37,7 +37,9 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - Se entra con **long-press sobre “SYSCOM”** en la pantalla de bienvenida; no poner un botón visible para invitados.
 - PIN de **4 a 8 dígitos**, guardado como hash SHA-256 con salt en `SharedPreferences` (`admin_auth`); nunca guardar el PIN en claro.
 - `AdminAuth` maneja el PIN; `AdminGate` pide crearlo la primera vez y verificarlo después.
-- `AdminScreen` muestra: resumen del dispositivo, cámaras del sistema (frontal/trasera/externa, MP, resolución y nivel de hardware), dispositivos USB, prueba de cámara en vivo, fotos guardadas con borrado individual/todas, red/IP local y accesos a ajustes de red/hotspot.
+- El admin vive en `ui/admin/`: `AdminShell` (PIN, back stack con `rememberSaveable` + `BackHandler`, header) y una pantalla por área (`AdminHomeScreen`, `AdminBrandsScreen`, `AdminBrandEditorScreen`, `AdminEventScreen`, `AdminCameraScreen`, `AdminStylesScreen`, `AdminPhotosScreen`, `AdminUsageScreen`, `AdminNetworkScreen`, `AdminSystemScreen`). `ui/AdminScreen.kt` es solo el wrapper de `AdminGate`. **No volver a meter todas las secciones en un solo scroll.**
+- `AdminHomeScreen` es un grid de tarjetas grandes (Marcas, Evento, Cámara, Estilos, Fotos, Red, Uso IA) con resumen; cada una abre su pantalla. Sirve para pantalla de 55".
+- El admin muestra: resumen del dispositivo, cámaras del sistema (frontal/trasera/externa, MP, resolución y nivel de hardware), dispositivos USB, prueba de cámara en vivo, fotos guardadas con borrado individual/todas, red/IP local y accesos a ajustes de red/hotspot.
 - Fotos: `PhotoLibrary` consulta `MediaStore` en `Pictures/Cabina de Fotos`, usa `READ_MEDIA_IMAGES` en API 33+ y `READ_EXTERNAL_STORAGE` en API ≤32. El borrado directo puede fallar si la app ya no es dueña del archivo; mostrar error, no crashear.
 - El botón de hotspot solo abre los ajustes del sistema. El hotspot programático + QR de descarga es la siguiente fase.
 - Layout admin responsive: header compacto (atrás + título + cerrar), botones de red a ancho completo, fotos en **2 columnas bajo 600 dp** y 4 arriba. No volver a meter dos botones de texto largo en un `Row` angosto.
@@ -53,9 +55,19 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - `SharedPreferences("event_branding")` queda solo como migración legacy: `EventProfileStore` lo lee una vez si no hay perfiles guardados.
 - Admin edita las etiquetas de la marca **activa** (`updateEventBranding` escribe sobre el perfil activo). Activar una marca actualiza la bienvenida y el marco de inmediato.
 - El paso “Tu foto” del flujo IA muestra la fila “Marca del evento” solo cuando hay más de un perfil habilitado, más el selector de marco (`CollageFrameStyle`) y el de adorno (`FrameDecoration`: Limpio/Esquinas/Confeti/Tech/Festivo, dibujado en `PhotoFrameComposer.drawDecoration`). Los adornos se reinician con cada foto nueva.
-- Cada `CollageFrameStyle` define una **forma** (`FrameShape`: `tech`, `polaroid`, `cyber`, `gala`), no solo la paleta. `PhotoFrameComposer` ramifica `drawFrameBackground` (silueta), `drawTopHeader` (posición de la marca y del tag), `drawPhotoPanel` (recorte de la foto: octágono, recto, chaflán o arco) y `drawFooter` (título centrado, en panel o con sello) según `frameStyle.shape`. Al agregar un marco nuevo hay que elegir una forma (o crear una nueva y cubrir los cuatro `when`).
+- Cada `CollageFrameStyle` define una **forma** (`FrameShape`: `tech`, `polaroid`, `cyber`, `gala`), no la paleta. `PhotoFrameComposer` ramifica `drawFrameBackground` (silueta), `drawTopHeader` (posición de la marca y del tag), `drawPhotoPanel` (recorte de la foto: octágono, recto, chaflán o arco) y `drawFooter` (título centrado, en panel o con sello) según `frameStyle.shape`. Al agregar un marco nuevo hay que elegir una forma (o crear una nueva y cubrir los cuatro `when`).
+- El **color lo pone la marca**, no el marco: `EventBranding` guarda `primaryColor` (fondo), `secondaryColor` (líneas/acentos) y `logoPath` (opcional). `CollageCustomization.palette()` deriva `FramePalette` (fondo secundario, acentos, texto claro/oscuro por luminancia). Los `*Hex` de `CollageFrameStyle` quedaron muertos para el render; no volver a leerlos.
+- El logo se elige en Admin → Marcas → editor con SAF, se copia a `filesDir/logos/logo_<timestamp>.webp` con `BrandLogoStore` (máx. 1024 px, WebP) y se guarda **la ruta absoluta** en `logoPath`. El renderer dibuja el logo en la cabecera en lugar del texto y cae al texto si el archivo falta o no decodifica.
+- El editor de marca muestra `FramePreviewRow`: los 4 marcos renderizados en vivo con la marca en edición (foto de muestra `assets/backgrounds/gala.webp`, `previewScale = true`, debounce 220 ms). No usa fotos de invitados.
 - `PhotoFrameComposer` es defensivo: si la marca está vacía no dibuja la píldora, si no hay headline/subheadline no dibuja el pie ni el sello, y todo texto largo se recorta con `ellipsized` antes de chocar con el sello o salir del marco.
 - Al cambiar de fondo en el resultado, `requestPreviewUpdate` recompone con el catálogo actual; si el fondo elegido se oculta o borra, el ViewModel cae al primer fondo visible.
+
+## Idiomas (ES/EN)
+
+- Textos en `res/values/strings.xml` (español) y `res/values-en/strings.xml` (inglés). **Toda cadena visible nueva va en ambos archivos** con las mismas claves y placeholders (`%1$s`).
+- `data/AppLanguage.kt`: enum `SYSTEM/SPANISH/ENGLISH` + `LanguageStore` (`SharedPreferences("app_language")`). `MainActivity.attachBaseContext` aplica `LanguageStore.wrap(...)`; cambiar idioma persiste y hace `recreate()`.
+- El invitado puede cambiar con `LanguageQuickToggle` en la bienvenida; el admin en **Sistema** con `LanguageSelector`. `res/xml/locales_config.xml` + `android:localeConfig` exponen es/en al sistema.
+- Pendiente conocido: los mensajes de error resueltos con `applicationContext` (ViewModels) siguen el idioma del dispositivo, no el forzado; se arreglaría con un `Application.attachBaseContext` propio.
 
 ## IA y servidor (MVP aprobado)
 
