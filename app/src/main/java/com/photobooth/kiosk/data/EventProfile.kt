@@ -180,6 +180,9 @@ class EventProfileStore(context: Context) {
             badgeSubheadline = json.optString("badgeSubheadline", defaults.badgeSubheadline),
             badgeTag = json.optString("badgeTag", defaults.badgeTag),
             hashtag = json.optString("hashtag", defaults.hashtag),
+            primaryColor = json.optLong("primaryColor", defaults.primaryColor),
+            secondaryColor = json.optLong("secondaryColor", defaults.secondaryColor),
+            logoPath = json.optString("logoPath", "").ifBlank { null },
         )
     }
 
@@ -192,6 +195,9 @@ class EventProfileStore(context: Context) {
         put("badgeSubheadline", branding.badgeSubheadline)
         put("badgeTag", branding.badgeTag)
         put("hashtag", branding.hashtag)
+        put("primaryColor", branding.primaryColor)
+        put("secondaryColor", branding.secondaryColor)
+        if (!branding.logoPath.isNullOrBlank()) put("logoPath", branding.logoPath)
     }
 
     companion object {

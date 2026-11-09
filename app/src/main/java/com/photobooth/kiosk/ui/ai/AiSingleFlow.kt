@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AcUnit
@@ -106,6 +107,8 @@ import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.FrameDecoration
+import com.photobooth.kiosk.data.FramePalette
+import com.photobooth.kiosk.data.palette
 import com.photobooth.kiosk.delivery.LocalDeliveryServer
 import com.photobooth.kiosk.network.BoothStyle
 import com.photobooth.kiosk.photo.PhotoSaver
@@ -455,6 +458,7 @@ fun AiSingleFlow(
                             cost = state.cost,
                             status = state.status,
                             selected = state.frameStyle,
+                            palette = state.customization.palette(),
                             onSelectFrame = { viewModel.selectFrame(it); onInteraction() },
                             profiles = state.eventProfiles,
                             selectedProfileId = state.selectedEventProfileId,
@@ -1297,6 +1301,7 @@ private fun FramedContent(
     cost: Double?,
     status: AiStatus,
     selected: CollageFrameStyle,
+    palette: FramePalette,
     onSelectFrame: (CollageFrameStyle) -> Unit,
     profiles: List<EventProfile>,
     selectedProfileId: String,
@@ -1381,6 +1386,14 @@ private fun FramedContent(
                 color = if (isSelected) SyscomBlue.copy(alpha = 0.22f) else InkSoft,
             ) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(Color(palette.background))
+                            .border(2.dp, Color(palette.accent), CircleShape),
+                    )
+                    Spacer(Modifier.width(10.dp))
                     Text(
                         stringResource(frame.titleRes),
                         color = Cream,

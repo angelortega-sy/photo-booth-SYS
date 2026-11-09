@@ -28,6 +28,9 @@ class EventBrandingStore(context: Context) {
                 ),
                 badgeTag = json.optString("badgeTag", "SYSCOM · 2027"),
                 hashtag = json.optString("hashtag", "#SYSCOM"),
+                primaryColor = json.optLong("primaryColor", EventBranding().primaryColor),
+                secondaryColor = json.optLong("secondaryColor", EventBranding().secondaryColor),
+                logoPath = json.optString("logoPath", "").ifBlank { null },
             )
         }.getOrDefault(EventBranding())
     }
@@ -44,6 +47,9 @@ class EventBrandingStore(context: Context) {
             put("badgeSubheadline", branding.badgeSubheadline)
             put("badgeTag", branding.badgeTag)
             put("hashtag", branding.hashtag)
+            put("primaryColor", branding.primaryColor)
+            put("secondaryColor", branding.secondaryColor)
+            if (!branding.logoPath.isNullOrBlank()) put("logoPath", branding.logoPath)
         }
         prefs.edit().putString(KEY_BRANDING, json.toString()).apply()
     }

@@ -80,6 +80,7 @@ import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
 import com.photobooth.kiosk.data.EventBadgePreset
 import com.photobooth.kiosk.data.PhotoBorderStyle
+import com.photobooth.kiosk.data.palette
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
@@ -1299,6 +1300,7 @@ private fun StepCollageAndFramePanel(
             fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(6.dp))
+        val brandPalette = state.customization.palette()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1324,8 +1326,8 @@ private fun StepCollageAndFramePanel(
                         modifier = Modifier
                             .size(16.dp)
                             .clip(CircleShape)
-                            .background(Color(frame.backgroundHex))
-                            .border(2.dp, Color(frame.accentHex), CircleShape),
+                            .background(Color(brandPalette.background))
+                            .border(2.dp, Color(brandPalette.accent), CircleShape),
                     )
                     Spacer(Modifier.width(7.dp))
                     Text(
