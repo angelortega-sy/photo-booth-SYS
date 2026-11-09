@@ -294,6 +294,7 @@
     <string name="ai_style_catrina">Catrina</string>
     <string name="ai_style_mariachi">Mariachi</string>
     <string name="ai_style_xmas">Christmas</string>
+    <string name="ai_style_kpop">K-pop</string>
     <string name="ai_generate">Generate with AI</string>
     <string name="ai_regenerate">Generate again</string>
     <string name="ai_cancel">Cancel</string>

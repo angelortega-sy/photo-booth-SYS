@@ -401,6 +401,10 @@ object AiStyles {
                 "mouth is only a simple lip line. No eyebrows, freckles, or extra marks. If the " +
                 "person wears glasses, add one complete LEGO glasses piece with both lenses and " +
                 "both arms, not a half frame. " +
+                "Hands never become human hands: a peace sign, a thumbs-up, a wave, or " +
+                "a pointing gesture keeps the same C-shaped claw and only the wrist and " +
+                "arm angle change; never split a claw into separate fingers, never draw " +
+                "finger lines, and never replace the claw with a realistic hand. " +
                 "No sculpted nose. Each figure has " +
                 "exactly two complete C-shaped hands, both fully visible even when the arms " +
                 "are crossed or partly behind a neighbour. The background is empty LEGO bricks, " +
@@ -462,6 +466,27 @@ object AiStyles {
                 "soft bokeh, falling snow in front of the lens and a dark evergreen forest out of " +
                 "focus. Keep skin texture, no hat over the eyes, no cartoon reindeer. Family " +
                 "friendly, no text, no logos, no watermark.",
+        ),
+        AiStyle(
+            id = "kpop",
+            labelRes = R.string.ai_style_kpop,
+            prompt = "Recreate this exact photo-booth portrait as a professional K-pop idol " +
+                "editorial photograph, keeping the same number of people, their faces, " +
+                "identities, and spacing. Dress each person according to their apparent " +
+                "gender and never swap it: a woman becomes a K-pop girl-group idol in a " +
+                "coordinated stage outfit such as a cropped jacket with wide trousers, a " +
+                "fitted mini dress, or a matching two-piece in satin, sequins, or leather, " +
+                "with glossy styled hair, dewy glass-skin makeup, and subtle stage " +
+                "jewelry; a man becomes a K-pop boy-group idol in a tailored stage suit, " +
+                "or a bomber or leather jacket over a fitted tee, with styled hair, clean " +
+                "makeup, and subtle earrings. Never put a man in a dress and never put a " +
+                "woman in a men's suit. Light the scene like a music-show stage: soft neon " +
+                "rim light in pink, cyan, or violet, a dark stage background with soft " +
+                "bokeh light sticks and a light haze, no visible crowd and no readable " +
+                "text. Keep the vertical framing and a full body from head to mid-thigh or " +
+                "waist, and keep their own pose and expression. It must read as a " +
+                "high-end idol concept photo, not a cartoon and not a costume party. Do " +
+                "not add text, logos, watermarks, or frames.",
         ),
     )
 
