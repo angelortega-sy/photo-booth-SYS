@@ -163,6 +163,14 @@ object AiAccessories {
                 "character. Their own hair stands straight up in tall sharp Super Saiyan spikes " +
                 "turned vivid purple, with a faint purple aura behind the hair only",
         ),
+        AiAccessory(
+            id = "naruto",
+            labelRes = R.string.ai_accessory_naruto,
+            promptFragment = "Change only the hair and cheeks. Keep this person's face, age, skin, eyes, " +
+                "nose, mouth, expression, and personality. Do not redraw them as Naruto or any anime " +
+                "character. Their own hair turns spiky bright blond, and three thin whisker-like lines " +
+                "appear on each cheek, with nothing else changed",
+        ),
     )
 
     val OUTFIT_OPTIONS: List<AiAccessory> = listOf(
