@@ -221,13 +221,10 @@ private fun AdminShellContent(
                             onToggleEnabled = viewModel::setEventProfileEnabled,
                             onDelete = viewModel::deleteEventProfile,
                             onAdd = { name ->
-                                viewModel.addEventProfile(name)
-                                navigate(
-                                    AdminRoute.BrandEditor(
-                                        viewModel.uiState.value.activeEventProfileId,
-                                    ),
-                                )
+                                val id = viewModel.addEventProfile(name)
+                                navigate(AdminRoute.BrandEditor(id))
                             },
+                            onActivate = viewModel::activateEventProfile,
                             onOpenEditor = { profileId ->
                                 navigate(AdminRoute.BrandEditor(profileId))
                             },
@@ -238,9 +235,10 @@ private fun AdminShellContent(
                         AdminBrandEditorScreen(
                             profileId = route.profileId,
                             profiles = appState.eventProfiles,
+                            activeProfileId = appState.activeEventProfileId,
                             onEnsureActive = viewModel::activateEventProfile,
                             onRename = viewModel::renameEventProfile,
-                            onSaveBranding = viewModel::updateEventBranding,
+                            onSaveBranding = viewModel::updateEventProfileBranding,
                             onSaved = {
                                 onMessage(context.getString(R.string.admin_event_saved))
                             },
@@ -267,11 +265,6 @@ private fun AdminShellContent(
                             onToggleBackground = viewModel::setBackgroundEnabled,
                             onDeleteBackground = viewModel::deleteBackground,
                             onRenameBackground = viewModel::renameBackground,
-                            onEditActiveBrand = {
-                                navigate(
-                                    AdminRoute.BrandEditor(appState.activeEventProfileId),
-                                )
-                            },
                         )
                     }
 
@@ -300,6 +293,8 @@ private fun AdminShellContent(
                             photos = photos,
                             photoPermissionGranted = photoPermissionGranted,
                             compact = compact,
+                            saveToDevice = appState.savePhotosToDevice,
+                            onSaveToDeviceChange = viewModel::setSavePhotosToDevice,
                             onRefresh = { refreshKey++ },
                             onRequestPermission = { permissionLauncher.launch(photoPermission()) },
                             onMessage = ::onMessage,

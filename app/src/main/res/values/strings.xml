@@ -197,6 +197,14 @@
     <string name="admin_event_badge_tag">Etiqueta corta</string>
     <string name="admin_event_save">Guardar etiquetas</string>
     <string name="admin_event_saved">Etiquetas guardadas</string>
+    <string name="admin_profiles_make_active">Hacer principal</string>
+    <string name="admin_brand_active_title">Marca principal</string>
+    <string name="admin_brand_active_hint">La marca principal se usa en la bienvenida y en los marcos de todos los invitados.</string>
+    <string name="admin_brand_is_active">Esta marca es la principal</string>
+    <string name="admin_brand_preview_close">Toca fuera para cerrar</string>
+    <string name="admin_photos_save_title">Guardar en este dispositivo</string>
+    <string name="admin_photos_save_hint">Guarda una copia de cada foto terminada en Pictures/Cabina de Fotos. Viene desactivado para no llenar el almacenamiento del tótem.</string>
+    <string name="admin_photos_save_label">Guardar fotos en este dispositivo</string>
     <string name="admin_profiles_title">Marcas del evento</string>
     <string name="admin_profiles_subtitle">SYSCOM siempre está disponible. Agrega una marca por stand o evento; el invitado elige entre las activas.</string>
     <string name="admin_profiles_active">Activa · se usa en bienvenida y fotos</string>

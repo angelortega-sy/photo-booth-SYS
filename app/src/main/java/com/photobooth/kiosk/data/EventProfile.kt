@@ -4,6 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
+import java.util.UUID
 
 /**
  * A named brand preset. SYSCOM is the built-in default and is always present;
@@ -79,8 +80,11 @@ class EventProfileStore(context: Context) {
 
     fun add(name: String, branding: EventBranding? = null): EventProfile {
         val label = name.trim().ifBlank { "Nueva marca" }
+        // A double tap on the add action must not create two brands with the same
+        // name: reuse the existing profile instead.
+        loadAll().firstOrNull { it.name.equals(label, ignoreCase = true) }?.let { return it }
         val profile = EventProfile(
-            id = "brand_" + System.currentTimeMillis().toString(36),
+            id = "brand_" + UUID.randomUUID().toString().replace("-", "").take(12),
             name = label,
             branding = branding ?: defaultBrandingFor(label),
             enabled = true,

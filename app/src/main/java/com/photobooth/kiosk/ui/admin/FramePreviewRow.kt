@@ -1,14 +1,18 @@
 package com.photobooth.kiosk.ui.admin
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -23,8 +27,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -32,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.photobooth.kiosk.R
 import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
@@ -44,11 +52,12 @@ import kotlinx.coroutines.withContext
 
 private const val SAMPLE_ASSET = "backgrounds/gala.webp"
 private const val PREVIEW_WIDTH = 280
+private const val EXPANDED_WIDTH = 720
 
 /**
  * Renders one live preview per [CollageFrameStyle] using the brand colors and
  * logo being edited. The previews use a bundled sample image, so they work
- * offline and never touch the guest session photos.
+ * offline and never touch the guest session photos. Tapping one opens it big.
  */
 @Composable
 internal fun FramePreviewRow(
@@ -57,6 +66,7 @@ internal fun FramePreviewRow(
 ) {
     val context = LocalContext.current
     var previews by remember { mutableStateOf<List<Pair<CollageFrameStyle, Bitmap>>>(emptyList()) }
+    var expandedStyle by remember { mutableStateOf<CollageFrameStyle?>(null) }
 
     DisposableEffect(previews) {
         val rendered = previews
@@ -67,26 +77,8 @@ internal fun FramePreviewRow(
         // Debounce so typing a hex code does not render four frames per keystroke.
         delay(220)
         previews = withContext(Dispatchers.Default) {
-            val sample = context.assets.open(SAMPLE_ASSET).use {
-                BitmapFactory.decodeStream(it)
-            } ?: return@withContext emptyList()
-
             CollageFrameStyle.entries.mapNotNull { style ->
-                val composed = runCatching {
-                    PhotoFrameComposer.framePhoto(
-                        photo = sample,
-                        customization = CollageCustomization(
-                            frameStyle = style,
-                            eventBranding = branding,
-                        ),
-                        previewScale = true,
-                    )
-                }.getOrNull() ?: return@mapNotNull null
-                val height = (composed.height * (PREVIEW_WIDTH.toFloat() / composed.width)).toInt()
-                    .coerceAtLeast(1)
-                val scaled = Bitmap.createScaledBitmap(composed, PREVIEW_WIDTH, height, true)
-                if (scaled !== composed) composed.recycle()
-                style to scaled
+                renderPreview(context, style, branding, PREVIEW_WIDTH)?.let { style to it }
             }
         }
     }
@@ -97,7 +89,7 @@ internal fun FramePreviewRow(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         items(previews) { (style, bitmap) ->
-            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = stringResource(style.titleRes),
@@ -106,7 +98,8 @@ internal fun FramePreviewRow(
                         .aspectRatio(9f / 16f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(Cream.copy(alpha = 0.04f))
-                        .border(1.dp, Cream.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+                        .border(1.dp, Cream.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                        .clickable { expandedStyle = style },
                 )
                 Text(
                     text = stringResource(style.titleRes),
@@ -119,4 +112,99 @@ internal fun FramePreviewRow(
             }
         }
     }
+
+    expandedStyle?.let { style ->
+        ExpandedFramePreview(
+            style = style,
+            branding = branding,
+            onDismiss = { expandedStyle = null },
+        )
+    }
+}
+
+@Composable
+private fun ExpandedFramePreview(
+    style: CollageFrameStyle,
+    branding: EventBranding,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    var bitmap by remember(style, branding) { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(style, branding) {
+        bitmap = withContext(Dispatchers.Default) {
+            renderPreview(context, style, branding, EXPANDED_WIDTH)
+        }
+    }
+
+    DisposableEffect(bitmap) {
+        val current = bitmap
+        onDispose { current?.recycle() }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xF0050B14))
+                .clickable(onClick = onDismiss)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            bitmap?.let { preview ->
+                Image(
+                    bitmap = preview.asImageBitmap(),
+                    contentDescription = stringResource(style.titleRes),
+                    modifier = Modifier
+                        .fillMaxHeight(0.8f)
+                        .aspectRatio(9f / 16f)
+                        .clip(RoundedCornerShape(18.dp)),
+                )
+            }
+            Text(
+                text = stringResource(style.titleRes),
+                color = Cream,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+            Text(
+                text = stringResource(R.string.admin_brand_preview_close),
+                color = Cream.copy(alpha = 0.6f),
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+private fun renderPreview(
+    context: Context,
+    style: CollageFrameStyle,
+    branding: EventBranding,
+    width: Int,
+): Bitmap? {
+    val sample = runCatching {
+        context.assets.open(SAMPLE_ASSET).use { BitmapFactory.decodeStream(it) }
+    }.getOrNull() ?: return null
+
+    val composed = runCatching {
+        PhotoFrameComposer.framePhoto(
+            photo = sample,
+            customization = CollageCustomization(
+                frameStyle = style,
+                eventBranding = branding,
+            ),
+            previewScale = true,
+        )
+    }.getOrNull() ?: return null
+
+    val height = (composed.height * (width.toFloat() / composed.width)).toInt().coerceAtLeast(1)
+    val scaled = Bitmap.createScaledBitmap(composed, width, height, true)
+    if (scaled !== composed) composed.recycle()
+    return scaled
 }

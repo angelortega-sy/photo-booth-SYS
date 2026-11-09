@@ -27,6 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -65,6 +66,8 @@ internal fun AdminPhotosScreen(
     photos: List<SavedPhoto>,
     photoPermissionGranted: Boolean,
     compact: Boolean,
+    saveToDevice: Boolean,
+    onSaveToDeviceChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
     onRequestPermission: () -> Unit,
     onMessage: (String) -> Unit,
@@ -114,6 +117,28 @@ internal fun AdminPhotosScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        item {
+            AdminCard(
+                title = stringResource(R.string.admin_photos_save_title),
+                subtitle = stringResource(R.string.admin_photos_save_hint),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.admin_photos_save_label),
+                        color = Cream,
+                        fontSize = 15.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = saveToDevice,
+                        onCheckedChange = onSaveToDeviceChange,
+                    )
+                }
+            }
+        }
         item {
             PhotosHeader(
                 photoCount = photos.size,

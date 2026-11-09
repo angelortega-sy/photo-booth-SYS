@@ -201,8 +201,8 @@ internal fun AdminRouteTitle(route: AdminRoute, editorProfileName: String?): Pai
             stringResource(R.string.admin_profiles_subtitle)
         is AdminRoute.BrandEditor -> stringResource(R.string.admin_brand_editor_title) to
             (editorProfileName ?: "")
-        AdminRoute.Event -> stringResource(R.string.admin_tab_event) to
-            stringResource(R.string.admin_nav_event_description)
+        AdminRoute.Event -> stringResource(R.string.admin_home_backgrounds) to
+            stringResource(R.string.admin_backgrounds_subtitle)
         AdminRoute.Camera -> stringResource(R.string.admin_section_camera) to
             stringResource(R.string.admin_section_camera_hint)
         AdminRoute.Styles -> stringResource(R.string.admin_tab_styles) to

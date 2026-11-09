@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -51,6 +53,7 @@ internal fun AdminBrandsScreen(
     onToggleEnabled: (String, Boolean) -> Unit,
     onDelete: (String) -> Unit,
     onAdd: (String) -> Unit,
+    onActivate: (String) -> Unit,
     onOpenEditor: (String) -> Unit,
 ) {
     var newBrandName by remember { mutableStateOf("") }
@@ -138,6 +141,23 @@ internal fun AdminBrandsScreen(
                                     fontSize = 12.sp,
                                 )
                             }
+                            if (!isActive) {
+                                OutlinedButton(
+                                    onClick = { onActivate(profile.id) },
+                                    modifier = Modifier.height(34.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                        horizontal = 12.dp,
+                                        vertical = 0.dp,
+                                    ),
+                                ) {
+                                    Text(
+                                        stringResource(R.string.admin_profiles_make_active),
+                                        fontSize = 12.sp,
+                                        color = SyscomBlueLight,
+                                    )
+                                }
+                                Spacer(Modifier.width(4.dp))
+                            }
                             if (profile.builtIn) {
                                 Text(
                                     "SYSCOM",
@@ -178,11 +198,10 @@ internal fun AdminBrandsScreen(
                         modifier = Modifier.weight(1f),
                     )
                     IconButton(
+                        enabled = newBrandName.isNotBlank(),
                         onClick = {
-                            if (newBrandName.isNotBlank()) {
-                                onAdd(newBrandName)
-                                newBrandName = ""
-                            }
+                            onAdd(newBrandName)
+                            newBrandName = ""
                         },
                     ) {
                         Icon(

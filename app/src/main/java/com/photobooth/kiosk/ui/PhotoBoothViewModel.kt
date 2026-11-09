@@ -28,6 +28,7 @@ import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.EventProfileStore
 import com.photobooth.kiosk.data.PhotoBorderStyle
+import com.photobooth.kiosk.data.PhotoSettingsStore
 import com.photobooth.kiosk.delivery.DeliverySession
 import com.photobooth.kiosk.delivery.LocalDeliveryServer
 import com.photobooth.kiosk.network.AiBackendClient
@@ -43,6 +44,7 @@ import com.photobooth.kiosk.network.UsageSummary
 import com.photobooth.kiosk.network.decodeImage
 import com.photobooth.kiosk.security.DeviceKeyStore
 import com.photobooth.kiosk.photo.BitmapTransforms
+import com.photobooth.kiosk.photo.PhotoArchive
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoProcessor
 import com.photobooth.kiosk.photo.PreparedCutout
@@ -107,6 +109,8 @@ data class PhotoBoothUiState(
     val backgroundRevision: Int = 0,
     val eventProfiles: List<EventProfile> = emptyList(),
     val activeEventProfileId: String = EventProfileStore.SYSCOM_ID,
+    /** When true a copy of every finished photo is kept in the device gallery. */
+    val savePhotosToDevice: Boolean = false,
     val errorMessage: String? = null,
     val shareError: String? = null,
 ) {
@@ -138,6 +142,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private val gestureSettings = GestureSettingsStore(application)
     private val styleSettings = StyleSettingsStore(application)
     private val profileStore = EventProfileStore(application)
+    private val photoSettings = PhotoSettingsStore(application)
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
     private val deviceKeys = DeviceKeyStore()
@@ -164,6 +169,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private var remoteSessionId: String? = null
     private var remoteSessionStyled = false
     private var uploadedSignature: String? = null
+    private var archivedSignature: String? = null
     private var remoteShareUrl: String? = null
     private var styledStrip: Bitmap? = null
 
@@ -179,6 +185,9 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             backgrounds = repository.visibleOptions,
             adminBackgrounds = repository.allOptions,
             selectedModelId = aiSettings.load().modelId,
+            eventProfiles = profileStore.loadAll(),
+            activeEventProfileId = profileStore.active().id,
+            savePhotosToDevice = photoSettings.saveToDevice(),
         ),
     )
     val uiState: StateFlow<PhotoBoothUiState> = _uiState.asStateFlow()
@@ -289,19 +298,33 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun updateEventBranding(branding: EventBranding) {
-        val activeId = _uiState.value.activeEventProfileId
-        profileStore.updateBranding(activeId, branding)
+        updateEventProfileBranding(_uiState.value.activeEventProfileId, branding)
+    }
+
+    /** Saves labels/colors/logo for one profile, without making it the active one. */
+    fun updateEventProfileBranding(profileId: String, branding: EventBranding) {
+        profileStore.updateBranding(profileId, branding)
         exportedStateSignature = null
+        val isActive = profileId == _uiState.value.activeEventProfileId
         _uiState.update {
             it.copy(
-                customization = it.customization.copy(
-                    eventBranding = branding,
-                    badgePreset = EventBadgePreset.CUSTOM,
-                ),
                 eventProfiles = profileStore.loadAll(),
+                customization = if (isActive) {
+                    it.customization.copy(
+                        eventBranding = branding,
+                        badgePreset = EventBadgePreset.CUSTOM,
+                    )
+                } else {
+                    it.customization
+                },
             )
         }
-        requestPreviewUpdate(sessionToken)
+        if (isActive) requestPreviewUpdate(sessionToken)
+    }
+
+    fun setSavePhotosToDevice(enabled: Boolean) {
+        photoSettings.setSaveToDevice(enabled)
+        _uiState.update { it.copy(savePhotosToDevice = enabled) }
     }
 
     /** Switches every screen to the branding of [profileId]. */
@@ -322,9 +345,10 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         requestPreviewUpdate(sessionToken)
     }
 
-    fun addEventProfile(name: String) {
+    fun addEventProfile(name: String): String {
         val profile = profileStore.add(name)
         activateEventProfile(profile.id)
+        return profile.id
     }
 
     fun renameEventProfile(profileId: String, name: String) {
@@ -1298,6 +1322,12 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                     val oldOutputDir = outputDirectory
                     outputDirectory = newOutputDir
                     exportedStateSignature = signature
+                    if (_uiState.value.savePhotosToDevice && archivedSignature != signature) {
+                        archivedSignature = signature
+                        withContext(Dispatchers.IO) {
+                            PhotoArchive.save(getApplication<Application>(), newPhotoFiles + newStripFile)
+                        }
+                    }
                     _uiState.update {
                         it.copy(
                             photoFiles = newPhotoFiles,

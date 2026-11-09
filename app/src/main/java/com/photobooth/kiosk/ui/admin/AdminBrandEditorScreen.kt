@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -42,29 +43,30 @@ import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.SyscomBlue
+import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Edits the name and the 8 [EventBranding] label fields of one event profile.
- * Opening the editor also activates the profile, so tapping a brand row keeps
- * the previous "tap to activate" behavior and [onSaveBranding] (which writes
- * the active profile, like before) always targets the profile being edited.
+ * Edits the name, colors, logo and the 8 [EventBranding] label fields of one
+ * event profile. Saving only touches this profile; use the "make primary"
+ * action (here or in the brand list) to switch the whole booth to it.
  */
 @Composable
 internal fun AdminBrandEditorScreen(
     profileId: String,
     profiles: List<EventProfile>,
+    activeProfileId: String,
     onEnsureActive: (String) -> Unit,
     onRename: (String, String) -> Unit,
-    onSaveBranding: (EventBranding) -> Unit,
+    onSaveBranding: (String, EventBranding) -> Unit,
     onSaved: () -> Unit,
 ) {
     val profile = profiles.firstOrNull { it.id == profileId }
     if (profile == null) return
 
-    LaunchedEffect(profileId) { onEnsureActive(profileId) }
+    val isActive = profileId == activeProfileId
 
     var name by remember(profileId) { mutableStateOf(profile.name) }
     LaunchedEffect(profile.name) { name = profile.name }
@@ -107,6 +109,28 @@ internal fun AdminBrandEditorScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        item {
+            AdminCard(
+                title = stringResource(R.string.admin_brand_active_title),
+                subtitle = if (isActive) null else stringResource(R.string.admin_brand_active_hint),
+            ) {
+                if (isActive) {
+                    Text(
+                        stringResource(R.string.admin_brand_is_active),
+                        color = SyscomBlueLight,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                } else {
+                    Button(
+                        onClick = { onEnsureActive(profileId) },
+                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                    ) {
+                        Text(stringResource(R.string.admin_profiles_make_active))
+                    }
+                }
+            }
+        }
         item {
             AdminCard(
                 title = stringResource(R.string.admin_brand_colors_title),
@@ -248,7 +272,7 @@ internal fun AdminBrandEditorScreen(
                 Button(
                     onClick = {
                         onRename(profileId, name)
-                        onSaveBranding(draft)
+                        onSaveBranding(profileId, draft)
                         onSaved()
                     },
                     colors = ButtonDefaults.buttonColors(

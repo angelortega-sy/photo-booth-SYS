@@ -197,6 +197,14 @@
     <string name="admin_event_badge_tag">Short tag</string>
     <string name="admin_event_save">Save labels</string>
     <string name="admin_event_saved">Labels saved</string>
+    <string name="admin_profiles_make_active">Make primary</string>
+    <string name="admin_brand_active_title">Primary brand</string>
+    <string name="admin_brand_active_hint">The primary brand is used on the welcome screen and on every guest frame.</string>
+    <string name="admin_brand_is_active">This brand is the primary one</string>
+    <string name="admin_brand_preview_close">Tap outside to close</string>
+    <string name="admin_photos_save_title">Save on this device</string>
+    <string name="admin_photos_save_hint">Keeps a copy of every finished photo in Pictures/Cabina de Fotos. Off by default so the booth storage does not fill up.</string>
+    <string name="admin_photos_save_label">Save photos on this device</string>
     <string name="admin_profiles_title">Event brands</string>
     <string name="admin_profiles_subtitle">SYSCOM is always available. Add one brand per booth or event; guests choose among the active ones.</string>
     <string name="admin_profiles_active">Active · used on welcome and photos</string>

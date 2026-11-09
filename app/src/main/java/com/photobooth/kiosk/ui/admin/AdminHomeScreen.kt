@@ -84,12 +84,6 @@ internal fun AdminHomeScreen(
         ),
         HomeCard(
             route = AdminRoute.Event,
-            titleRes = R.string.admin_home_event,
-            summary = stringResource(R.string.admin_home_event_summary, activeBrandName),
-            icon = Icons.Rounded.Edit,
-        ),
-        HomeCard(
-            route = AdminRoute.Event,
             titleRes = R.string.admin_home_backgrounds,
             summary = stringResource(
                 R.string.admin_home_backgrounds_summary,

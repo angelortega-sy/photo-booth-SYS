@@ -20,6 +20,7 @@ import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.EventProfileStore
 import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.GestureSettingsStore
+import com.photobooth.kiosk.data.PhotoSettingsStore
 import com.photobooth.kiosk.data.StyleSettingsStore
 import com.photobooth.kiosk.network.AiBackendClient
 import com.photobooth.kiosk.network.AiBackendException
@@ -28,6 +29,7 @@ import com.photobooth.kiosk.network.BoothStyle
 import com.photobooth.kiosk.network.decodeImage
 import com.photobooth.kiosk.security.DeviceKeyStore
 import com.photobooth.kiosk.photo.BitmapTransforms
+import com.photobooth.kiosk.photo.PhotoArchive
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoProcessor
 import java.io.File
@@ -78,6 +80,7 @@ data class AiSingleUiState(
 class AiSingleViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = BackgroundRepository(application)
     private val profileStore = EventProfileStore(application)
+    private val photoSettings = PhotoSettingsStore(application)
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
     private val gestureSettings = GestureSettingsStore(application)
@@ -431,6 +434,11 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 val framedFile = File(ensureSessionDir(), "ai_single_framed_${UUID.randomUUID()}.jpg")
                 withContext(Dispatchers.IO) { PhotoFrameComposer.writeJpeg(full, framedFile) }
                 if (!full.isRecycled) full.recycle()
+                if (photoSettings.saveToDevice()) {
+                    withContext(Dispatchers.IO) {
+                        PhotoArchive.save(getApplication<Application>(), listOf(framedFile))
+                    }
+                }
                 _uiState.value.resultPreview?.let { if (!it.isRecycled) it.recycle() }
                 _uiState.update {
                     it.copy(
