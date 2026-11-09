@@ -1,7 +1,6 @@
 package com.photobooth.kiosk.ui.collage
 
 import android.graphics.Bitmap
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -732,17 +731,17 @@ private fun ColumnScope.CollageCaptureContent(
     val busy = sequenceActive || state.isProcessing || state.isCapturing || countdown > 0
     when {
         viewing != null -> {
-            // Retaking is a secondary action: the primary CTA stays in the
-            // bottom bar ("Continuar"), so this must not compete in blue.
-            OutlinedButton(
+            // Secondary filled action: teal background, never the primary blue.
+            Button(
                 onClick = { onRetakeOne(viewing) },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth().height(60.dp),
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = SyscomTeal,
-                    disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SyscomTeal,
+                    contentColor = Ink,
+                    disabledContainerColor = SyscomTeal.copy(alpha = 0.4f),
+                    disabledContentColor = Ink.copy(alpha = 0.6f),
                 ),
             ) {
                 Text(
@@ -756,11 +755,6 @@ private fun ColumnScope.CollageCaptureContent(
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(18.dp),
-                border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = SyscomTeal,
-                    disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
-                ),
             ) {
                 Text(stringResource(R.string.collage_retake_three), fontSize = 16.sp)
             }
@@ -771,11 +765,6 @@ private fun ColumnScope.CollageCaptureContent(
             enabled = !busy,
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(18.dp),
-            border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = SyscomTeal,
-                disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
-            ),
         ) {
             Text(stringResource(R.string.collage_retake_three), fontSize = 16.sp)
         }
@@ -1174,8 +1163,6 @@ private fun CollageShareContent(
                 OutlinedButton(
                     onClick = onRetryQr,
                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                    border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SyscomTeal),
                 ) {
                     Text(stringResource(R.string.ai_retry_qr), fontSize = 16.sp)
                 }
@@ -1186,10 +1173,6 @@ private fun CollageShareContent(
         onClick = onCopyLink,
         enabled = deliveryUrl != null,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.textButtonColors(
-            contentColor = SyscomTeal,
-            disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
-        ),
     ) {
         Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
@@ -1199,7 +1182,7 @@ private fun CollageShareContent(
         onClick = onQuickShare,
         modifier = Modifier.fillMaxWidth().height(64.dp),
         shape = RoundedCornerShape(20.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+        colors = ButtonDefaults.buttonColors(containerColor = SyscomTeal, contentColor = Ink),
     ) {
         Icon(Icons.Rounded.Share, null, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(10.dp))
@@ -1243,11 +1226,6 @@ private fun CollageBottomBar(
                 onClick = onBack,
                 modifier = Modifier.weight(1f).height(68.dp),
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = SyscomTeal,
-                    disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
-                ),
             ) {
                 Text(
                     text = stringResource(R.string.wizard_back),
