@@ -1,7 +1,6 @@
-package com.photobooth.kiosk.ui.admin
+﻿package com.photobooth.kiosk.ui.admin
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,11 +9,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.app.Activity
 import com.photobooth.kiosk.R
+import com.photobooth.kiosk.data.LanguageStore
+import com.photobooth.kiosk.ui.LanguageSelector
 import com.photobooth.kiosk.ui.theme.Cream
 
 @Composable
@@ -34,7 +41,7 @@ internal fun AdminSystemScreen(
                 title = stringResource(R.string.admin_security_title),
                 subtitle = stringResource(R.string.admin_security_subtitle),
             ) {
-                InfoRow("PIN", "Protegido")
+                InfoRow("PIN", stringResource(R.string.admin_security_pin_state))
                 Text(
                     text = stringResource(R.string.admin_security_hint),
                     color = Cream.copy(alpha = 0.55f),
@@ -49,11 +56,24 @@ internal fun AdminSystemScreen(
                 }
             }
         }
-        // TODO(language-selector): embed the language selector (ES/EN) in this slot.
         item {
-            Box(Modifier.fillMaxWidth()) {
-                // Reserved for the language selector; intentionally empty.
+            val context = LocalContext.current
+            var language by remember { mutableStateOf(LanguageStore.current(context)) }
+            AdminCard(
+                title = stringResource(R.string.language_title),
+                subtitle = stringResource(R.string.language_subtitle),
+            ) {
+                LanguageSelector(
+                    language = language,
+                    onPick = { picked ->
+                        LanguageStore.set(context, picked)
+                        language = picked
+                        (context as? Activity)?.recreate()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
 }
+

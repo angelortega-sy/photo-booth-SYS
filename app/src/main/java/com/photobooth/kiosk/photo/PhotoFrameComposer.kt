@@ -711,7 +711,7 @@ object PhotoFrameComposer {
 
         // Right-aligned tag chip + optional date. Never leave a dangling " · " separator.
         val dateText = if (customization.showDateStamp) {
-            SimpleDateFormat("dd MMM yyyy", Locale.forLanguageTag("es-MX"))
+            SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
                 .format(Date())
                 .uppercase(Locale.ROOT)
         } else {

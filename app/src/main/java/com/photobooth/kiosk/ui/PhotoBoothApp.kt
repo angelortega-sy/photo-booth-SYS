@@ -562,9 +562,9 @@ private fun WelcomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                WelcomeStepPill("1. 3 Poses seguidas")
-                WelcomeStepPill("2. Diseña tu collage")
-                WelcomeStepPill("3. Comparte")
+                WelcomeStepPill(stringResource(R.string.welcome_step_1))
+                WelcomeStepPill(stringResource(R.string.welcome_step_2))
+                WelcomeStepPill(stringResource(R.string.welcome_step_3))
             }
 
             Spacer(Modifier.weight(1f))
@@ -608,6 +608,14 @@ private fun WelcomeScreen(
                 fontSize = 13.sp,
             )
         }
+
+        // Discreet guest language switch: absolute corner so the kiosk
+        // layout (including the 55" vertical panel) never shifts.
+        LanguageQuickToggle(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 14.dp, bottom = 12.dp),
+        )
     }
 }
 
