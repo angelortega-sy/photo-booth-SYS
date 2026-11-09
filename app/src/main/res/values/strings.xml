@@ -377,4 +377,24 @@
     <string name="admin_usage_showing">Mostrando %1$d de %2$d</string>
     <string name="admin_usage_load_more">Cargar más</string>
     <string name="admin_event_hashtag">Hashtag del evento</string>
+    <string name="admin_home_brands">Marcas del evento</string>
+    <string name="admin_home_event">Evento</string>
+    <string name="admin_home_backgrounds">Fondos</string>
+    <string name="admin_home_camera">Cámara</string>
+    <string name="admin_home_styles">Estilos</string>
+    <string name="admin_home_photos">Fotos</string>
+    <string name="admin_home_network_system">Red y sistema</string>
+    <string name="admin_home_usage_ai">Uso IA</string>
+    <string name="admin_home_brands_summary">%1$d marcas · %2$s activa</string>
+    <string name="admin_home_event_summary">Marca activa: %1$s</string>
+    <string name="admin_home_backgrounds_summary">%1$d fondos · %2$d visibles</string>
+    <string name="admin_home_camera_summary">%1$d cámaras · %2$d USB</string>
+    <string name="admin_home_styles_summary">%1$d de %2$d visibles</string>
+    <string name="admin_home_photos_summary">%1$d en la galería</string>
+    <string name="admin_home_network_summary">%1$s · %2$s</string>
+    <string name="admin_home_usage_summary">Modelo: %1$s</string>
+    <string name="admin_brand_editor_title">Editar marca</string>
+    <string name="admin_brand_name_label">Nombre de la marca</string>
+    <string name="admin_brand_active_badge">Activa</string>
+    <string name="admin_event_edit_active">Editar marca activa</string>
 </resources>
