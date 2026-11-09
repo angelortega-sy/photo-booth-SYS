@@ -732,17 +732,23 @@ private fun ColumnScope.CollageCaptureContent(
     val busy = sequenceActive || state.isProcessing || state.isCapturing || countdown > 0
     when {
         viewing != null -> {
-            Button(
+            // Retaking is a secondary action: the primary CTA stays in the
+            // bottom bar ("Continuar"), so this must not compete in blue.
+            OutlinedButton(
                 onClick = { onRetakeOne(viewing) },
                 enabled = !busy,
-                modifier = Modifier.fillMaxWidth().height(64.dp),
+                modifier = Modifier.fillMaxWidth().height(60.dp),
                 shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
+                border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = SyscomTeal,
+                    disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
+                ),
             ) {
                 Text(
                     text = stringResource(R.string.collage_retake_one),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
             OutlinedButton(
