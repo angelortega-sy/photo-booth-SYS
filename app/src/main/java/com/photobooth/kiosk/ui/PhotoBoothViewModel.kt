@@ -25,8 +25,11 @@ import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
 import com.photobooth.kiosk.data.EventBadgePreset
 import com.photobooth.kiosk.data.EventBranding
-import com.photobooth.kiosk.data.EventBrandingStore
+import com.photobooth.kiosk.data.EventProfile
+import com.photobooth.kiosk.data.EventProfileStore
+import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.PhotoBorderStyle
+import com.photobooth.kiosk.data.PhotoSettingsStore
 import com.photobooth.kiosk.delivery.DeliverySession
 import com.photobooth.kiosk.delivery.LocalDeliveryServer
 import com.photobooth.kiosk.network.AiBackendClient
@@ -42,6 +45,7 @@ import com.photobooth.kiosk.network.UsageSummary
 import com.photobooth.kiosk.network.decodeImage
 import com.photobooth.kiosk.security.DeviceKeyStore
 import com.photobooth.kiosk.photo.BitmapTransforms
+import com.photobooth.kiosk.photo.PhotoArchive
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoProcessor
 import com.photobooth.kiosk.photo.PreparedCutout
@@ -65,7 +69,11 @@ data class PhotoBoothUiState(
     val selectedBackgroundId: String = BackgroundRepository.ORIGINAL_ID,
     val applyBackgroundToAll: Boolean = true,
     val capturedCount: Int = 0,
+    /** Slot being retaken by itself; when set the next capture replaces it. */
+    val retakeIndex: Int? = null,
     val captureThumbnails: List<Bitmap> = emptyList(),
+    /** Raw shots without any frame, safe to show before the design step. */
+    val rawPhotoPreviews: List<Bitmap> = emptyList(),
     val isCapturing: Boolean = false,
     val isProcessing: Boolean = false,
     val isExporting: Boolean = false,
@@ -104,6 +112,11 @@ data class PhotoBoothUiState(
     val backgrounds: List<BackgroundOption> = emptyList(),
     val adminBackgrounds: List<BackgroundOption> = emptyList(),
     val backgroundRevision: Int = 0,
+    val eventProfiles: List<EventProfile> = emptyList(),
+    val activeEventProfileId: String = EventProfileStore.SYSCOM_ID,
+    val selectedEventProfileId: String = EventProfileStore.SYSCOM_ID,
+    /** When true a copy of every finished photo is kept in the device gallery. */
+    val savePhotosToDevice: Boolean = false,
     val errorMessage: String? = null,
     val shareError: String? = null,
 ) {
@@ -134,7 +147,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private val cameraSettings = CameraSettingsStore(application)
     private val gestureSettings = GestureSettingsStore(application)
     private val styleSettings = StyleSettingsStore(application)
-    private val brandingStore = EventBrandingStore(application)
+    private val profileStore = EventProfileStore(application)
+    private val photoSettings = PhotoSettingsStore(application)
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
     private val deviceKeys = DeviceKeyStore()
@@ -161,6 +175,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private var remoteSessionId: String? = null
     private var remoteSessionStyled = false
     private var uploadedSignature: String? = null
+    private var archivedSignature: String? = null
     private var remoteShareUrl: String? = null
     private var styledStrip: Bitmap? = null
 
@@ -170,16 +185,16 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
             disabledStyleIds = styleSettings.disabledIds,
             customization = CollageCustomization(
-                eventBranding = brandingStore.load(),
-                badgePreset = if (brandingStore.hasSaved()) {
-                    EventBadgePreset.CUSTOM
-                } else {
-                    EventBadgePreset.EXPO_2027
-                },
+                eventBranding = profileStore.activeBranding(),
+                badgePreset = defaultBadgePreset(),
             ),
             backgrounds = repository.visibleOptions,
             adminBackgrounds = repository.allOptions,
             selectedModelId = aiSettings.load().modelId,
+            eventProfiles = profileStore.loadAll(),
+            activeEventProfileId = profileStore.active().id,
+            selectedEventProfileId = profileStore.active().id,
+            savePhotosToDevice = photoSettings.saveToDevice(),
         ),
     )
     val uiState: StateFlow<PhotoBoothUiState> = _uiState.asStateFlow()
@@ -290,12 +305,46 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun updateEventBranding(branding: EventBranding) {
-        brandingStore.save(branding)
+        updateEventProfileBranding(_uiState.value.activeEventProfileId, branding)
+    }
+
+    /** Saves labels/colors/logo for one profile, without making it the active one. */
+    fun updateEventProfileBranding(profileId: String, branding: EventBranding) {
+        profileStore.updateBranding(profileId, branding)
+        exportedStateSignature = null
+        val isActive = profileId == _uiState.value.activeEventProfileId
+        _uiState.update {
+            it.copy(
+                eventProfiles = profileStore.loadAll(),
+                customization = if (isActive) {
+                    it.customization.copy(
+                        eventBranding = branding,
+                        badgePreset = EventBadgePreset.CUSTOM,
+                    )
+                } else {
+                    it.customization
+                },
+            )
+        }
+        if (isActive) requestPreviewUpdate(sessionToken)
+    }
+
+    fun setSavePhotosToDevice(enabled: Boolean) {
+        photoSettings.setSaveToDevice(enabled)
+        _uiState.update { it.copy(savePhotosToDevice = enabled) }
+    }
+
+    /** Switches every screen to the branding of [profileId]. */
+    fun activateEventProfile(profileId: String) {
+        val profile = profileStore.loadAll().firstOrNull { it.id == profileId } ?: return
+        profileStore.setActive(profileId)
         exportedStateSignature = null
         _uiState.update {
             it.copy(
+                activeEventProfileId = profile.id,
+                eventProfiles = profileStore.loadAll(),
                 customization = it.customization.copy(
-                    eventBranding = branding,
+                    eventBranding = profile.branding,
                     badgePreset = EventBadgePreset.CUSTOM,
                 ),
             )
@@ -303,12 +352,79 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         requestPreviewUpdate(sessionToken)
     }
 
+    fun addEventProfile(name: String): String {
+        val profile = profileStore.add(name)
+        activateEventProfile(profile.id)
+        return profile.id
+    }
+
+    fun renameEventProfile(profileId: String, name: String) {
+        profileStore.rename(profileId, name)
+        exportedStateSignature = null
+        _uiState.update {
+            it.copy(eventProfiles = profileStore.loadAll())
+        }
+    }
+
+    fun deleteEventProfile(profileId: String) {
+        if (!profileStore.delete(profileId)) return
+        val active = profileStore.active()
+        exportedStateSignature = null
+        _uiState.update {
+            it.copy(
+                eventProfiles = profileStore.loadAll(),
+                activeEventProfileId = active.id,
+                customization = it.customization.copy(
+                    eventBranding = active.branding,
+                    badgePreset = EventBadgePreset.CUSTOM,
+                ),
+            )
+        }
+        requestPreviewUpdate(sessionToken)
+    }
+
+    fun setEventProfileEnabled(profileId: String, enabled: Boolean) {
+        profileStore.setEnabled(profileId, enabled)
+        val active = profileStore.active()
+        exportedStateSignature = null
+        _uiState.update {
+            it.copy(
+                eventProfiles = profileStore.loadAll(),
+                activeEventProfileId = active.id,
+                customization = it.customization.copy(
+                    eventBranding = active.branding,
+                    badgePreset = EventBadgePreset.CUSTOM,
+                ),
+            )
+        }
+        requestPreviewUpdate(sessionToken)
+    }
+
+    private fun defaultBadgePreset(): EventBadgePreset =
+        if (profileStore.activeBranding() == EventBranding()) {
+            EventBadgePreset.EXPO_2027
+        } else {
+            EventBadgePreset.CUSTOM
+        }
+
     fun beginCapture() {
         val state = _uiState.value
-        if (state.isCapturing || state.isProcessing || state.hasResult ||
-            state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT
-        ) return
+        if (state.isCapturing || state.isProcessing || state.hasResult) return
+        if (state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT && state.retakeIndex == null) return
         _uiState.update { it.copy(isCapturing = true, errorMessage = null) }
+    }
+
+    /** Marks one already captured slot so the next shot replaces only that photo. */
+    fun beginRetake(index: Int) {
+        val state = _uiState.value
+        if (index !in 0 until PhotoBoothUiState.PHOTO_COUNT) return
+        if (index >= state.capturedCount) return
+        if (state.isCapturing || state.isProcessing) return
+        _uiState.update { it.copy(retakeIndex = index, errorMessage = null) }
+    }
+
+    fun cancelRetake() {
+        _uiState.update { it.copy(retakeIndex = null) }
     }
 
     fun captureFailed() {
@@ -321,13 +437,16 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
      */
     fun processPhoto(photo: Bitmap, rotationDegrees: Int, mirror: Boolean) {
         val state = _uiState.value
-        if (!state.isCapturing || state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT) {
+        val retake = state.retakeIndex
+        if (!state.isCapturing ||
+            (retake == null && state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT)
+        ) {
             if (!photo.isRecycled) photo.recycle()
             return
         }
 
         val token = sessionToken
-        val index = state.capturedCount
+        val index = retake ?: state.capturedCount
         viewModelScope.launch {
             val oriented = withContext(Dispatchers.Default) {
                 orientAndRelease(photo, rotationDegrees, mirror)
@@ -370,10 +489,13 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             rawPreviews[index]?.let(::recycleLater)
             rawPreviews[index] = preview540
 
-            val newCount = index + 1
             val currentBg = _uiState.value.selectedBackgroundId
             _uiState.update { current ->
-                val updatedThumbs = current.captureThumbnails + thumb
+                val updatedThumbs = current.captureThumbnails.toMutableList().apply {
+                    while (size <= index) add(thumb)
+                    this[index] = thumb
+                }
+                val newCount = maxOf(current.capturedCount, index + 1)
                 val bgIds = if (newCount == 1) {
                     List(PhotoBoothUiState.PHOTO_COUNT) { currentBg }
                 } else {
@@ -382,7 +504,9 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 current.copy(
                     capturedCount = newCount,
                     captureThumbnails = updatedThumbs,
+                    rawPhotoPreviews = rawPreviews.filterNotNull().toList(),
                     photoBackgroundIds = bgIds,
+                    retakeIndex = null,
                     isCapturing = false,
                     errorMessage = null,
                 )
@@ -390,7 +514,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
             // If all 3 photos are captured, build the initial studio preview immediately
             // using whatever cutouts are already finished (Shots 1 & 2) + raw Shot 3.
-            if (newCount == PhotoBoothUiState.PHOTO_COUNT) {
+            if (maxOf(state.capturedCount, index + 1) == PhotoBoothUiState.PHOTO_COUNT) {
                 requestPreviewUpdate(token, forceIndex = index)
             }
 
@@ -543,6 +667,22 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         requestPreviewUpdate(sessionToken)
     }
 
+    fun selectEventProfile(profileId: String) {
+        val profile = _uiState.value.eventProfiles.firstOrNull { it.id == profileId } ?: return
+        if (_uiState.value.selectedEventProfileId == profileId) return
+        exportedStateSignature = null
+        _uiState.update { state ->
+            state.copy(
+                selectedEventProfileId = profile.id,
+                customization = state.customization.copy(
+                    eventBranding = profile.branding,
+                    badgePreset = EventBadgePreset.CUSTOM,
+                ),
+            )
+        }
+        requestPreviewUpdate(sessionToken)
+    }
+
     fun selectFrameStyle(frameStyle: CollageFrameStyle) {
         if (_uiState.value.customization.frameStyle == frameStyle) return
         exportedStateSignature = null
@@ -561,13 +701,22 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         requestPreviewUpdate(sessionToken)
     }
 
+    fun selectDecoration(decoration: FrameDecoration) {
+        if (_uiState.value.customization.decoration == decoration) return
+        exportedStateSignature = null
+        _uiState.update { state ->
+            state.copy(customization = state.customization.copy(decoration = decoration))
+        }
+        requestPreviewUpdate(sessionToken)
+    }
+
     fun selectBadgePreset(badgePreset: EventBadgePreset) {
         val customization = _uiState.value.customization
         if (customization.badgePreset == badgePreset) return
         exportedStateSignature = null
         _uiState.update { state ->
             val branding = if (badgePreset == EventBadgePreset.CUSTOM) {
-                brandingStore.load()
+                profileStore.activeBranding()
             } else {
                 state.customization.eventBranding.withBadge(badgePreset)
             }
@@ -1021,7 +1170,9 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                         val previewBg = if (targetBgId == BackgroundRepository.ORIGINAL_ID) {
                             null
                         } else {
-                            repository.loadPreview(targetBgId)
+                            // Fall back to the thumbnail so a missing preview asset
+                            // never silently drops the background.
+                            repository.loadPreview(targetBgId) ?: repository.loadThumbnail(targetBgId)
                         }
                         val nextBitmap = when {
                             cutout != null -> processor.compositePreview(cutout, previewBg).bitmap
@@ -1225,6 +1376,12 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                     val oldOutputDir = outputDirectory
                     outputDirectory = newOutputDir
                     exportedStateSignature = signature
+                    if (_uiState.value.savePhotosToDevice && archivedSignature != signature) {
+                        archivedSignature = signature
+                        withContext(Dispatchers.IO) {
+                            PhotoArchive.save(getApplication<Application>(), newPhotoFiles + newStripFile)
+                        }
+                    }
                     _uiState.update {
                         it.copy(
                             photoFiles = newPhotoFiles,
@@ -1314,15 +1471,14 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             disabledStyleIds = styleSettings.disabledIds,
             selectedModelId = state.selectedModelId,
             customization = CollageCustomization(
-                eventBranding = brandingStore.load(),
-                badgePreset = if (brandingStore.hasSaved()) {
-                    EventBadgePreset.CUSTOM
-                } else {
-                    EventBadgePreset.EXPO_2027
-                },
+                eventBranding = profileStore.activeBranding(),
+                badgePreset = defaultBadgePreset(),
             ),
             backgrounds = repository.visibleOptions,
             adminBackgrounds = repository.allOptions,
+            eventProfiles = profileStore.loadAll(),
+            activeEventProfileId = profileStore.active().id,
+            selectedEventProfileId = profileStore.active().id,
         )
 
         oldBitmaps.forEach(::recycleLater)

@@ -15,8 +15,12 @@ import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.DeviceIdentityStore
-import com.photobooth.kiosk.data.EventBrandingStore
+import com.photobooth.kiosk.data.EventBadgePreset
+import com.photobooth.kiosk.data.EventProfile
+import com.photobooth.kiosk.data.EventProfileStore
+import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.GestureSettingsStore
+import com.photobooth.kiosk.data.PhotoSettingsStore
 import com.photobooth.kiosk.data.StyleSettingsStore
 import com.photobooth.kiosk.network.AiBackendClient
 import com.photobooth.kiosk.network.AiBackendException
@@ -25,6 +29,7 @@ import com.photobooth.kiosk.network.BoothStyle
 import com.photobooth.kiosk.network.decodeImage
 import com.photobooth.kiosk.security.DeviceKeyStore
 import com.photobooth.kiosk.photo.BitmapTransforms
+import com.photobooth.kiosk.photo.PhotoArchive
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoProcessor
 import java.io.File
@@ -61,7 +66,10 @@ data class AiSingleUiState(
     val resultPreview: Bitmap? = null,
     val resultFile: File? = null,
     val frameStyle: CollageFrameStyle = CollageFrameStyle.SYSCOM_DARK,
+    val frameDecoration: FrameDecoration = FrameDecoration.NONE,
     val customization: CollageCustomization = CollageCustomization(),
+    val eventProfiles: List<EventProfile> = emptyList(),
+    val selectedEventProfileId: String = EventProfileStore.SYSCOM_ID,
     val palmCaptureEnabled: Boolean = true,
 ) {
     val canGenerate: Boolean =
@@ -71,7 +79,8 @@ data class AiSingleUiState(
 
 class AiSingleViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = BackgroundRepository(application)
-    private val brandingStore = EventBrandingStore(application)
+    private val profileStore = EventProfileStore(application)
+    private val photoSettings = PhotoSettingsStore(application)
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
     private val gestureSettings = GestureSettingsStore(application)
@@ -90,7 +99,9 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
 
     private val _uiState = MutableStateFlow(
         AiSingleUiState(
-            customization = CollageCustomization(eventBranding = brandingStore.load()),
+            customization = CollageCustomization(eventBranding = profileStore.activeBranding()),
+            eventProfiles = profileStore.enabledProfiles(),
+            selectedEventProfileId = profileStore.active().id,
             palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
             disabledStyleIds = styleSettings.disabledIds,
         ),
@@ -164,6 +175,9 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                     // is never applied to a different photo by accident.
                     accessories = emptySet(),
                     frameStyle = CollageFrameStyle.SYSCOM_DARK,
+                    frameDecoration = FrameDecoration.NONE,
+                    eventProfiles = profileStore.enabledProfiles(),
+                    selectedEventProfileId = profileStore.active().id,
                     error = null,
                 )
             }
@@ -252,6 +266,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 backgroundId = BackgroundRepository.NO_BACKGROUND_ID,
                 accessories = emptySet(),
                 frameStyle = CollageFrameStyle.SYSCOM_DARK,
+                frameDecoration = FrameDecoration.NONE,
                 status = AiStatus.IDLE,
                 uploadProgress = 0,
                 progress = 0,
@@ -271,6 +286,49 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
     fun selectFrame(style: CollageFrameStyle) {
         _uiState.update { it.copy(frameStyle = style) }
         rebuildFramed()
+    }
+
+    fun selectDecoration(decoration: FrameDecoration) {
+        if (_uiState.value.frameDecoration == decoration) return
+        _uiState.update { it.copy(frameDecoration = decoration) }
+        rebuildFramed()
+    }
+
+    /** Re-brands the photo with another enabled event profile (SYSCOM is always one). */
+    fun selectEventProfile(profileId: String) {
+        val state = _uiState.value
+        val profile = state.eventProfiles.firstOrNull { it.id == profileId } ?: return
+        if (state.selectedEventProfileId == profileId) return
+        _uiState.update {
+            it.copy(
+                selectedEventProfileId = profileId,
+                customization = it.customization.copy(
+                    eventBranding = profile.branding,
+                    badgePreset = EventBadgePreset.CUSTOM,
+                ),
+            )
+        }
+        rebuildFramed()
+    }
+
+    /** Re-reads the admin profile list so a brand added or hidden mid-session is honored. */
+    fun refreshEventProfiles() {
+        val profiles = profileStore.enabledProfiles()
+        val active = profileStore.active()
+        _uiState.update { state ->
+            val selection = profiles.firstOrNull { it.id == state.selectedEventProfileId }
+                ?: profiles.firstOrNull { it.id == active.id }
+                ?: profiles.first()
+            state.copy(
+                eventProfiles = profiles,
+                selectedEventProfileId = selection.id,
+                customization = if (state.resultFile == null) {
+                    state.customization.copy(eventBranding = selection.branding)
+                } else {
+                    state.customization
+                },
+            )
+        }
     }
 
     fun cancel() {
@@ -297,6 +355,9 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 resultFile = null,
                 accessories = emptySet(),
                 frameStyle = CollageFrameStyle.SYSCOM_DARK,
+                frameDecoration = FrameDecoration.NONE,
+                eventProfiles = profileStore.enabledProfiles(),
+                selectedEventProfileId = profileStore.active().id,
             )
         }
     }
@@ -362,13 +423,22 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 bitmap = cropped
                 styledBitmap?.let { if (!it.isRecycled) it.recycle() }
                 styledBitmap = bitmap
-                val branding = brandingStore.load()
-                val customization = _uiState.value.customization.copy(eventBranding = branding)
+                val activeProfile = profileStore.active()
+                val customization = _uiState.value.customization.copy(
+                    eventBranding = activeProfile.branding,
+                    badgePreset = EventBadgePreset.CUSTOM,
+                    decoration = _uiState.value.frameDecoration,
+                )
                 val framed = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = true)
                 val full = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = false)
                 val framedFile = File(ensureSessionDir(), "ai_single_framed_${UUID.randomUUID()}.jpg")
                 withContext(Dispatchers.IO) { PhotoFrameComposer.writeJpeg(full, framedFile) }
                 if (!full.isRecycled) full.recycle()
+                if (photoSettings.saveToDevice()) {
+                    withContext(Dispatchers.IO) {
+                        PhotoArchive.save(getApplication<Application>(), listOf(framedFile))
+                    }
+                }
                 _uiState.value.resultPreview?.let { if (!it.isRecycled) it.recycle() }
                 _uiState.update {
                     it.copy(
@@ -454,7 +524,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.Default) {
             val customization = _uiState.value.customization.copy(
                 frameStyle = _uiState.value.frameStyle,
-                eventBranding = brandingStore.load(),
+                decoration = _uiState.value.frameDecoration,
             )
             val framed = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = true)
             val full = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = false)

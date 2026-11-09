@@ -30,3 +30,7 @@ captures/
 .cxx/
 *.keystore
 *.jks
+
+# Local tooling
+opencode.json
+/out/

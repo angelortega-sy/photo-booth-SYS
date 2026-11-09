@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photobooth.kiosk.R
+import androidx.compose.ui.res.stringResource
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.InkSoft
@@ -70,7 +71,7 @@ fun ModeSelectScreen(
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                "Elige cómo quieres crear",
+                stringResource(R.string.mode_select_title),
                 color = Cream,
                 fontSize = if (compact) 27.sp else 34.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -79,23 +80,23 @@ fun ModeSelectScreen(
             Spacer(Modifier.height(20.dp))
             ModePreviewCard(
                 previewRes = R.drawable.mode_ai_styles,
-                title = "Foto IA",
-                subtitle = "Tu foto, muchos estilos",
+                title = stringResource(R.string.mode_ai_title),
+                subtitle = stringResource(R.string.mode_ai_subtitle),
                 accent = SyscomBlueLight,
                 onClick = onPickAi,
             )
             Spacer(Modifier.height(16.dp))
             ModePreviewCard(
                 previewRes = R.drawable.mode_collage_classic,
-                title = "Collage clásico",
-                subtitle = "3 fotos para llevar",
+                title = stringResource(R.string.mode_collage_title),
+                subtitle = stringResource(R.string.mode_collage_subtitle),
                 accent = SyscomBlue,
                 onClick = onPickCollage,
             )
 
             Spacer(Modifier.height(12.dp))
             TextButton(onClick = onHome, modifier = Modifier.height(44.dp)) {
-                Text("Inicio", color = Cream.copy(alpha = 0.8f), fontSize = 15.sp)
+                Text(stringResource(R.string.home), color = Cream.copy(alpha = 0.8f), fontSize = 15.sp)
             }
         }
     }

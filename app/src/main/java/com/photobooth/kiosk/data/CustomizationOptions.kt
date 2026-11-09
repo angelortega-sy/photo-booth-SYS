@@ -25,6 +25,21 @@ enum class CollageLayout(
     ),
 }
 
+/** Silhouette and text layout of a frame; the palette alone does not define the look. */
+enum class FrameShape(val id: String) {
+    /** Cut-corner tech panel, brand pill top-left, footer text left of a circular seal. */
+    TECH(id = "tech"),
+
+    /** White print with a square photo and a centered caption underneath. */
+    POLAROID(id = "polaroid"),
+
+    /** Chamfered panel, brand running vertically, HUD footer with a top rule. */
+    CYBER(id = "cyber"),
+
+    /** Arched photo window framed by stars, centered serif-style title. */
+    GALA(id = "gala"),
+}
+
 enum class CollageFrameStyle(
     val id: String,
     @param:StringRes val titleRes: Int,
@@ -34,6 +49,7 @@ enum class CollageFrameStyle(
     val secondaryAccentHex: Long,
     val textPrimaryHex: Long,
     val textSecondaryHex: Long,
+    val shape: FrameShape,
 ) {
     SYSCOM_DARK(
         id = "syscom_dark",
@@ -44,6 +60,7 @@ enum class CollageFrameStyle(
         secondaryAccentHex = 0xFF5EA8FF,
         textPrimaryHex = 0xFFF3F8FF,
         textSecondaryHex = 0xFF9AC2F4,
+        shape = FrameShape.TECH,
     ),
     CLASSIC_PEARL(
         id = "classic_pearl",
@@ -54,6 +71,7 @@ enum class CollageFrameStyle(
         secondaryAccentHex = 0xFF063E86,
         textPrimaryHex = 0xFF050B14,
         textSecondaryHex = 0xFF4A607A,
+        shape = FrameShape.POLAROID,
     ),
     CYBER_NEON(
         id = "cyber_neon",
@@ -64,6 +82,7 @@ enum class CollageFrameStyle(
         secondaryAccentHex = 0xFF5EA8FF,
         textPrimaryHex = 0xFFFFFFFF,
         textSecondaryHex = 0xFF7CE8FF,
+        shape = FrameShape.CYBER,
     ),
     GALA_GOLD(
         id = "gala_gold",
@@ -74,7 +93,19 @@ enum class CollageFrameStyle(
         secondaryAccentHex = 0xFFF6DC92,
         textPrimaryHex = 0xFFFFFBF2,
         textSecondaryHex = 0xFFD9C089,
+        shape = FrameShape.GALA,
     ),
+}
+
+enum class FrameDecoration(
+    val id: String,
+    @param:StringRes val titleRes: Int,
+) {
+    NONE(id = "none", titleRes = R.string.decoration_none),
+    CORNERS(id = "corners", titleRes = R.string.decoration_corners),
+    CONFETTI(id = "confetti", titleRes = R.string.decoration_confetti),
+    TECH(id = "tech", titleRes = R.string.decoration_tech),
+    FESTIVE(id = "festive", titleRes = R.string.decoration_festive),
 }
 
 enum class PhotoBorderStyle(
@@ -108,6 +139,9 @@ data class EventBranding(
     val badgeSubheadline: String = "CABINA DE FOTOS OFICIAL",
     val badgeTag: String = "SYSCOM · 2027",
     val hashtag: String = "#SYSCOM",
+    val primaryColor: Long = 0xFF050B14,
+    val secondaryColor: Long = 0xFF0B63CE,
+    val logoPath: String? = null,
 ) {
     fun withBadge(preset: EventBadgePreset): EventBranding = if (preset == EventBadgePreset.CUSTOM) {
         this
@@ -178,4 +212,66 @@ data class CollageCustomization(
     val badgePreset: EventBadgePreset = EventBadgePreset.EXPO_2027,
     val eventBranding: EventBranding = EventBranding(),
     val showDateStamp: Boolean = true,
+    val decoration: FrameDecoration = FrameDecoration.NONE,
 )
+
+/** Brand-owned colors for a frame. The frame style only picks the shape. */
+data class FramePalette(
+    val background: Long,
+    val secondaryBackground: Long,
+    val accent: Long,
+    val secondaryAccent: Long,
+    val textPrimary: Long,
+    val textSecondary: Long,
+)
+
+private const val PALETTE_DARK_TEXT = 0xFF050B14
+private const val PALETTE_LIGHT_TEXT = 0xFFF7FAFF
+private const val PALETTE_LUMINANCE_THRESHOLD = 0.55
+
+/** Derives every frame color from the event brand's primary/secondary colors. */
+fun CollageCustomization.palette(): FramePalette {
+    val background = eventBranding.primaryColor
+    val accent = eventBranding.secondaryColor
+    val backgroundDark = luminance(background) < PALETTE_LUMINANCE_THRESHOLD
+    val secondaryBackground = blend(
+        background,
+        if (backgroundDark) 0xFFFFFFFF else 0xFF000000,
+        0.08f,
+    )
+    val secondaryAccent = blend(
+        accent,
+        if (backgroundDark) 0xFFFFFFFF else 0xFF000000,
+        0.35f,
+    )
+    val textPrimary = if (backgroundDark) PALETTE_LIGHT_TEXT else PALETTE_DARK_TEXT
+    val textSecondary = blend(textPrimary, background, 0.35f)
+    return FramePalette(
+        background = background,
+        secondaryBackground = secondaryBackground,
+        accent = accent,
+        secondaryAccent = secondaryAccent,
+        textPrimary = textPrimary,
+        textSecondary = textSecondary,
+    )
+}
+
+private fun channel(color: Long, shift: Int): Float = ((color shr shift) and 0xFF) / 255f
+
+private fun luminance(color: Long): Double {
+    fun linear(c: Float): Double {
+        val v = c.toDouble()
+        return if (v <= 0.04045) v / 12.92 else Math.pow((v + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * linear(channel(color, 16)) +
+        0.7152 * linear(channel(color, 8)) +
+        0.0722 * linear(channel(color, 0))
+}
+
+private fun blend(first: Long, second: Long, ratio: Float): Long {
+    val t = ratio.coerceIn(0f, 1f)
+    fun mix(shift: Int): Long =
+        ((channel(first, shift) * (1f - t) + channel(second, shift) * t) * 255f + 0.5f)
+            .toInt().coerceIn(0, 255).toLong()
+    return (0xFF000000L or (mix(16) shl 16) or (mix(8) shl 8) or mix(0))
+}

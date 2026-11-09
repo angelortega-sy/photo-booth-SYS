@@ -31,14 +31,19 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - El resultado incluye un wizard de personalización; el CTA grande es **“Descargar · 4 fotos”** (3 fotos + tira) y “Guardar” queda como acción secundaria.
 - Después de descargar/compartir, se cierra la sesión y vuelve a bienvenida. Guardar mantiene el resultado en pantalla.
 - Paleta **azul Syscom** sobre fondo oscuro: `SyscomBlue #0B63CE`, `SyscomBlueLight #5EA8FF`, `Ink #050B14`, `InkSoft #0B1727`, `Cream #F3F8FF`.
+- Los dos modos comparten el **mismo shell** (`AiSingleFlow` y `ui/collage/CollageFlow`): barra superior con “Paso X de N + nombre”, progreso lineal, contenido scrolleable, barra inferior fija Regresar / Continuar y QR en línea en el último paso. **No volver a usar modales para la entrega ni contadores distintos**: el collage usa el mismo 3-2-1 de 700 ms por segundo que el modo IA.
+- `CollageFlow` pasos: Captura (un toque = 3 tomas con pausa “Posa 2 de 3”; rail lateral 1/2/3 para ver o repetir una foto, **nunca muestra la tira ni marcos**) → Fondo (las 3 fotos en un pager grande de una en una y los fondos como cuadritos de 3 columnas; selector híbrido “Las 3 fotos” o una foto en particular) → Diseño (marca del evento si hay más de una, marco, adorno, formato y borde) → Entrega (pager con foto 1/2/3 y la tira, QR automático, copiar liga y Quick Share). `StudioWizardScreen` y los diálogos de entrega se eliminaron.
 
 ## Modo administrador
 
 - Se entra con **long-press sobre “SYSCOM”** en la pantalla de bienvenida; no poner un botón visible para invitados.
 - PIN de **4 a 8 dígitos**, guardado como hash SHA-256 con salt en `SharedPreferences` (`admin_auth`); nunca guardar el PIN en claro.
 - `AdminAuth` maneja el PIN; `AdminGate` pide crearlo la primera vez y verificarlo después.
-- `AdminScreen` muestra: resumen del dispositivo, cámaras del sistema (frontal/trasera/externa, MP, resolución y nivel de hardware), dispositivos USB, prueba de cámara en vivo, fotos guardadas con borrado individual/todas, red/IP local y accesos a ajustes de red/hotspot.
+- El admin vive en `ui/admin/`: `AdminShell` (PIN, back stack con `rememberSaveable` + `BackHandler`, header) y una pantalla por área (`AdminHomeScreen`, `AdminBrandsScreen`, `AdminBrandEditorScreen`, `AdminEventScreen`, `AdminCameraScreen`, `AdminStylesScreen`, `AdminPhotosScreen`, `AdminUsageScreen`, `AdminNetworkScreen`, `AdminSystemScreen`). `ui/AdminScreen.kt` es solo el wrapper de `AdminGate`. **No volver a meter todas las secciones en un solo scroll.**
+- `AdminHomeScreen` es un grid de tarjetas grandes (Marcas, Fondos, Cámara, Estilos, Fotos, Red, Uso IA) con resumen; cada una abre su pantalla. Sirve para pantalla de 55". **No volver a poner una tarjeta “Evento” que abra lo mismo que Fondos**: los textos de la marca se editan dentro de su editor.
+- El admin muestra: resumen del dispositivo, cámaras del sistema (frontal/trasera/externa, MP, resolución y nivel de hardware), dispositivos USB, prueba de cámara en vivo, fotos guardadas con borrado individual/todas, red/IP local y accesos a ajustes de red/hotspot.
 - Fotos: `PhotoLibrary` consulta `MediaStore` en `Pictures/Cabina de Fotos`, usa `READ_MEDIA_IMAGES` en API 33+ y `READ_EXTERNAL_STORAGE` en API ≤32. El borrado directo puede fallar si la app ya no es dueña del archivo; mostrar error, no crashear.
+- Guardar copia en el dispositivo es **opt-in**: `PhotoSettingsStore` (`SharedPreferences("photo_settings")`, clave `save_to_device`, default `false`). Cuando está activo, `PhotoArchive.save()` copia el resultado final (3 fotos + tira, o la foto IA) a la galería. El switch vive en Admin → Fotos.
 - El botón de hotspot solo abre los ajustes del sistema. El hotspot programático + QR de descarga es la siguiente fase.
 - Layout admin responsive: header compacto (atrás + título + cerrar), botones de red a ancho completo, fotos en **2 columnas bajo 600 dp** y 4 arriba. No volver a meter dos botones de texto largo en un `Row` angosto.
 - La lista de fondos del admin se lee de `state.adminBackgrounds` (estado observable), no del getter `repository.allOptions`; así importar/borrar/renombrar refresca la lista sin salir de la pestaña.
@@ -48,9 +53,26 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - **Admin → Evento** permite importar fondos desde el almacenamiento con SAF (`OpenMultipleDocuments("image/*")`), ocultar/mostrar fondos integrados y renombrar/eliminar los personalizados.
 - Los fondos importados se copian a `filesDir/backgrounds/custom_<timestamp>.webp`, normalizados a **1080×1920**. No van a `assets/` ni al repo; se pierden si se borran los datos de la app.
 - El catálogo se persiste en `SharedPreferences("background_catalog")`; los invitados solo ven los fondos habilitados + “Cámara real”.
-- `EventBranding` se persiste en `SharedPreferences("event_branding")`: marca, tagline, título/subtítulo de bienvenida, headline/subheadline/tag del badge. Admin → Evento los edita.
-- La bienvenida y `PhotoFrameComposer` leen `eventBranding`; `EventBadgePreset.CUSTOM` conserva los textos personalizados. **No volver a hardcodear “EXPO SYSCOM 2027”** en la UI.
+- `EventBranding` agrupa marca, tagline, título/subtítulo de bienvenida y headline/subheadline/tag del badge. **No volver a hardcodear “EXPO SYSCOM 2027”** en la UI.
+- Las marcas viven en `EventProfileStore` (`SharedPreferences("event_profiles")`, `profiles` + `active_id`). `EventProfile = id + name + branding + enabled + builtIn`; **SYSCOM siempre existe**, no se puede borrar ni deshabilitar, y es el default. Cualquier otra marca se agrega desde Admin → Evento y se puede activar/deshabilitar/borrar.
+- `SharedPreferences("event_branding")` queda solo como migración legacy: `EventProfileStore` lo lee una vez si no hay perfiles guardados.
+- Admin edita las etiquetas de la marca **activa** (`updateEventBranding` escribe sobre el perfil activo). Activar una marca actualiza la bienvenida y el marco de inmediato.
+- El paso “Tu foto” del flujo IA muestra la fila “Marca del evento” solo cuando hay más de un perfil habilitado, más el selector de marco (`CollageFrameStyle`) y el de adorno (`FrameDecoration`: Limpio/Esquinas/Confeti/Tech/Festivo, dibujado en `PhotoFrameComposer.drawDecoration`). Los adornos se reinician con cada foto nueva.
+- Cada `CollageFrameStyle` define una **forma** (`FrameShape`: `tech`, `polaroid`, `cyber`, `gala`), no la paleta. `PhotoFrameComposer` ramifica `drawFrameBackground` (silueta), `drawTopHeader` (posición de la marca y del tag), `drawPhotoPanel` (recorte de la foto: octágono, recto, chaflán o arco) y `drawFooter` (título centrado, en panel o con sello) según `frameStyle.shape`. Al agregar un marco nuevo hay que elegir una forma (o crear una nueva y cubrir los cuatro `when`).
+- El **color lo pone la marca**, no el marco: `EventBranding` guarda `primaryColor` (fondo), `secondaryColor` (líneas/acentos) y `logoPath` (opcional). `CollageCustomization.palette()` deriva `FramePalette` (fondo secundario, acentos, texto claro/oscuro por luminancia). Los `*Hex` de `CollageFrameStyle` quedaron muertos para el render; no volver a leerlos.
+- El logo se elige en Admin → Marcas → editor con SAF, se copia a `filesDir/logos/logo_<timestamp>.webp` con `BrandLogoStore` (máx. 1024 px, WebP) y se guarda **la ruta absoluta** en `logoPath`. El renderer dibuja el logo en la cabecera en lugar del texto y cae al texto si el archivo falta o no decodifica.
+- El editor de marca muestra `FramePreviewRow`: los 4 marcos renderizados en vivo con la marca en edición (foto de muestra `assets/backgrounds/gala.webp`, `previewScale = true`, debounce 220 ms). Tocar una miniatura la abre a pantalla completa (`ExpandedFramePreview`, se re-renderiza a 720 px). No usa fotos de invitados.
+- Abrir el editor **no** activa la marca; guardar escribe solo ese perfil (`updateEventProfileBranding(profileId, branding)`). Para que una marca sea la principal se usa “Hacer principal”, disponible en la lista de marcas y en el editor. Así se puede editar una marca sin cambiar la bienvenida ni los marcos de los invitados.
+- `EventProfileStore.add()` deduplica por nombre (case-insensitive) y genera id con UUID, así un doble toque en “Agregar” no crea dos marcas iguales. Las marcas nunca se ven vacías: `PhotoBoothUiState` arranca con `profileStore.loadAll()`, que siempre incluye SYSCOM.
+- `PhotoFrameComposer` es defensivo: si la marca está vacía no dibuja la píldora, si no hay headline/subheadline no dibuja el pie ni el sello, y todo texto largo se recorta con `ellipsized` antes de chocar con el sello o salir del marco.
 - Al cambiar de fondo en el resultado, `requestPreviewUpdate` recompone con el catálogo actual; si el fondo elegido se oculta o borra, el ViewModel cae al primer fondo visible.
+
+## Idiomas (ES/EN)
+
+- Textos en `res/values/strings.xml` (español) y `res/values-en/strings.xml` (inglés). **Toda cadena visible nueva va en ambos archivos** con las mismas claves y placeholders (`%1$s`).
+- `data/AppLanguage.kt`: enum `SYSTEM/SPANISH/ENGLISH` + `LanguageStore` (`SharedPreferences("app_language")`). `MainActivity.attachBaseContext` aplica `LanguageStore.wrap(...)`; cambiar idioma persiste y hace `recreate()`.
+- El invitado puede cambiar con `LanguageQuickToggle` en la bienvenida; el admin en **Sistema** con `LanguageSelector`. `res/xml/locales_config.xml` + `android:localeConfig` exponen es/en al sistema.
+- Pendiente conocido: los mensajes de error resueltos con `applicationContext` (ViewModels) siguen el idioma del dispositivo, no el forzado; se arreglaría con un `Application.attachBaseContext` propio.
 
 ## IA y servidor (MVP aprobado)
 
@@ -146,6 +168,10 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - `.\gradlew.bat installDebug` — requiere dispositivo conectado.
 - `adb install -r app\build\outputs\apk\debug\app-debug.apk`
 - `adb shell dpm set-device-owner <paquete>/.<AdminReceiver>`
+
+## Pruebas en el kiosko
+
+- El **usuario** opera la app en el tótem y da el feedback; no manejar la UI por `adb shell input tap` ni recorrer flujos automáticamente. Sí se puede instalar el APK, leer `logcat` y tomar capturas cuando lo pida.
 
 ## Estado de build (2026-11-04)
 

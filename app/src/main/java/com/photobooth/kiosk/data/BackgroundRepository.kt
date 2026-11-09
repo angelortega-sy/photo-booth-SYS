@@ -19,6 +19,9 @@ data class BackgroundOption(
     val filePath: String? = null,
     val isBuiltIn: Boolean = false,
     val enabled: Boolean = true,
+    // Built-in options keep the resource id so the UI can resolve the label in
+    // the app language instead of the (possibly different) device locale.
+    val nameRes: Int? = null,
 )
 
 /**
@@ -69,6 +72,7 @@ class BackgroundRepository(private val context: Context) {
     private val original = BackgroundOption(
         id = ORIGINAL_ID,
         name = context.getString(R.string.background_original),
+        nameRes = R.string.background_original,
     )
 
     @Volatile
@@ -220,6 +224,7 @@ class BackgroundRepository(private val context: Context) {
         name = context.getString(nameRes),
         assetPath = assetPath,
         isBuiltIn = true,
+        nameRes = nameRes,
     )
 
     private fun decode(id: String, sampleSize: Int): Bitmap? {
