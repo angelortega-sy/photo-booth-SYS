@@ -78,5 +78,7 @@ dependencies {
     implementation(libs.mediapipe.tasks.vision)
     implementation(libs.zxing.core)
 
+    testImplementation("junit:junit:4.13.2")
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

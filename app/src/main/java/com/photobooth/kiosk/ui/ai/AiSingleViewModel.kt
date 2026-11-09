@@ -134,11 +134,9 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
 
     fun customBackgroundFile(id: String): File? = repository.customBackgroundFile(id)
 
-    fun onPhotoCaptured(photo: Bitmap, rotationDegrees: Int, mirror: Boolean) {
+    fun onPhotoCaptured(photo: Bitmap, mirror: Boolean) {
         viewModelScope.launch(Dispatchers.Default) {
-            val oriented = BitmapTransforms.rotateDegrees(photo, rotationDegrees)
-            if (!photo.isRecycled) photo.recycle()
-            var current = oriented
+            var current = photo
             if (mirror) {
                 val mirrored = BitmapTransforms.mirrorHorizontally(current)
                 if (!current.isRecycled) current.recycle()

@@ -394,10 +394,10 @@ fun CollageFlow(
                                 cameraReady = true
                                 cameraError = null
                             },
-                            onCaptured = { bitmap, rotation, mirror ->
+                            onCaptured = { bitmap, mirror ->
                                 cameraReady = true
                                 cameraError = null
-                                viewModel.processPhoto(bitmap, rotation, mirror)
+                                viewModel.processPhoto(bitmap, mirror)
                             },
                             onError = { message ->
                                 sequenceActive = false
@@ -556,7 +556,7 @@ private fun ColumnScope.CollageCaptureContent(
     onRetakeOne: (Int) -> Unit,
     onRetakeAll: () -> Unit,
     onReady: () -> Unit,
-    onCaptured: (Bitmap, Int, Boolean) -> Unit,
+    onCaptured: (Bitmap, Boolean) -> Unit,
     onError: (String) -> Unit,
     onPalm: () -> Unit,
 ) {
