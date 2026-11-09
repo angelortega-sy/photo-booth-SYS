@@ -1,6 +1,7 @@
 package com.photobooth.kiosk.ui.collage
 
 import android.graphics.Bitmap
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -92,6 +93,7 @@ import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.InkSoft
 import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
+import com.photobooth.kiosk.ui.theme.SyscomTeal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -509,24 +511,15 @@ fun CollageFlow(
                     CollageStep.SHARE -> finishArmed
                     else -> true
                 },
-                backLabelRes = if (step == CollageStep.CAPTURE && viewPhotoIndex != null) {
-                    R.string.collage_back_to_camera
-                } else {
-                    null
-                },
                 onBack = {
-                    if (step == CollageStep.CAPTURE && viewPhotoIndex != null) {
-                        viewPhotoIndex = null
-                    } else {
-                        step = when (step) {
-                            CollageStep.CAPTURE -> {
-                                exit()
-                                CollageStep.CAPTURE
-                            }
-                            CollageStep.BACKGROUND -> CollageStep.CAPTURE
-                            CollageStep.DESIGN -> CollageStep.BACKGROUND
-                            CollageStep.SHARE -> CollageStep.DESIGN
+                    step = when (step) {
+                        CollageStep.CAPTURE -> {
+                            exit()
+                            CollageStep.CAPTURE
                         }
+                        CollageStep.BACKGROUND -> CollageStep.CAPTURE
+                        CollageStep.DESIGN -> CollageStep.BACKGROUND
+                        CollageStep.SHARE -> CollageStep.DESIGN
                     }
                     onInteraction()
                 },
@@ -757,6 +750,11 @@ private fun ColumnScope.CollageCaptureContent(
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(18.dp),
+                border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = SyscomTeal,
+                    disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
+                ),
             ) {
                 Text(stringResource(R.string.collage_retake_three), fontSize = 16.sp)
             }
@@ -767,6 +765,11 @@ private fun ColumnScope.CollageCaptureContent(
             enabled = !busy,
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = SyscomTeal,
+                disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
+            ),
         ) {
             Text(stringResource(R.string.collage_retake_three), fontSize = 16.sp)
         }
@@ -1162,7 +1165,12 @@ private fun CollageShareContent(
                     modifier = Modifier.fillMaxWidth(),
                 )
             } else if (!starting) {
-                OutlinedButton(onClick = onRetryQr, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                OutlinedButton(
+                    onClick = onRetryQr,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SyscomTeal),
+                ) {
                     Text(stringResource(R.string.ai_retry_qr), fontSize = 16.sp)
                 }
             }
@@ -1172,6 +1180,10 @@ private fun CollageShareContent(
         onClick = onCopyLink,
         enabled = deliveryUrl != null,
         modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = SyscomTeal,
+            disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
+        ),
     ) {
         Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
@@ -1203,13 +1215,12 @@ private fun CollageBottomBar(
     hPad: androidx.compose.ui.unit.Dp,
     step: CollageStep,
     nextEnabled: Boolean,
-    backLabelRes: Int?,
     onBack: () -> Unit,
     onNext: () -> Unit,
 ) {
     // The capture step has its own big action button, and the header X already
     // exits the flow: nothing to show until the three shots exist.
-    if (step == CollageStep.CAPTURE && !nextEnabled && backLabelRes == null) return
+    if (step == CollageStep.CAPTURE && !nextEnabled) return
     val nextLabel = when (step) {
         CollageStep.SHARE -> stringResource(R.string.finish)
         else -> stringResource(R.string.wizard_next)
@@ -1221,14 +1232,19 @@ private fun CollageBottomBar(
             .padding(horizontal = hPad, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (step != CollageStep.CAPTURE || backLabelRes != null) {
+        if (step != CollageStep.CAPTURE) {
             OutlinedButton(
                 onClick = onBack,
                 modifier = Modifier.weight(1f).height(68.dp),
                 shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = SyscomTeal,
+                    disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
+                ),
             ) {
                 Text(
-                    text = stringResource(backLabelRes ?: R.string.wizard_back),
+                    text = stringResource(R.string.wizard_back),
                     fontSize = 18.sp,
                 )
             }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -63,6 +64,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -118,6 +120,7 @@ import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.InkSoft
 import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
+import com.photobooth.kiosk.ui.theme.SyscomTeal
 import com.photobooth.kiosk.ui.QrZoomDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -1006,6 +1009,8 @@ private fun GenerationExperience(
                 onClick = onCancel,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(18.dp),
+                border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = SyscomTeal),
             ) {
                 Text(stringResource(R.string.ai_cancel), fontSize = 16.sp)
             }
@@ -1214,6 +1219,8 @@ private fun AccessoriesContent(
         onClick = onResetPersonalization,
         modifier = Modifier.fillMaxWidth().height(56.dp),
         shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = SyscomTeal),
     ) {
         Text(stringResource(R.string.ai_reset), fontSize = 16.sp)
     }
@@ -1530,21 +1537,26 @@ private fun ShareContent(
                     modifier = Modifier.fillMaxWidth(),
                 )
             } else if (!starting) {
-                OutlinedButton(onClick = onRetryQr, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                OutlinedButton(
+                    onClick = onRetryQr,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    border = BorderStroke(1.dp, SyscomTeal.copy(alpha = 0.55f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SyscomTeal),
+                ) {
                     Text(stringResource(R.string.ai_retry_qr), fontSize = 16.sp)
                 }
             }
         }
     }
-    OutlinedButton(
+    TextButton(
         onClick = onCopyLink,
         enabled = deliveryUrl != null,
-        modifier = Modifier.fillMaxWidth().height(60.dp),
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.textButtonColors(contentColor = SyscomTeal),
     ) {
-        Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(10.dp))
-        Text(stringResource(R.string.copy_link), fontSize = 17.sp)
+        Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.copy_link), fontSize = 15.sp)
     }
     Button(
         onClick = onQuickShare,
@@ -1618,6 +1630,14 @@ private fun BottomBar(
                 enabled = backEnabled,
                 modifier = Modifier.weight(1f).height(68.dp),
                 shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(
+                    1.dp,
+                    SyscomTeal.copy(alpha = if (backEnabled) 0.55f else 0.25f),
+                ),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = SyscomTeal,
+                    disabledContentColor = SyscomTeal.copy(alpha = 0.4f),
+                ),
             ) {
                 Text(text = stringResource(if (step == AiStep.CAPTURE) R.string.ai_exit else R.string.wizard_back), fontSize = 18.sp)
             }
