@@ -52,7 +52,7 @@ fun CameraPreview(
     modifier: Modifier = Modifier,
     captureRequest: Int,
     onReady: () -> Unit,
-    onCaptured: (Bitmap, Int, Boolean) -> Unit,
+    onCaptured: (Bitmap, Boolean) -> Unit,
     onError: (String) -> Unit,
     handDetectionEnabled: Boolean = false,
     onPalmDetected: () -> Unit = {},
@@ -224,11 +224,11 @@ fun CameraPreview(
             mainExecutor,
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
-                    // CameraX already bakes the target rotation into the JPEG buffer, so the
-                    // decoded bitmap is upright on its own. The old +90 compensation rotated an
-                    // already-portrait 1080x1920 shot to 1920x1080, which the 9:16 center crop
-                    // then zoomed to a ~3x slice of the frame.
-                    val rotationDegrees = image.imageInfo.rotationDegrees
+                    val cameraXRotationDegrees = image.imageInfo.rotationDegrees
+                    val rotationDegrees = effectiveCaptureRotation(
+                        cameraXRotationDegrees,
+                        previewRotationDegrees,
+                    )
                     val buffer = image.planes[0].buffer
                     val bytes = ByteArray(buffer.remaining())
                     buffer.get(bytes)
@@ -236,11 +236,36 @@ fun CameraPreview(
 
                     scope.launch(Dispatchers.Default) {
                         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        withContext(Dispatchers.Main) {
-                            if (bitmap == null) {
+                        if (bitmap == null) {
+                            withContext(Dispatchers.Main) {
                                 currentOnError("Could not decode captured image")
+                            }
+                            return@launch
+                        }
+                        val oriented = try {
+                            if (rotationDegrees == 0) {
+                                bitmap
                             } else {
-                                currentOnCaptured(bitmap, rotationDegrees, mirror)
+                                BitmapTransforms.rotateDegrees(bitmap, rotationDegrees).also {
+                                    if (!bitmap.isRecycled) bitmap.recycle()
+                                }
+                            }
+                        } catch (error: Throwable) {
+                            if (!bitmap.isRecycled) bitmap.recycle()
+                            withContext(Dispatchers.Main) {
+                                currentOnError(error.message ?: "Could not orient captured image")
+                            }
+                            return@launch
+                        }
+                        var ownershipTransferred = false
+                        try {
+                            withContext(Dispatchers.Main) {
+                                ownershipTransferred = true
+                                currentOnCaptured(oriented, mirror)
+                            }
+                        } finally {
+                            if (!ownershipTransferred && !oriented.isRecycled) {
+                                oriented.recycle()
                             }
                         }
                     }

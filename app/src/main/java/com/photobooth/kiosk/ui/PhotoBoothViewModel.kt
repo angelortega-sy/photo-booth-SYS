@@ -431,11 +431,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update { it.copy(isCapturing = false) }
     }
 
-    /**
-     * Orients the captured photo immediately so the automatic 3-shot sequence can proceed
-     * without delay, and runs MediaPipe person segmentation in the background pipeline.
-     */
-    fun processPhoto(photo: Bitmap, rotationDegrees: Int, mirror: Boolean) {
+    /** Accepts an upright capture and runs MediaPipe person segmentation in the background. */
+    fun processPhoto(photo: Bitmap, mirror: Boolean) {
         val state = _uiState.value
         val retake = state.retakeIndex
         if (!state.isCapturing ||
@@ -449,7 +446,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         val index = retake ?: state.capturedCount
         viewModelScope.launch {
             val oriented = withContext(Dispatchers.Default) {
-                orientAndRelease(photo, rotationDegrees, mirror)
+                mirrorAndRelease(photo, mirror)
             }
             if (token != sessionToken) {
                 oriented?.let { if (!it.isRecycled) it.recycle() }
@@ -1506,22 +1503,14 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         return directory
     }
 
-    private fun orientAndRelease(photo: Bitmap, rotationDegrees: Int, mirror: Boolean): Bitmap? {
-        var rotated: Bitmap? = null
-        try {
-            rotated = BitmapTransforms.rotateDegrees(photo, rotationDegrees)
-            if (rotated !== photo && !photo.isRecycled) photo.recycle()
-            if (!mirror) return rotated.also { rotated = null }
-
-            val mirrored = BitmapTransforms.mirrorHorizontally(rotated)
-            if (mirrored !== rotated && !rotated.isRecycled) rotated.recycle()
-            rotated = null
-            return mirrored
+    private fun mirrorAndRelease(photo: Bitmap, mirror: Boolean): Bitmap? {
+        if (!mirror) return photo
+        return try {
+            BitmapTransforms.mirrorHorizontally(photo)
         } catch (_: Throwable) {
-            return null
+            null
         } finally {
             if (!photo.isRecycled) photo.recycle()
-            rotated?.let { if (!it.isRecycled) it.recycle() }
         }
     }
 

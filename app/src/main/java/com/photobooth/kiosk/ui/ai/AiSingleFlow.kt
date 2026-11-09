@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +69,12 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -81,7 +88,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -126,6 +137,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.PI
 
 private const val FINISH_GUARD_MS = 3_000L
 
@@ -411,7 +423,7 @@ fun AiSingleFlow(
                             gestureActive = gestureActive,
                             onCapture = { startCapture() },
                             onReady = { cameraReady = true; cameraError = null },
-                            onCaptured = { bmp, rot, mirror -> viewModel.onPhotoCaptured(bmp, rot, mirror) },
+                            onCaptured = viewModel::onPhotoCaptured,
                             onError = { cameraError = it },
                             onPalm = { onInteraction(); startCapture() },
                             previewRotationDegrees = previewRotationDegrees,
@@ -577,7 +589,7 @@ private fun CaptureContent(
     gestureActive: Boolean,
     onCapture: () -> Unit,
     onReady: () -> Unit,
-    onCaptured: (Bitmap, Int, Boolean) -> Unit,
+    onCaptured: (Bitmap, Boolean) -> Unit,
     onError: (String) -> Unit,
     onPalm: () -> Unit,
     previewRotationDegrees: Int,
@@ -866,69 +878,85 @@ private fun GenerationExperience(
     photoPreview: Bitmap?,
     onCancel: () -> Unit,
 ) {
-    var progress by remember(status) {
-        mutableIntStateOf(if (status == AiStatus.UPLOADING) 12 else 45)
-    }
-    LaunchedEffect(status) {
-        while (progress < if (status == AiStatus.UPLOADING) 38 else 92) {
-            delay(if (progress < 70) 420 else 850)
-            progress += if (progress < 70) 2 else 1
-        }
-    }
-
     val generating = status == AiStatus.GENERATING
     val title = stringResource(if (generating) R.string.ai_gen_title_alive else R.string.ai_gen_title_preparing)
-    val detail = stringResource(
-        when {
-            !generating -> R.string.ai_gen_detail_upload
-            progress < 62 -> R.string.ai_gen_detail_applying
-            progress < 78 -> R.string.ai_gen_detail_refining
-            else -> R.string.ai_gen_detail_final
-        },
+    val detail = stringResource(if (generating) R.string.ai_gen_detail_applying else R.string.ai_gen_detail_upload)
+    val motion = rememberInfiniteTransition(label = "generationMotion")
+    val orbitPhase by motion.animateFloat(
+        initialValue = 0f,
+        targetValue = (PI * 2).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 4_800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "orbitPhase",
     )
-    val estimated = stringResource(if (generating) R.string.ai_gen_eta_long else R.string.ai_gen_eta_short)
-    val stages = listOf(
-        stringResource(R.string.ai_gen_stage_ready),
-        stringResource(R.string.ai_gen_stage_styling),
-        stringResource(R.string.ai_gen_stage_details),
+    val glowPulse by motion.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1_600, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "glowPulse",
     )
-    val currentStage = when {
-        !generating -> 0
-        progress < 78 -> 1
-        else -> 2
-    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Ink.copy(alpha = 0.96f))
-            .padding(horizontal = 24.dp, vertical = 32.dp),
+            .background(Ink),
         contentAlignment = Alignment.Center,
     ) {
+        EdgeCircuit(phase = orbitPhase, glowPulse = glowPulse)
         Column(
-            modifier = Modifier.widthIn(max = 440.dp),
+            modifier = Modifier
+                .widthIn(max = 560.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp, vertical = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                modifier = Modifier.size(126.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(
-                    progress = { progress / 100f },
-                    modifier = Modifier.fillMaxSize(),
-                    color = SyscomBlueLight,
-                    trackColor = InkSoft,
-                    strokeWidth = 9.dp,
-                )
-                photoPreview?.let { preview ->
+            Spacer(Modifier.weight(1f))
+            Box(Modifier.fillMaxWidth().heightIn(max = 480.dp).aspectRatio(3f / 4f)) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val radius = size.minDimension * 0.47f
+                    drawCircle(
+                        color = SyscomBlue.copy(alpha = 0.10f + glowPulse * 0.10f),
+                        radius = radius,
+                        center = center,
+                    )
+                    listOf(0f, 2.1f, 4.2f).forEachIndexed { index, offset ->
+                        val particle = GenerationOrbit.point(
+                            centerX = center.x,
+                            centerY = center.y,
+                            radius = radius,
+                            phaseRadians = orbitPhase * (if (index == 1) -0.65f else 1f) + offset,
+                        )
+                        drawCircle(
+                            color = if (index == 1) SyscomTeal else SyscomBlueLight,
+                            radius = if (index == 0) 7.dp.toPx() else 4.dp.toPx(),
+                            center = Offset(particle.x, particle.y),
+                            alpha = 0.50f + glowPulse * 0.50f,
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                        .clip(RoundedCornerShape(30.dp))
+                        .background(InkSoft)
+                        .border(2.dp, SyscomBlueLight.copy(alpha = 0.58f + glowPulse * 0.28f), RoundedCornerShape(30.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    photoPreview?.let { preview ->
                     Image(
                         preview.asImageBitmap(),
                         contentDescription = stringResource(R.string.ai_cd_processing_photo),
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(94.dp)
-                            .clip(RoundedCornerShape(22.dp)),
+                        modifier = Modifier.fillMaxSize(),
                     )
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))
@@ -946,65 +974,7 @@ private fun GenerationExperience(
                 fontSize = 16.sp,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                estimated,
-                color = Cream.copy(alpha = 0.58f),
-                fontSize = 13.sp,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(24.dp))
-            LinearProgressIndicator(
-                progress = { progress / 100f },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(99.dp)),
-                color = SyscomBlueLight,
-                trackColor = InkSoft,
-            )
-            Spacer(Modifier.height(10.dp))
-            Text("$progress%", color = Cream, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(26.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                stages.forEachIndexed { index, stage ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(RoundedCornerShape(99.dp))
-                                .background(
-                                    if (index <= currentStage) SyscomBlue else InkSoft,
-                                ),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (index < currentStage) {
-                                Icon(
-                                    Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = Cream,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                            } else {
-                                Text(
-                                    "${index + 1}",
-                                    color = Cream,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            stage,
-                            color = if (index <= currentStage) Cream else Cream.copy(alpha = 0.42f),
-                            fontSize = 14.sp,
-                            fontWeight = if (index == currentStage) FontWeight.Bold else FontWeight.Medium,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.weight(1f))
             OutlinedButton(
                 onClick = onCancel,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -1013,6 +983,42 @@ private fun GenerationExperience(
                 Text(stringResource(R.string.ai_cancel), fontSize = 16.sp)
             }
         }
+    }
+}
+
+@Composable
+private fun EdgeCircuit(
+    phase: Float,
+    glowPulse: Float,
+) {
+    Canvas(Modifier.fillMaxSize()) {
+        val inset = 12.dp.toPx()
+        val corner = 24.dp.toPx()
+        val stroke = 2.dp.toPx()
+        val circuitSize = Size(size.width - inset * 2, size.height - inset * 2)
+        val circuitTopLeft = Offset(inset, inset)
+        val circuitColor = SyscomBlueLight.copy(alpha = 0.24f + glowPulse * 0.30f)
+        drawRoundRect(
+            color = circuitColor,
+            topLeft = circuitTopLeft,
+            size = circuitSize,
+            cornerRadius = CornerRadius(corner, corner),
+            style = Stroke(width = stroke),
+        )
+
+        val circuitPoint = GenerationCircuit.point(
+            width = circuitSize.width,
+            height = circuitSize.height,
+            cornerRadius = corner,
+            progress = phase / (PI * 2).toFloat(),
+        )
+        val tracer = Offset(inset + circuitPoint.x, inset + circuitPoint.y)
+        drawCircle(
+            color = SyscomTeal,
+            radius = 4.dp.toPx() + glowPulse * 3.dp.toPx(),
+            center = tracer,
+            alpha = 0.72f + glowPulse * 0.28f,
+        )
     }
 }
 

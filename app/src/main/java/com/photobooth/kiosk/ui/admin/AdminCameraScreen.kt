@@ -319,7 +319,7 @@ private fun CameraCard(
                     captureRequest = 0,
                     previewRotationDegrees = rotationDegrees,
                     onReady = {},
-                    onCaptured = { _, _, _ -> },
+                    onCaptured = { _, _ -> },
                     onError = onCameraError,
                 )
             }
