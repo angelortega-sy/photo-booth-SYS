@@ -1,6 +1,7 @@
 package com.photobooth.kiosk.network
 
 import android.util.Base64
+import android.util.Log
 import android.os.SystemClock
 import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.security.DeviceKeyStore
@@ -297,6 +298,7 @@ class AiBackendClient(
         }
         val body = requestBody.toByteArray(Charsets.UTF_8)
         val (_, text) = open("POST", "/v1/sessions", body, JSON, sign = true)
+        Log.d("DriveFolder", "createSession folderName=$folderName response=$text")
         val json = JSONObject(text)
         return BoothSession(id = json.getString("id"), expiresAt = json.optString("expiresAt"))
     }
