@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -88,6 +89,11 @@ import com.photobooth.kiosk.photo.QrCodeGenerator
 import com.photobooth.kiosk.ui.PhotoBoothUiState
 import com.photobooth.kiosk.ui.PhotoBoothViewModel
 import com.photobooth.kiosk.ui.QrZoomDialog
+import com.photobooth.kiosk.ui.components.BoothBottomBar
+import com.photobooth.kiosk.ui.components.BoothFlowHeader
+import com.photobooth.kiosk.ui.components.BoothOutlinedButton
+import com.photobooth.kiosk.ui.components.BoothSecondaryButton
+import com.photobooth.kiosk.ui.components.BoothSectionTitle
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.InkSoft
@@ -310,46 +316,14 @@ fun CollageFlow(
 
     Box(Modifier.fillMaxSize().background(Ink)) {
         Column(Modifier.fillMaxSize()) {
-            // Top bar
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = hPad, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        stringResource(R.string.result_title),
-                        color = Cream,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        stringResource(
-                            R.string.ai_step_counter,
-                            step.index + 1,
-                            TOTAL_STEPS,
-                            stringResource(step.titleRes),
-                        ),
-                        color = Cream.copy(alpha = 0.65f),
-                        fontSize = 14.sp,
-                    )
-                }
-                IconButton(onClick = { exit() }) {
-                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.ai_exit), tint = Cream)
-                }
-            }
-            LinearProgressIndicator(
-                progress = { (step.index + 1) / TOTAL_STEPS.toFloat() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = hPad)
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(999.dp)),
-                color = SyscomBlue,
-                trackColor = InkSoft,
+            BoothFlowHeader(
+                title = stringResource(R.string.result_title),
+                stepIndex = step.index,
+                totalSteps = TOTAL_STEPS,
+                stepTitle = stringResource(step.titleRes),
+                horizontalPadding = hPad,
+                onClose = { exit() },
             )
-            Spacer(Modifier.height(8.dp))
 
             // Content
             Box(
@@ -387,7 +361,6 @@ fun CollageFlow(
                             previewRotationDegrees = previewRotationDegrees,
                             viewIndex = viewPhotoIndex,
                             onViewPhoto = { index -> viewPhotoIndex = if (viewPhotoIndex == index) null else index },
-                            onCapture = { startSequence() },
                             onRetakeOne = { index -> retakeOne(index) },
                             onRetakeAll = { retakeAll() },
                             onReady = {
@@ -503,11 +476,14 @@ fun CollageFlow(
                 }
             }
 
+            val shotsDone = state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT
+            val captureBusy = sequenceActive || state.isProcessing || state.isCapturing || countdown > 0
             CollageBottomBar(
                 hPad = hPad,
                 step = step,
+                shotsDone = shotsDone,
                 nextEnabled = when (step) {
-                    CollageStep.CAPTURE -> canContinueFromCapture
+                    CollageStep.CAPTURE -> if (shotsDone) canContinueFromCapture else cameraReady && !captureBusy
                     CollageStep.SHARE -> finishArmed
                     else -> true
                 },
@@ -525,7 +501,7 @@ fun CollageFlow(
                 },
                 onNext = {
                     when (step) {
-                        CollageStep.CAPTURE -> step = CollageStep.BACKGROUND
+                        CollageStep.CAPTURE -> if (shotsDone) step = CollageStep.BACKGROUND else startSequence()
                         CollageStep.BACKGROUND -> step = CollageStep.DESIGN
                         CollageStep.DESIGN -> step = CollageStep.SHARE
                         CollageStep.SHARE -> exit()
@@ -552,7 +528,6 @@ private fun ColumnScope.CollageCaptureContent(
     previewRotationDegrees: Int,
     viewIndex: Int?,
     onViewPhoto: (Int) -> Unit,
-    onCapture: () -> Unit,
     onRetakeOne: (Int) -> Unit,
     onRetakeAll: () -> Unit,
     onReady: () -> Unit,
@@ -729,58 +704,25 @@ private fun ColumnScope.CollageCaptureContent(
         Text(cameraError, color = Cream.copy(alpha = 0.8f), fontSize = 13.sp)
     }
 
+    // Taking the photos is the bottom bar's primary action; the inline row only
+    // holds the secondary actions, exactly like the AI capture step.
     val busy = sequenceActive || state.isProcessing || state.isCapturing || countdown > 0
-    when {
-        viewing != null -> {
-            // Secondary filled action: teal background, never the primary blue.
-            Button(
-                onClick = { onRetakeOne(viewing) },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth().height(60.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SyscomTeal,
-                    contentColor = Ink,
-                    disabledContainerColor = SyscomTeal.copy(alpha = 0.4f),
-                    disabledContentColor = Ink.copy(alpha = 0.6f),
-                ),
-            ) {
-                Text(
+    if (viewing != null || done) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (viewing != null) {
+                BoothSecondaryButton(
                     text = stringResource(R.string.collage_retake_one),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    onClick = { onRetakeOne(viewing) },
+                    enabled = !busy,
+                    icon = Icons.Rounded.Refresh,
+                    modifier = Modifier.weight(1f),
                 )
             }
-            OutlinedButton(
+            BoothOutlinedButton(
+                text = stringResource(R.string.collage_retake_three),
                 onClick = onRetakeAll,
                 enabled = !busy,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(18.dp),
-            ) {
-                Text(stringResource(R.string.collage_retake_three), fontSize = 16.sp)
-            }
-        }
-
-        done -> OutlinedButton(
-            onClick = onRetakeAll,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(18.dp),
-        ) {
-            Text(stringResource(R.string.collage_retake_three), fontSize = 16.sp)
-        }
-
-        else -> Button(
-            onClick = onCapture,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth().height(64.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
-        ) {
-            Text(
-                text = stringResource(R.string.collage_take_three),
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
             )
         }
     }
@@ -796,7 +738,7 @@ private fun CollageBackgroundContent(
     onSelectBackground: (String) -> Unit,
 ) {
     val targetIndex = if (state.applyBackgroundToAll) null else state.selectedPhotoIndex
-    SectionTitle(stringResource(R.string.collage_step_background))
+    BoothSectionTitle(stringResource(R.string.collage_step_background))
     Text(
         stringResource(R.string.collage_background_hint),
         color = Cream.copy(alpha = 0.7f),
@@ -909,7 +851,7 @@ private fun CollageDesignContent(
     onSelectBorder: (PhotoBorderStyle) -> Unit,
 ) {
     val preview = state.resultBitmap ?: state.stripPreview
-    SectionTitle(stringResource(R.string.ai_section_frame))
+    BoothSectionTitle(stringResource(R.string.ai_section_frame))
     if (preview != null && !preview.isRecycled) {
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Image(
@@ -932,7 +874,7 @@ private fun CollageDesignContent(
     // Same "Marca del evento" row as the AI flow: only when there is more than
     // one enabled brand, so a single-brand booth stays uncluttered.
     if (state.eventProfiles.size > 1) {
-        SectionTitle(stringResource(R.string.ai_section_brand))
+        BoothSectionTitle(stringResource(R.string.ai_section_brand))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1006,19 +948,19 @@ private fun CollageDesignContent(
         }
     }
 
-    SectionTitle(stringResource(R.string.ai_section_decoration))
+    BoothSectionTitle(stringResource(R.string.ai_section_decoration))
     ChipRow(
         options = FrameDecoration.entries.map { stringResource(it.titleRes) to (it == state.customization.decoration) },
         onClick = { index -> onSelectDecoration(FrameDecoration.entries[index]) },
     )
 
-    SectionTitle(stringResource(R.string.collage_section_layout))
+    BoothSectionTitle(stringResource(R.string.collage_section_layout))
     ChipRow(
         options = CollageLayout.entries.map { stringResource(it.titleRes) to (it == state.customization.layout) },
         onClick = { index -> onSelectLayout(CollageLayout.entries[index]) },
     )
 
-    SectionTitle(stringResource(R.string.collage_section_border))
+    BoothSectionTitle(stringResource(R.string.collage_section_border))
     ChipRow(
         options = PhotoBorderStyle.entries.map { stringResource(it.titleRes) to (it == state.customization.photoBorderStyle) },
         onClick = { index -> onSelectBorder(PhotoBorderStyle.entries[index]) },
@@ -1035,7 +977,7 @@ private fun CollageShareContent(
     onRetryQr: () -> Unit,
     onQuickShare: () -> Unit,
 ) {
-    SectionTitle(stringResource(R.string.ai_section_share))
+    BoothSectionTitle(stringResource(R.string.ai_section_share))
     val photoLabels = List(state.photoPreviews.size) { index ->
         stringResource(R.string.collage_photo_label, index + 1)
     }
@@ -1204,48 +1146,24 @@ private fun CollageShareContent(
 private fun CollageBottomBar(
     hPad: androidx.compose.ui.unit.Dp,
     step: CollageStep,
+    shotsDone: Boolean,
     nextEnabled: Boolean,
     onBack: () -> Unit,
     onNext: () -> Unit,
 ) {
-    // The capture step has its own big action button, and the header X already
-    // exits the flow: nothing to show until the three shots exist.
-    if (step == CollageStep.CAPTURE && !nextEnabled) return
     val nextLabel = when (step) {
+        CollageStep.CAPTURE -> stringResource(if (shotsDone) R.string.wizard_next else R.string.collage_take_three)
         CollageStep.SHARE -> stringResource(R.string.finish)
         else -> stringResource(R.string.wizard_next)
     }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Ink)
-            .padding(horizontal = hPad, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (step != CollageStep.CAPTURE) {
-            OutlinedButton(
-                onClick = onBack,
-                modifier = Modifier.weight(1f).height(68.dp),
-                shape = RoundedCornerShape(20.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.wizard_back),
-                    fontSize = 18.sp,
-                )
-            }
-        }
-        Button(
-            onClick = onNext,
-            enabled = nextEnabled,
-            modifier = Modifier
-                .weight(if (step == CollageStep.CAPTURE) 1f else 1.4f)
-                .height(68.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
-        ) {
-            Text(nextLabel, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        }
-    }
+    BoothBottomBar(
+        horizontalPadding = hPad,
+        primaryLabel = nextLabel,
+        primaryEnabled = nextEnabled,
+        onPrimary = onNext,
+        backLabel = stringResource(if (step == CollageStep.CAPTURE) R.string.ai_exit else R.string.wizard_back),
+        onBack = onBack,
+    )
 }
 
 @Composable
@@ -1438,16 +1356,6 @@ private fun ChipRow(
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun SectionTitle(title: String, subtitle: String = "") {
-    Column {
-        Text(title, color = Cream, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        if (subtitle.isNotBlank()) {
-            Text(subtitle, color = Cream.copy(alpha = 0.7f), fontSize = 15.sp)
         }
     }
 }

@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -42,7 +40,6 @@ import com.photobooth.kiosk.data.BrandLogoStore
 import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.ui.theme.Cream
-import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -89,11 +86,14 @@ internal fun AdminBrandEditorScreen(
                 } else {
                     logoFailed = false
                     draft = draft.copy(logoPath = path)
-                    BrandLogoStore.delete(previous)
+                    // Only an unsaved pick can go now; the stored logo waits for "Save".
+                    if (previous != profile.branding.logoPath) BrandLogoStore.delete(previous)
                 }
             }
         }
     }
+
+    val dirty = name != profile.name || draft != profile.branding
 
     val logoBitmap = remember(draft.logoPath) {
         draft.logoPath?.let { path ->
@@ -101,13 +101,20 @@ internal fun AdminBrandEditorScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 12.dp,
-            bottom = 28.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    AdminSettingsScreen(
+        dirty = dirty,
+        onSave = {
+            val storedLogo = profile.branding.logoPath
+            if (name != profile.name) onRename(profileId, name)
+            if (draft != profile.branding) onSaveBranding(profileId, draft)
+            if (storedLogo != draft.logoPath) BrandLogoStore.delete(storedLogo)
+            onSaved()
+        },
+        onDiscard = {
+            if (draft.logoPath != profile.branding.logoPath) BrandLogoStore.delete(draft.logoPath)
+            name = profile.name
+            draft = profile.branding
+        },
     ) {
         item {
             AdminCard(
@@ -122,7 +129,7 @@ internal fun AdminBrandEditorScreen(
                         fontWeight = FontWeight.SemiBold,
                     )
                 } else {
-                    Button(
+                    OutlinedButton(
                         onClick = { onEnsureActive(profileId) },
                         modifier = Modifier.fillMaxWidth().height(46.dp),
                     ) {
@@ -175,12 +182,8 @@ internal fun AdminBrandEditorScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Button(
+                    OutlinedButton(
                         onClick = { logoPicker.launch(arrayOf("image/*")) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SyscomBlue,
-                            contentColor = Color.White,
-                        ),
                         modifier = Modifier.height(46.dp),
                     ) {
                         Text(stringResource(R.string.admin_brand_logo_choose))
@@ -188,7 +191,9 @@ internal fun AdminBrandEditorScreen(
                     if (draft.logoPath != null) {
                         OutlinedButton(
                             onClick = {
-                                BrandLogoStore.delete(draft.logoPath)
+                                if (draft.logoPath != profile.branding.logoPath) {
+                                    BrandLogoStore.delete(draft.logoPath)
+                                }
                                 draft = draft.copy(logoPath = null)
                             },
                             modifier = Modifier.height(46.dp),
@@ -274,20 +279,6 @@ internal fun AdminBrandEditorScreen(
                     value = draft.driveFolderName,
                     onValueChange = { draft = draft.copy(driveFolderName = it) },
                 )
-                Button(
-                    onClick = {
-                        onRename(profileId, name)
-                        onSaveBranding(profileId, draft)
-                        onSaved()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SyscomBlue,
-                        contentColor = Color.White,
-                    ),
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(50.dp),
-                ) {
-                    Text(stringResource(R.string.admin_profiles_save))
-                }
             }
         }
     }

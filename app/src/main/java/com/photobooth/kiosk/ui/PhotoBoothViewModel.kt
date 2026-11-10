@@ -775,11 +775,15 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update { it.copy(selectedAiStyleId = id, aiError = null) }
     }
 
-    fun selectServerModel(id: String) {
-        if (aiConfigLocked()) return
-        val model = _uiState.value.serverModels.firstOrNull { it.id == id } ?: return
-        if (!model.selectable) return
+    /**
+     * Admin-only: persists the AI model for every future session. Unlike guest
+     * choices it is not blocked by an in-progress guest AI result.
+     */
+    fun saveAdminModel(id: String): Boolean {
+        val model = _uiState.value.serverModels.firstOrNull { it.id == id } ?: return false
+        if (!model.selectable) return false
         saveSelectedModel(id)
+        return true
     }
 
     fun keepOriginalPhoto() {

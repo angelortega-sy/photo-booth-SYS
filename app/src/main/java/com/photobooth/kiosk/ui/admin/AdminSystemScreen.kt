@@ -1,11 +1,7 @@
 ﻿package com.photobooth.kiosk.ui.admin
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,14 +23,22 @@ import com.photobooth.kiosk.ui.theme.Cream
 @Composable
 internal fun AdminSystemScreen(
     onChangePin: () -> Unit,
+    onMessage: (String) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 12.dp,
-            bottom = 28.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    val context = LocalContext.current
+    var savedLanguage by remember { mutableStateOf(LanguageStore.current(context)) }
+    var draftLanguage by remember { mutableStateOf(savedLanguage) }
+
+    AdminSettingsScreen(
+        dirty = draftLanguage != savedLanguage,
+        onSave = {
+            LanguageStore.set(context, draftLanguage)
+            savedLanguage = draftLanguage
+            onMessage(context.getString(R.string.admin_changes_saved))
+            // The new language only takes effect once the activity is rebuilt.
+            (context as? Activity)?.recreate()
+        },
+        onDiscard = { draftLanguage = savedLanguage },
     ) {
         item {
             AdminCard(
@@ -57,23 +61,16 @@ internal fun AdminSystemScreen(
             }
         }
         item {
-            val context = LocalContext.current
-            var language by remember { mutableStateOf(LanguageStore.current(context)) }
             AdminCard(
                 title = stringResource(R.string.language_title),
                 subtitle = stringResource(R.string.language_subtitle),
             ) {
                 LanguageSelector(
-                    language = language,
-                    onPick = { picked ->
-                        LanguageStore.set(context, picked)
-                        language = picked
-                        (context as? Activity)?.recreate()
-                    },
+                    language = draftLanguage,
+                    onPick = { draftLanguage = it },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
     }
 }
-

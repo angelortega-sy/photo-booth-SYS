@@ -18,14 +18,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Usb
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -57,17 +57,25 @@ internal fun AdminCameraScreen(
     onRotationChange: (Int) -> Unit,
     palmEnabled: Boolean,
     onPalmToggle: (Boolean) -> Unit,
+    onSaved: () -> Unit,
 ) {
     var showCameraTest by remember { mutableStateOf(false) }
     var cameraTestError by remember { mutableStateOf<String?>(null) }
+    var draftRotation by remember(rotationDegrees) { mutableIntStateOf(rotationDegrees) }
+    var draftPalm by remember(palmEnabled) { mutableStateOf(palmEnabled) }
+    val dirty = draftRotation != rotationDegrees || draftPalm != palmEnabled
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 12.dp,
-            bottom = 28.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    AdminSettingsScreen(
+        dirty = dirty,
+        onSave = {
+            if (draftRotation != rotationDegrees) onRotationChange(draftRotation)
+            if (draftPalm != palmEnabled) onPalmToggle(draftPalm)
+            onSaved()
+        },
+        onDiscard = {
+            draftRotation = rotationDegrees
+            draftPalm = palmEnabled
+        },
     ) {
         item { DeviceCard(summary) }
         item {
@@ -81,14 +89,14 @@ internal fun AdminCameraScreen(
                     cameraTestError = null
                 },
                 onCameraError = { cameraTestError = it },
-                rotationDegrees = rotationDegrees,
-                onRotationChange = onRotationChange,
+                rotationDegrees = draftRotation,
+                onRotationChange = { draftRotation = it },
             )
         }
         item {
             GesturesCard(
-                palmEnabled = palmEnabled,
-                onPalmToggle = onPalmToggle,
+                palmEnabled = draftPalm,
+                onPalmToggle = { draftPalm = it },
             )
         }
     }
@@ -259,13 +267,7 @@ private fun CameraCard(
         }
 
         Spacer(Modifier.height(14.dp))
-        Button(
-            onClick = onToggleTest,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SyscomBlue,
-                contentColor = Color.White,
-            ),
-        ) {
+        OutlinedButton(onClick = onToggleTest) {
             Icon(
                 imageVector = Icons.Rounded.CameraAlt,
                 contentDescription = null,

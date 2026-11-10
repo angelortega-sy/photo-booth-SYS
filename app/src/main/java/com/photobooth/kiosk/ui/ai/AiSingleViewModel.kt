@@ -475,6 +475,17 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * Re-reads the admin-saved model. This view model outlives each guest session,
+     * so the model chosen in admin must be picked up on every entry.
+     */
+    fun refreshModel() {
+        if (isLocked()) return
+        val saved = aiSettings.load().modelId
+        _uiState.update { it.copy(selectedModelId = saved) }
+        refreshCatalog()
+    }
+
     private fun refreshCatalog() {
         if (!identityStore.load().enrolled) return
         viewModelScope.launch {

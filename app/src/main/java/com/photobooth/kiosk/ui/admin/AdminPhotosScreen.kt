@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,10 +22,9 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,7 +53,6 @@ import com.photobooth.kiosk.admin.SavedPhoto
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.InkSoft
-import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -108,14 +105,15 @@ internal fun AdminPhotosScreen(
     }
 
     val photoColumns = if (compact) 2 else 4
+    var draftSaveToDevice by remember(saveToDevice) { mutableStateOf(saveToDevice) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 12.dp,
-            bottom = 28.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    AdminSettingsScreen(
+        dirty = draftSaveToDevice != saveToDevice,
+        onSave = {
+            onSaveToDeviceChange(draftSaveToDevice)
+            onMessage(context.getString(R.string.admin_changes_saved))
+        },
+        onDiscard = { draftSaveToDevice = saveToDevice },
     ) {
         item {
             AdminCard(
@@ -133,8 +131,8 @@ internal fun AdminPhotosScreen(
                         modifier = Modifier.weight(1f),
                     )
                     Switch(
-                        checked = saveToDevice,
-                        onCheckedChange = onSaveToDeviceChange,
+                        checked = draftSaveToDevice,
+                        onCheckedChange = { draftSaveToDevice = it },
                     )
                 }
             }
@@ -155,13 +153,7 @@ internal fun AdminPhotosScreen(
                     title = stringResource(R.string.admin_section_photos),
                     subtitle = stringResource(R.string.admin_permission_photos),
                 ) {
-                    Button(
-                        onClick = onRequestPermission,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SyscomBlue,
-                            contentColor = Color.White,
-                        ),
-                    ) {
+                    OutlinedButton(onClick = onRequestPermission) {
                         Text(stringResource(R.string.admin_permission_photos))
                     }
                 }
