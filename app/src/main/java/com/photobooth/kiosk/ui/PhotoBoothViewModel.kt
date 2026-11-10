@@ -274,8 +274,9 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         val branding = _uiState.value.customization.eventBranding
         val base = branding.driveFolderName.ifBlank { branding.brand }.trim()
         if (base.isBlank()) return null
-        val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
-        return "$base $stamp".replace(Regex("[^\\p{L}\\p{N} _-]"), "").take(80).ifBlank { null }
+        // The backend creates fotos-1, fotos-2, ... inside the event folder,
+        // so the app only sends the stable event name.
+        return base.replace(Regex("[^\\p{L}\\p{N} _-]"), "").take(80).ifBlank { null }
     }
     suspend fun startDelivery(): DeliverySession? {
         _uiState.update { it.copy(shareError = null) }
