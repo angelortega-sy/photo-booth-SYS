@@ -16,6 +16,7 @@ import com.photobooth.kiosk.data.AiStyles
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.DeviceIdentity
 import com.photobooth.kiosk.data.DeviceIdentityStore
+import com.photobooth.kiosk.data.driveFolderBase
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.CameraSettingsStore
 import com.photobooth.kiosk.data.GestureSettingsStore
@@ -270,14 +271,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         refreshBackgrounds()
     }
 
-    private fun driveFolderName(): String? {
-        val branding = _uiState.value.customization.eventBranding
-        val base = branding.driveFolderName.ifBlank { branding.brand }.trim()
-        if (base.isBlank()) return null
-        // The backend creates fotos-1, fotos-2, ... inside the event folder,
-        // so the app only sends the stable event name.
-        return base.replace(Regex("[^\\p{L}\\p{N} _-]"), "").take(80).ifBlank { null }
-    }
+    private fun driveFolderName(): String? =
+        _uiState.value.customization.eventBranding.driveFolderBase()
     suspend fun startDelivery(): DeliverySession? {
         _uiState.update { it.copy(shareError = null) }
         val files = ensureExportedFiles() ?: return null

@@ -19,6 +19,7 @@ import com.photobooth.kiosk.data.EventBadgePreset
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.EventProfileStore
 import com.photobooth.kiosk.data.FrameDecoration
+import com.photobooth.kiosk.data.driveFolderBase
 import com.photobooth.kiosk.data.GestureSettingsStore
 import com.photobooth.kiosk.data.PhotoSettingsStore
 import com.photobooth.kiosk.data.StyleSettingsStore
@@ -392,7 +393,13 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(status = AiStatus.UPLOADING, uploadProgress = 0, progress = 0, error = null, cost = null)
                 }
-                val session = withContext(Dispatchers.IO) { aiClient.createSession() }
+                val branding = profileStore.enabledProfiles()
+                    .firstOrNull { it.id == snapshot.selectedEventProfileId }
+                    ?.branding
+                    ?: profileStore.active().branding
+                val session = withContext(Dispatchers.IO) {
+                    aiClient.createSession(branding.driveFolderBase())
+                }
                 remoteSessionId = session.id
                 withContext(Dispatchers.IO) { aiClient.uploadPhoto(session.id, source) }
                 ensureActive()
@@ -421,9 +428,8 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 bitmap = cropped
                 styledBitmap?.let { if (!it.isRecycled) it.recycle() }
                 styledBitmap = bitmap
-                val activeProfile = profileStore.active()
                 val customization = _uiState.value.customization.copy(
-                    eventBranding = activeProfile.branding,
+                    eventBranding = branding,
                     badgePreset = EventBadgePreset.CUSTOM,
                     decoration = _uiState.value.frameDecoration,
                 )
