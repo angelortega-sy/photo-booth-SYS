@@ -34,7 +34,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -88,11 +87,8 @@ internal fun AdminUsageScreen(
     var savedUrl by remember { mutableStateOf(viewModel.loadIdentity().baseUrl) }
     var draftUrl by remember { mutableStateOf(savedUrl) }
     var draftModelId by remember(selectedModelId) { mutableStateOf(selectedModelId) }
-    var savedStream by remember { mutableStateOf(viewModel.streamPreviewEnabled()) }
-    var draftStream by remember { mutableStateOf(savedStream) }
     val urlChanged = draftUrl.trim() != savedUrl.trim()
     val modelChanged = draftModelId != selectedModelId
-    val streamChanged = draftStream != savedStream
 
     fun saveUrlIfChanged() {
         if (!urlChanged) return
@@ -101,15 +97,11 @@ internal fun AdminUsageScreen(
     }
 
     AdminSettingsScreen(
-        dirty = urlChanged || modelChanged || streamChanged,
+        dirty = urlChanged || modelChanged,
         onSave = {
             val modelOk = !modelChanged || viewModel.saveAdminModel(draftModelId)
             val refreshCatalog = urlChanged
             saveUrlIfChanged()
-            if (streamChanged) {
-                viewModel.setStreamPreview(draftStream)
-                savedStream = draftStream
-            }
             if (refreshCatalog) viewModel.refreshServerCatalog()
             onMessage(
                 context.getString(
@@ -121,7 +113,6 @@ internal fun AdminUsageScreen(
         onDiscard = {
             draftUrl = savedUrl
             draftModelId = selectedModelId
-            draftStream = savedStream
         },
     ) {
         item {
@@ -134,8 +125,6 @@ internal fun AdminUsageScreen(
                 selectedModelId = draftModelId,
                 savedModelId = selectedModelId,
                 onSelectModel = { draftModelId = it },
-                streamEnabled = draftStream,
-                onStreamChange = { draftStream = it },
                 statusProbe = statusProbe,
                 statusError = statusError,
                 isStatusChecking = isStatusChecking,
@@ -158,8 +147,6 @@ private fun AiServerAdminCard(
     selectedModelId: String,
     savedModelId: String,
     onSelectModel: (String) -> Unit,
-    streamEnabled: Boolean,
-    onStreamChange: (Boolean) -> Unit,
     statusProbe: ServerStatusProbe?,
     statusError: String?,
     isStatusChecking: Boolean,
@@ -224,34 +211,6 @@ private fun AiServerAdminCard(
                 selectedModelId = selectedModelId,
                 savedModelId = savedModelId,
                 onSelect = onSelectModel,
-            )
-        }
-        val streamSupported = models.firstOrNull { it.id == selectedModelId }?.supportsStreaming == true
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.admin_ai_stream_title),
-                    color = Cream,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = stringResource(R.string.admin_ai_stream_hint),
-                    color = Cream.copy(alpha = 0.6f),
-                    fontSize = 12.sp,
-                )
-            }
-            Switch(checked = streamEnabled, onCheckedChange = onStreamChange)
-        }
-        if (streamEnabled && !streamSupported) {
-            Text(
-                text = stringResource(R.string.admin_ai_stream_unsupported),
-                color = androidx.compose.ui.graphics.Color(0xFFFFB4A2),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 6.dp),
             )
         }
         OutlinedButton(

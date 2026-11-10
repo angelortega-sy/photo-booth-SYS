@@ -786,13 +786,6 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         return true
     }
 
-    /** Admin-only: whether the loading screen shows the drafts streamed by the provider. */
-    fun streamPreviewEnabled(): Boolean = aiSettings.load().streamPreview
-
-    fun setStreamPreview(enabled: Boolean) {
-        aiSettings.setStreamPreview(enabled)
-    }
-
     fun keepOriginalPhoto() {
         if (aiConfigLocked() && _uiState.value.hasAiResult) return
         _uiState.update {

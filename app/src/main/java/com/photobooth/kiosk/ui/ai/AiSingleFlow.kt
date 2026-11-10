@@ -561,7 +561,6 @@ fun AiSingleFlow(
                 photoPreview = state.photoPreview,
                 stylePreview = stylePreviews[state.selectedStyleId],
                 styleName = state.serverStyles.firstOrNull { it.id == state.selectedStyleId }?.name,
-                draft = state.streamPreview,
                 result = state.resultPreview.takeIf { revealing },
                 onCancel = viewModel::cancel,
             )

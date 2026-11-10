@@ -91,7 +91,6 @@ internal fun GenerationExperience(
     photoPreview: Bitmap?,
     stylePreview: Bitmap?,
     styleName: String?,
-    draft: Bitmap?,
     result: Bitmap?,
     onCancel: () -> Unit,
 ) {
@@ -151,7 +150,6 @@ internal fun GenerationExperience(
             MetamorphosisCard(
                 photoPreview = photoPreview,
                 stylePreview = stylePreview.takeIf { generating && !revealing },
-                draft = draft.takeIf { !revealing },
                 result = result,
                 scanning = !revealing,
                 scan = scan,
@@ -199,7 +197,6 @@ internal fun GenerationExperience(
 private fun MetamorphosisCard(
     photoPreview: Bitmap?,
     stylePreview: Bitmap?,
-    draft: Bitmap?,
     result: Bitmap?,
     scanning: Boolean,
     scan: State<Float>,
@@ -255,7 +252,7 @@ private fun MetamorphosisCard(
                     .clip(inner)
                     .background(InkSoft),
             ) {
-                Crossfade(targetState = result ?: draft ?: photoPreview, label = "cardImage") { bitmap ->
+                Crossfade(targetState = result ?: photoPreview, label = "cardImage") { bitmap ->
                     if (bitmap != null && !bitmap.isRecycled) {
                         Image(
                             bitmap.asImageBitmap(),
@@ -265,7 +262,7 @@ private fun MetamorphosisCard(
                         )
                     }
                 }
-                if (draft == null && stylePreview != null && !stylePreview.isRecycled) {
+                if (stylePreview != null && !stylePreview.isRecycled) {
                     Image(
                         stylePreview.asImageBitmap(),
                         contentDescription = null,
