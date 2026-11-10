@@ -31,6 +31,8 @@ data class BoothModel(
     val provider: String,
     val overBudget: Boolean,
     val selectable: Boolean,
+    /** The provider can stream draft images while it paints. */
+    val supportsStreaming: Boolean = false,
 )
 
 data class BoothSession(val id: String, val expiresAt: String)
@@ -159,6 +161,7 @@ class AiBackendClient(
                         provider = item.optString("provider"),
                         overBudget = item.optBoolean("overBudget"),
                         selectable = item.optBoolean("selectable"),
+                        supportsStreaming = item.optBoolean("supportsStreaming"),
                     ),
                 )
             }
@@ -370,6 +373,104 @@ class AiBackendClient(
         accessoryIds: List<String> = emptyList(),
         useCustomBackground: Boolean = false,
     ): StylizeResult {
+        val payload = stylizePayload(modelId, styleId, source, backgroundId, accessoryIds, useCustomBackground)
+        val body = payload.toString().toByteArray(Charsets.UTF_8)
+        val (_, text) = open(
+            "POST",
+            "/v1/sessions/$sessionId/stylize",
+            body,
+            JSON,
+            sign = true,
+        )
+        return parseStyled(JSONObject(text))
+    }
+
+    /**
+     * Same call with `stream: true`. The backend forwards the provider's draft
+     * images as Server-Sent Events and hands each one to [onPartial], so the
+     * loading screen can paint the drafts while the model is still working.
+     * Models without streaming answer with the plain JSON body, handled here too.
+     */
+    fun stylizeStream(
+        sessionId: String,
+        modelId: String,
+        styleId: String,
+        source: String = "0",
+        backgroundId: String? = null,
+        accessoryIds: List<String> = emptyList(),
+        onPartial: (ByteArray) -> Unit,
+    ): StylizeResult {
+        val payload = stylizePayload(modelId, styleId, source, backgroundId, accessoryIds, false)
+            .put("stream", true)
+        val body = payload.toString().toByteArray(Charsets.UTF_8)
+        val path = "/v1/sessions/$sessionId/stylize"
+        val connection = (URL(identityStore.load().baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 20_000
+            readTimeout = 180_000
+            instanceFollowRedirects = false
+            setRequestProperty("Accept", "text/event-stream")
+            applySignature("POST", path, body)
+            setRequestProperty("Content-Type", JSON)
+            doOutput = true
+            setFixedLengthStreamingMode(body.size)
+        }
+        try {
+            connection.outputStream.use { it.write(body) }
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                val text = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val parsed = runCatching { JSONObject(text).optJSONObject("error") }.getOrNull()
+                throw AiBackendException(
+                    message = parsed?.optString("message").orEmpty().ifBlank { "HTTP $code" },
+                    httpCode = code,
+                    code = parsed?.optString("code")?.ifBlank { null },
+                )
+            }
+            if (!connection.contentType.orEmpty().contains("text/event-stream")) {
+                val text = connection.inputStream.bufferedReader().use { it.readText() }
+                return parseStyled(JSONObject(text))
+            }
+            var completed: StylizeResult? = null
+            var failure: String? = null
+            connection.inputStream.bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    if (!line.startsWith("data:")) continue
+                    val data = line.removePrefix("data:").trim()
+                    if (data.isEmpty() || data == "[DONE]") continue
+                    val event = runCatching { JSONObject(data) }.getOrNull() ?: continue
+                    when (event.optString("type")) {
+                        "partial" -> {
+                            val base64 = event.optString("imageBase64")
+                            if (base64.isNotEmpty()) {
+                                val bytes = decodeBase64(base64)
+                                if (bytes.isNotEmpty()) onPartial(bytes)
+                            }
+                        }
+                        "completed" -> completed = parseStyled(event)
+                        "error" -> failure = event.optString("message").ifBlank { "Stream failed" }
+                    }
+                }
+            }
+            failure?.let { throw AiBackendException(it) }
+            return completed ?: throw AiBackendException("The stream ended without an image")
+        } catch (error: AiBackendException) {
+            throw error
+        } catch (error: Exception) {
+            throw AiBackendException(error.message ?: "network")
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun stylizePayload(
+        modelId: String,
+        styleId: String,
+        source: String,
+        backgroundId: String?,
+        accessoryIds: List<String>,
+        useCustomBackground: Boolean,
+    ): JSONObject {
         val payload = JSONObject()
             .put("modelId", modelId)
             .put("styleId", styleId)
@@ -382,25 +483,22 @@ class AiBackendClient(
         if (accessoryIds.isNotEmpty()) {
             payload.put("accessoryIds", JSONArray(accessoryIds))
         }
-        val body = payload.toString().toByteArray(Charsets.UTF_8)
-        val (_, text) = open(
-            "POST",
-            "/v1/sessions/$sessionId/stylize",
-            body,
-            JSON,
-            sign = true,
-        )
-        val json = JSONObject(text)
-        return StylizeResult(
-            costUsd = if (json.isNull("costUsd")) null else json.optDouble("costUsd"),
-            estimatedCostUsd = if (json.isNull("estimatedCostUsd")) {
-                null
-            } else {
-                json.optDouble("estimatedCostUsd")
-            },
-            imageBase64 = json.optString("imageBase64"),
-        )
+        return payload
     }
+
+    private fun parseStyled(json: JSONObject): StylizeResult = StylizeResult(
+        costUsd = if (json.isNull("costUsd")) null else json.optDouble("costUsd"),
+        estimatedCostUsd = if (json.isNull("estimatedCostUsd")) {
+            null
+        } else {
+            json.optDouble("estimatedCostUsd")
+        },
+        imageBase64 = json.optString("imageBase64"),
+    )
+
+    private fun decodeBase64(value: String): ByteArray =
+        runCatching { android.util.Base64.decode(value, android.util.Base64.DEFAULT) }
+            .getOrDefault(ByteArray(0))
 
     fun finalize(sessionId: String): String {
         val body = "{}".toByteArray(Charsets.UTF_8)
