@@ -20,15 +20,12 @@ class CameraSettingsStore(context: Context) {
             .apply()
 
     init {
-        // A vertical USB webcam was shown 90° clockwise while the old default was 0°.
-        val version = prefs.getInt(KEY_VERSION, 1)
-        if (version < CURRENT_VERSION) {
-            val stored = if (prefs.contains(KEY_ROTATION)) prefs.getInt(KEY_ROTATION, 0) else 0
-            val corrected = if (stored == 0) DEFAULT_ROTATION else stored.normalized()
-            prefs.edit()
-                .putInt(KEY_ROTATION, corrected)
-                .putInt(KEY_VERSION, CURRENT_VERSION)
-                .apply()
+        // Version 2 rewrote every stored 0 to the old 270 default, which broke the
+        // devices whose camera needed no correction. From version 3 on the angle is
+        // only changed from Admin and only applies to the external USB camera, so
+        // this migration must not touch the stored value.
+        if (prefs.getInt(KEY_VERSION, 1) < CURRENT_VERSION) {
+            prefs.edit().putInt(KEY_VERSION, CURRENT_VERSION).apply()
         }
     }
 
@@ -38,7 +35,9 @@ class CameraSettingsStore(context: Context) {
         const val PREFS_NAME = "camera_settings"
         const val KEY_ROTATION = "rotation_degrees"
         const val KEY_VERSION = "rotation_version"
-        const val CURRENT_VERSION = 2
-        const val DEFAULT_ROTATION = 270
+        const val CURRENT_VERSION = 3
+        // Mount correction for a sideways webcam. Built-in cameras are described by
+        // CameraX, so the default has to be zero.
+        const val DEFAULT_ROTATION = 0
     }
 }

@@ -217,10 +217,12 @@ private fun CameraCard(
         }
 
         Spacer(Modifier.height(10.dp))
+        // Must match CameraPreview's order: external first, then front, then back.
+        val externalActive = cameras.any { it.facing == "Externa / USB" }
         val active = when {
+            externalActive -> "Externa / USB"
             cameras.any { it.facing == "Frontal" } -> "Frontal"
             cameras.any { it.facing == "Trasera" } -> "Trasera"
-            cameras.any { it.facing == "Externa / USB" } -> "Externa / USB"
             else -> "Sin cámara"
         }
         InfoRow("La app usaría", active)
@@ -281,29 +283,31 @@ private fun CameraCard(
             )
         }
 
-        Spacer(Modifier.height(14.dp))
-        Text(
-            text = stringResource(R.string.admin_camera_rotation),
-            color = Cream,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = stringResource(R.string.admin_camera_rotation_hint),
-            color = Color(0xFF9AC2F4),
-            fontSize = 12.sp,
-            modifier = Modifier.padding(top = 2.dp),
-        )
-        Row(
-            modifier = Modifier.padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            listOf(0, 90, 180, 270).forEach { degrees ->
-                FilterChip(
-                    selected = rotationDegrees == degrees,
-                    onClick = { onRotationChange(degrees) },
-                    label = { Text("$degrees°") },
-                )
+        if (externalActive) {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                text = stringResource(R.string.admin_camera_rotation),
+                color = Cream,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.admin_camera_rotation_hint),
+                color = Color(0xFF9AC2F4),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(0, 90, 180, 270).forEach { degrees ->
+                    FilterChip(
+                        selected = rotationDegrees == degrees,
+                        onClick = { onRotationChange(degrees) },
+                        label = { Text("$degrees°") },
+                    )
+                }
             }
         }
 
