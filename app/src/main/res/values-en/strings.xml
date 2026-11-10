@@ -350,9 +350,6 @@
     <string name="admin_ai_title">AI and server</string>
     <string name="admin_ai_subtitle">This kiosk only talks to the booth server. The OpenRouter key is not in the app.</string>
     <string name="admin_ai_url">Server URL (https://…)</string>
-    <string name="admin_ai_stream_title">Live preview</string>
-    <string name="admin_ai_stream_hint">Shows the drafts the model streams while it paints. Only for models that support it; about 300 KB extra per photo.</string>
-    <string name="admin_ai_stream_unsupported">The selected model does not support streaming: the normal loading screen will be used.</string>
     <string name="admin_ai_enroll">Kiosk password</string>
     <string name="admin_ai_enroll_action">Enroll kiosk</string>
     <string name="admin_ai_enrolling">Enrolling…</string>

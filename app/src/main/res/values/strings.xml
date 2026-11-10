@@ -350,9 +350,6 @@
     <string name="admin_ai_title">IA y servidor</string>
     <string name="admin_ai_subtitle">Este tótem solo habla con el servidor de la cabina. La llave de OpenRouter no está en la app.</string>
     <string name="admin_ai_url">URL del servidor (https://…)</string>
-    <string name="admin_ai_stream_title">Vista previa en vivo</string>
-    <string name="admin_ai_stream_hint">Muestra los borradores que el modelo envía mientras pinta. Solo con modelos que lo soportan; usa ~300 KB extra por foto.</string>
-    <string name="admin_ai_stream_unsupported">El modelo seleccionado no soporta streaming: se usará la pantalla de carga normal.</string>
     <string name="admin_ai_enroll">Contraseña del tótem</string>
     <string name="admin_ai_enroll_action">Registrar tótem</string>
     <string name="admin_ai_enrolling">Registrando…</string>

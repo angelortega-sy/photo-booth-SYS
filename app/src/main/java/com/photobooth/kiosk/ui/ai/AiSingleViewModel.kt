@@ -66,8 +66,6 @@ data class AiSingleUiState(
     val errorEventId: Long = 0,
     val resultPreview: Bitmap? = null,
     val resultFile: File? = null,
-    /** Draft image streamed by the provider while it paints; null when streaming is off or unavailable. */
-    val streamPreview: Bitmap? = null,
     val frameStyle: CollageFrameStyle = CollageFrameStyle.SYSCOM_DARK,
     val frameDecoration: FrameDecoration = FrameDecoration.NONE,
     val customization: CollageCustomization = CollageCustomization(),
@@ -393,14 +391,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         aiJob = viewModelScope.launch {
             try {
                 _uiState.update {
-                    it.copy(
-                        status = AiStatus.UPLOADING,
-                        uploadProgress = 0,
-                        progress = 0,
-                        error = null,
-                        cost = null,
-                        streamPreview = null,
-                    )
+                    it.copy(status = AiStatus.UPLOADING, uploadProgress = 0, progress = 0, error = null, cost = null)
                 }
                 val branding = profileStore.enabledProfiles()
                     .firstOrNull { it.id == snapshot.selectedEventProfileId }
@@ -413,37 +404,15 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 withContext(Dispatchers.IO) { aiClient.uploadPhoto(session.id, source) }
                 ensureActive()
                 _uiState.update { it.copy(status = AiStatus.GENERATING, uploadProgress = 1, progress = 45) }
-                val wantsStream = aiSettings.load().streamPreview &&
-                    snapshot.serverModels.firstOrNull { it.id == modelId }?.supportsStreaming == true
                 val styled = withContext(Dispatchers.IO) {
-                    if (wantsStream) {
-                        aiClient.stylizeStream(
-                            sessionId = session.id,
-                            modelId = modelId,
-                            styleId = snapshot.selectedStyleId,
-                            source = "0",
-                            backgroundId = backgroundForPrompt,
-                            accessoryIds = snapshot.accessories.toList(),
-                        ) { bytes ->
-                            val draft = runCatching {
-                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                            }.getOrNull()
-                            if (draft != null) {
-                                viewModelScope.launch(Dispatchers.Main.immediate) {
-                                    _uiState.update { it.copy(streamPreview = draft) }
-                                }
-                            }
-                        }
-                    } else {
-                        aiClient.stylize(
-                            sessionId = session.id,
-                            modelId = modelId,
-                            styleId = snapshot.selectedStyleId,
-                            source = "0",
-                            backgroundId = backgroundForPrompt,
-                            accessoryIds = snapshot.accessories.toList(),
-                        )
-                    }
+                    aiClient.stylize(
+                        sessionId = session.id,
+                        modelId = modelId,
+                        styleId = snapshot.selectedStyleId,
+                        source = "0",
+                        backgroundId = backgroundForPrompt,
+                        accessoryIds = snapshot.accessories.toList(),
+                    )
                 }
                 ensureActive()
                 val bytes = decodeImage(styled.imageBase64)
@@ -482,7 +451,6 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                         cost = styled.costUsd ?: styled.estimatedCostUsd,
                         resultPreview = framed,
                         resultFile = framedFile,
-                        streamPreview = null,
                         customization = customization,
                     )
                 }
