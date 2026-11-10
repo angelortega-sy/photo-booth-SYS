@@ -63,6 +63,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 data class PhotoBoothUiState(
@@ -267,6 +270,13 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         refreshBackgrounds()
     }
 
+    private fun driveFolderName(): String? {
+        val branding = _uiState.value.customization.eventBranding
+        val base = branding.driveFolderName.ifBlank { branding.brand }.trim()
+        if (base.isBlank()) return null
+        val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+        return "$base $stamp".replace(Regex("[^\\p{L}\\p{N} _-]"), "").take(80).ifBlank { null }
+    }
     suspend fun startDelivery(): DeliverySession? {
         _uiState.update { it.copy(shareError = null) }
         val files = ensureExportedFiles() ?: return null
@@ -970,7 +980,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 if (files.size != 4) throw AiBackendException("Missing photos")
                 if (token != sessionToken) throw SessionExpiredException()
                 val sessionId = withContext(Dispatchers.IO) {
-                    val created = aiClient.createSession()
+                    val created = aiClient.createSession(driveFolderName())
                     _uiState.update { it.copy(aiUploadedCount = 1) }
                     aiClient.uploadPhotos(created.id, files[0], files[1], files[2], files[3])
                     created.id
@@ -1051,7 +1061,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             if (existingId != null && uploadedSignature == signature) {
                 existingId
             } else {
-                val created = aiClient.createSession()
+                val created = aiClient.createSession(driveFolderName())
                 aiClient.uploadPhotos(created.id, files[0], files[1], files[2], files[3])
                 remoteSessionId = created.id
                 remoteSessionStyled = false

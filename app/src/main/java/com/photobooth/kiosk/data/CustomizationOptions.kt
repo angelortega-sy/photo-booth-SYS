@@ -142,6 +142,8 @@ data class EventBranding(
     val primaryColor: Long = 0xFF050B14,
     val secondaryColor: Long = 0xFF0B63CE,
     val logoPath: String? = null,
+    /** Base name for the Drive folder; the app appends the session timestamp. */
+    val driveFolderName: String = "",
 ) {
     fun withBadge(preset: EventBadgePreset): EventBranding = if (preset == EventBadgePreset.CUSTOM) {
         this

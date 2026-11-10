@@ -269,6 +269,11 @@ internal fun AdminBrandEditorScreen(
                     value = draft.hashtag,
                     onValueChange = { draft = draft.copy(hashtag = it) },
                 )
+                BrandingField(
+                    label = stringResource(R.string.admin_event_drive_folder),
+                    value = draft.driveFolderName,
+                    onValueChange = { draft = draft.copy(driveFolderName = it) },
+                )
                 Button(
                     onClick = {
                         onRename(profileId, name)

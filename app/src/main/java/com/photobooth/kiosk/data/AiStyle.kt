@@ -86,6 +86,15 @@ object AiAccessories {
 
     val FACE_OPTIONS: List<AiAccessory> = listOf(
         AiAccessory(
+            id = "sharingan",
+            labelRes = R.string.ai_accessory_sharingan,
+            promptFragment = "Change only the eyes. Keep this person's face, age, skin, hair, nose, " +
+                "mouth, expression, and personality. Both irises turn a vivid blood red with a black " +
+                "pupil and three black comma-shaped tomoe marks in a ring around the pupil. The eyes " +
+                "glow faintly red, everything else stays exactly the same",
+        ),
+
+        AiAccessory(
             id = "sunglasses",
             labelRes = R.string.ai_accessory_sunglasses,
             promptFragment = "stylish sunglasses matching the art style",
@@ -174,6 +183,24 @@ object AiAccessories {
     )
 
     val OUTFIT_OPTIONS: List<AiAccessory> = listOf(
+        AiAccessory(
+            id = "akatsuki",
+            labelRes = R.string.ai_accessory_akatsuki,
+            promptFragment = "Change only the clothing. Keep this person's face, age, skin, hair, " +
+                "expression, and personality. Dress them in a long black cloak with a high collar and " +
+                "wide sleeves, decorated with large red cloud outlines trimmed in white. Same pose and " +
+                "body shape",
+        ),
+
+        AiAccessory(
+            id = "naruto_outfit",
+            labelRes = R.string.ai_accessory_naruto_outfit,
+            promptFragment = "Change only the clothing. Keep this person's face, age, skin, hair, " +
+                "expression, and personality. Dress them in an orange and black ninja tracksuit with a " +
+                "high collar and a metal forehead protector bearing a plain spiral leaf symbol. Same " +
+                "pose and body shape",
+        ),
+
         AiAccessory(
             id = "gi_syscom",
             labelRes = R.string.ai_accessory_gi_syscom,

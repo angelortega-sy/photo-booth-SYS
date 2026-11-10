@@ -160,6 +160,7 @@ private fun accessoryIcon(id: String?): Int? = when (id) {
     "party_hat" -> R.drawable.ic_accessory_party_hat
     "bunny_ears" -> R.drawable.ic_accessory_bunny_ears
     "sunglasses" -> R.drawable.ic_accessory_sunglasses
+            "sharingan" -> R.drawable.ic_accessory_sunglasses
     "mask" -> R.drawable.ic_accessory_mask
     "mustache" -> R.drawable.ic_accessory_mustache
     "flowers" -> R.drawable.ic_accessory_flowers
@@ -167,6 +168,8 @@ private fun accessoryIcon(id: String?): Int? = when (id) {
     "lei" -> R.drawable.ic_accessory_lei
     "ssj_yellow", "ssj_red", "ssj_blue", "ssj_rose", "naruto" -> R.drawable.ic_accessory_ssj_hair
     "gi_syscom" -> R.drawable.ic_accessory_gi_syscom
+            "naruto_outfit" -> R.drawable.ic_accessory_gi_syscom
+            "akatsuki" -> R.drawable.ic_accessory_tux
     "bulma_style" -> R.drawable.ic_accessory_bulma_style
     "gown" -> R.drawable.ic_accessory_gown
     "tux" -> R.drawable.ic_accessory_tux
