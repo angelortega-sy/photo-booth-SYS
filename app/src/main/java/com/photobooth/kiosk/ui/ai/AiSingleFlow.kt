@@ -5,7 +5,6 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +34,6 @@ import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.Celebration
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Checkroom
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Face
 import androidx.compose.material.icons.rounded.FilterVintage
@@ -55,6 +53,7 @@ import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ImageNotSupported
 import androidx.compose.material.icons.rounded.QrCode2
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.Button
@@ -62,19 +61,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -88,11 +80,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -126,6 +114,11 @@ import com.photobooth.kiosk.delivery.LocalDeliveryServer
 import com.photobooth.kiosk.network.BoothStyle
 import com.photobooth.kiosk.photo.PhotoSaver
 import com.photobooth.kiosk.photo.QrCodeGenerator
+import com.photobooth.kiosk.ui.components.BoothBottomBar
+import com.photobooth.kiosk.ui.components.BoothFlowHeader
+import com.photobooth.kiosk.ui.components.BoothOutlinedButton
+import com.photobooth.kiosk.ui.components.BoothSecondaryButton
+import com.photobooth.kiosk.ui.components.BoothSectionTitle
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.InkSoft
@@ -137,9 +130,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.PI
 
 private const val FINISH_GUARD_MS = 3_000L
+private const val REVEAL_MS = 1_800L
 
 private enum class AiStep(val index: Int, val titleRes: Int) {
     CAPTURE(0, R.string.ai_step_capture),
@@ -204,7 +197,11 @@ fun AiSingleFlow(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // The admin may have switched styles on or off since the last guest run.
-    LaunchedEffect(Unit) { viewModel.refreshStyleSettings(); viewModel.refreshEventProfiles() }
+    LaunchedEffect(Unit) {
+        viewModel.refreshModel()
+        viewModel.refreshStyleSettings()
+        viewModel.refreshEventProfiles()
+    }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
@@ -274,6 +271,25 @@ fun AiSingleFlow(
                 delay(15_000)
                 onInteraction()
             }
+        }
+    }
+
+    // A finished generation keeps the overlay up a moment longer to reveal the result.
+    var revealing by remember { mutableStateOf(false) }
+    var wasGenerating by remember { mutableStateOf(false) }
+    LaunchedEffect(state.status) {
+        if (state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING) {
+            wasGenerating = true
+            return@LaunchedEffect
+        }
+        val finished = wasGenerating && state.hasResult
+        wasGenerating = false
+        if (!finished) return@LaunchedEffect
+        revealing = true
+        try {
+            delay(REVEAL_MS)
+        } finally {
+            revealing = false
         }
     }
 
@@ -364,36 +380,14 @@ fun AiSingleFlow(
 
     Box(Modifier.fillMaxSize().background(Ink)) {
         Column(Modifier.fillMaxSize()) {
-            // Top bar
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = hPad, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.ai_flow_title), color = Cream, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        stringResource(R.string.ai_step_counter, step.index + 1, TOTAL_STEPS, stringResource(step.titleRes)),
-                        color = Cream.copy(alpha = 0.65f),
-                        fontSize = 14.sp,
-                    )
-                }
-                IconButton(onClick = { exit() }) {
-                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.ai_exit), tint = Cream)
-                }
-            }
-            LinearProgressIndicator(
-                progress = { (step.index + 1) / TOTAL_STEPS.toFloat() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = hPad)
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(999.dp)),
-                color = SyscomBlue,
-                trackColor = InkSoft,
+            BoothFlowHeader(
+                title = stringResource(R.string.ai_flow_title),
+                stepIndex = step.index,
+                totalSteps = TOTAL_STEPS,
+                stepTitle = stringResource(step.titleRes),
+                horizontalPadding = hPad,
+                onClose = { exit() },
             )
-            Spacer(Modifier.height(8.dp))
 
             // Content
             Box(
@@ -523,7 +517,8 @@ fun AiSingleFlow(
             BottomBar(
                 hPad = hPad,
                 step = step,
-                canContinueFromCapture = state.hasPhoto,
+                hasPhoto = state.hasPhoto,
+                capturing = countdown > 0,
                 canGenerate = state.canGenerate,
                 generating = state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING,
                 retryGeneration = state.status == AiStatus.ERROR,
@@ -545,6 +540,7 @@ fun AiSingleFlow(
                 },
                 onNext = {
                     onInteraction()
+                    if (step == AiStep.CAPTURE && !state.hasPhoto) return@BottomBar startCapture()
                     step = when (step) {
                         AiStep.CAPTURE -> AiStep.STYLE
                         AiStep.STYLE -> AiStep.BACKGROUND
@@ -559,10 +555,13 @@ fun AiSingleFlow(
                 },
             )
         }
-        if (state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING) {
+        if (state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING || revealing) {
             GenerationExperience(
                 status = state.status,
                 photoPreview = state.photoPreview,
+                stylePreview = stylePreviews[state.selectedStyleId],
+                styleName = state.serverStyles.firstOrNull { it.id == state.selectedStyleId }?.name,
+                result = state.resultPreview.takeIf { revealing },
                 onCancel = viewModel::cancel,
             )
         }
@@ -631,24 +630,26 @@ private fun CaptureContent(
         if (flash) Box(Modifier.fillMaxSize().background(Cream))
     }
     if (cameraError != null) Text(cameraError, color = Cream.copy(alpha = 0.8f), fontSize = 13.sp)
-    if (hasPhoto && photoPreview != null) {
-        OutlinedButton(
-            onClick = { showPreview = true },
-            modifier = Modifier.fillMaxWidth().height(64.dp),
-            shape = RoundedCornerShape(20.dp),
-        ) {
-            Icon(Icons.Rounded.Visibility, contentDescription = null, tint = Cream)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.ai_view_photo), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Cream)
+    // Taking the photo is the bottom bar's primary action; once a photo exists the
+    // inline row only holds the secondary actions.
+    if (hasPhoto) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BoothSecondaryButton(
+                text = stringResource(R.string.ai_retake_photo),
+                onClick = onCapture,
+                enabled = countdown == 0,
+                icon = Icons.Rounded.Refresh,
+                modifier = Modifier.weight(1f),
+            )
+            if (photoPreview != null) {
+                BoothOutlinedButton(
+                    text = stringResource(R.string.ai_view_photo),
+                    onClick = { showPreview = true },
+                    icon = Icons.Rounded.Visibility,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
-    }
-    Button(
-        onClick = onCapture,
-        modifier = Modifier.fillMaxWidth().height(72.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
-    ) {
-        Text(text = stringResource(if (hasPhoto) R.string.ai_retake_photo else R.string.ai_take_photo), fontSize = 19.sp, fontWeight = FontWeight.Bold)
     }
 
     // Full-size preview in a modal: the inline thumbnail was too small to judge the shot.
@@ -703,7 +704,7 @@ private fun StyleContent(
     onSelect: (String) -> Unit,
     onPreview: (String, Bitmap?) -> Unit,
 ) {
-    SectionTitle(stringResource(R.string.ai_section_style_title))
+    BoothSectionTitle(stringResource(R.string.ai_section_style_title))
     if (!modelReady) {
         Text(
             stringResource(R.string.ai_model_admin_hint),
@@ -876,156 +877,6 @@ private fun PreviewDialog(
 }
 
 @Composable
-private fun GenerationExperience(
-    status: AiStatus,
-    photoPreview: Bitmap?,
-    onCancel: () -> Unit,
-) {
-    val generating = status == AiStatus.GENERATING
-    val title = stringResource(if (generating) R.string.ai_gen_title_alive else R.string.ai_gen_title_preparing)
-    val detail = stringResource(if (generating) R.string.ai_gen_detail_applying else R.string.ai_gen_detail_upload)
-    val motion = rememberInfiniteTransition(label = "generationMotion")
-    val orbitPhase by motion.animateFloat(
-        initialValue = 0f,
-        targetValue = (PI * 2).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4_800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "orbitPhase",
-    )
-    val glowPulse by motion.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1_600, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "glowPulse",
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Ink),
-        contentAlignment = Alignment.Center,
-    ) {
-        EdgeCircuit(phase = orbitPhase, glowPulse = glowPulse)
-        Column(
-            modifier = Modifier
-                .widthIn(max = 560.dp)
-                .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Spacer(Modifier.weight(1f))
-            Box(Modifier.fillMaxWidth().heightIn(max = 480.dp).aspectRatio(3f / 4f)) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val center = Offset(size.width / 2f, size.height / 2f)
-                    val radius = size.minDimension * 0.47f
-                    drawCircle(
-                        color = SyscomBlue.copy(alpha = 0.10f + glowPulse * 0.10f),
-                        radius = radius,
-                        center = center,
-                    )
-                    listOf(0f, 2.1f, 4.2f).forEachIndexed { index, offset ->
-                        val particle = GenerationOrbit.point(
-                            centerX = center.x,
-                            centerY = center.y,
-                            radius = radius,
-                            phaseRadians = orbitPhase * (if (index == 1) -0.65f else 1f) + offset,
-                        )
-                        drawCircle(
-                            color = if (index == 1) SyscomTeal else SyscomBlueLight,
-                            radius = if (index == 0) 7.dp.toPx() else 4.dp.toPx(),
-                            center = Offset(particle.x, particle.y),
-                            alpha = 0.50f + glowPulse * 0.50f,
-                        )
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                        .clip(RoundedCornerShape(30.dp))
-                        .background(InkSoft)
-                        .border(2.dp, SyscomBlueLight.copy(alpha = 0.58f + glowPulse * 0.28f), RoundedCornerShape(30.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    photoPreview?.let { preview ->
-                    Image(
-                        preview.asImageBitmap(),
-                        contentDescription = stringResource(R.string.ai_cd_processing_photo),
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    }
-                }
-            }
-            Spacer(Modifier.height(24.dp))
-            Text(
-                title,
-                color = Cream,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.ExtraBold,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                detail,
-                color = Cream.copy(alpha = 0.8f),
-                fontSize = 16.sp,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.weight(1f))
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(18.dp),
-            ) {
-                Text(stringResource(R.string.ai_cancel), fontSize = 16.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun EdgeCircuit(
-    phase: Float,
-    glowPulse: Float,
-) {
-    Canvas(Modifier.fillMaxSize()) {
-        val inset = 12.dp.toPx()
-        val corner = 24.dp.toPx()
-        val stroke = 2.dp.toPx()
-        val circuitSize = Size(size.width - inset * 2, size.height - inset * 2)
-        val circuitTopLeft = Offset(inset, inset)
-        val circuitColor = SyscomBlueLight.copy(alpha = 0.24f + glowPulse * 0.30f)
-        drawRoundRect(
-            color = circuitColor,
-            topLeft = circuitTopLeft,
-            size = circuitSize,
-            cornerRadius = CornerRadius(corner, corner),
-            style = Stroke(width = stroke),
-        )
-
-        val circuitPoint = GenerationCircuit.point(
-            width = circuitSize.width,
-            height = circuitSize.height,
-            cornerRadius = corner,
-            progress = phase / (PI * 2).toFloat(),
-        )
-        val tracer = Offset(inset + circuitPoint.x, inset + circuitPoint.y)
-        drawCircle(
-            color = SyscomTeal,
-            radius = 4.dp.toPx() + glowPulse * 3.dp.toPx(),
-            center = tracer,
-            alpha = 0.72f + glowPulse * 0.28f,
-        )
-    }
-}
-
-@Composable
 private fun BackgroundContent(
     options: List<BackgroundOption>,
     previews: Map<String, Bitmap>,
@@ -1033,7 +884,7 @@ private fun BackgroundContent(
     onSelect: (String) -> Unit,
     onPreview: (String, Bitmap?) -> Unit,
 ) {
-    SectionTitle(stringResource(R.string.ai_section_background_title))
+    BoothSectionTitle(stringResource(R.string.ai_section_background_title))
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         BackgroundOptionGrid(
             options = listOf(
@@ -1186,7 +1037,7 @@ private fun AccessoriesContent(
     onResetPersonalization: () -> Unit,
 ) {
     val blocked = AiAccessories.blockedIds(styleId, selected)
-    SectionTitle(stringResource(R.string.ai_section_accessories_title))
+    BoothSectionTitle(stringResource(R.string.ai_section_accessories_title))
     AiAccessories.GROUPS.forEach { group ->
         val options = group.options.filterNot { it.id in blocked }
         if (options.isEmpty()) return@forEach
@@ -1320,7 +1171,7 @@ private fun FramedContent(
     decoration: FrameDecoration,
     onSelectDecoration: (FrameDecoration) -> Unit,
 ) {
-    SectionTitle(stringResource(R.string.ai_your_photo))
+    BoothSectionTitle(stringResource(R.string.ai_your_photo))
     if (preview != null) {
         Image(
             preview.asImageBitmap(),
@@ -1349,7 +1200,7 @@ private fun FramedContent(
         Text(stringResource(R.string.ai_generation_error), color = Cream, fontSize = 15.sp)
     }
     if (profiles.size > 1) {
-        SectionTitle(stringResource(R.string.ai_section_brand))
+        BoothSectionTitle(stringResource(R.string.ai_section_brand))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1383,7 +1234,7 @@ private fun FramedContent(
             }
         }
     }
-    SectionTitle(stringResource(R.string.ai_section_frame))
+    BoothSectionTitle(stringResource(R.string.ai_section_frame))
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         CollageFrameStyle.entries.forEach { frame ->
             val isSelected = frame == selected
@@ -1417,7 +1268,7 @@ private fun FramedContent(
             }
         }
     }
-    SectionTitle(stringResource(R.string.ai_section_decoration))
+    BoothSectionTitle(stringResource(R.string.ai_section_decoration))
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1463,7 +1314,7 @@ private fun ShareContent(
     onRetryQr: () -> Unit,
     onQuickShare: () -> Unit,
 ) {
-    SectionTitle(stringResource(R.string.ai_section_share))
+    BoothSectionTitle(stringResource(R.string.ai_section_share))
     var zoomed by remember { mutableStateOf(false) }
     preview?.let {
         // Show the whole strip instead of a center crop: guests need to see the real result.
@@ -1584,20 +1435,11 @@ private fun ShareContent(
 }
 
 @Composable
-private fun SectionTitle(title: String, subtitle: String = "") {
-    Column {
-        Text(title, color = Cream, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        if (subtitle.isNotBlank()) {
-            Text(subtitle, color = Cream.copy(alpha = 0.7f), fontSize = 15.sp)
-        }
-    }
-}
-
-@Composable
 private fun BottomBar(
     hPad: androidx.compose.ui.unit.Dp,
     step: AiStep,
-    canContinueFromCapture: Boolean,
+    hasPhoto: Boolean,
+    capturing: Boolean,
     canGenerate: Boolean,
     generating: Boolean,
     retryGeneration: Boolean,
@@ -1607,45 +1449,31 @@ private fun BottomBar(
     onNext: () -> Unit,
 ) {
     val nextLabel = when (step) {
-        AiStep.CAPTURE -> stringResource(R.string.wizard_next)
+        AiStep.CAPTURE -> stringResource(if (hasPhoto) R.string.wizard_next else R.string.ai_take_photo)
         AiStep.STYLE -> stringResource(R.string.wizard_next)
         AiStep.BACKGROUND -> stringResource(R.string.wizard_next)
         AiStep.ACCESSORIES -> if (retryGeneration) stringResource(R.string.ai_regenerate) else stringResource(R.string.ai_generate)
         AiStep.FRAMED, AiStep.SHARE -> stringResource(R.string.finish)
     }
     val nextEnabled = when (step) {
-        AiStep.CAPTURE -> canContinueFromCapture
+        AiStep.CAPTURE -> !capturing
         AiStep.ACCESSORIES -> canGenerate && !generating
         // Arm the closing buttons late so a guest cannot skip the screen by tapping twice.
         AiStep.FRAMED, AiStep.SHARE -> finishArmed
         else -> true
     }
     val showBack = step != AiStep.FRAMED && step != AiStep.SHARE
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Ink)
-            .padding(horizontal = hPad, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (showBack) {
-            OutlinedButton(
-                onClick = onBack,
-                enabled = backEnabled,
-                modifier = Modifier.weight(1f).height(68.dp),
-                shape = RoundedCornerShape(20.dp),
-            ) {
-                Text(text = stringResource(if (step == AiStep.CAPTURE) R.string.ai_exit else R.string.wizard_back), fontSize = 18.sp)
-            }
-        }
-        Button(
-            onClick = onNext,
-            enabled = nextEnabled,
-            modifier = Modifier.weight(if (showBack) 1.4f else 1f).height(68.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = SyscomBlue),
-        ) {
-            Text(nextLabel, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        }
-    }
+    BoothBottomBar(
+        horizontalPadding = hPad,
+        primaryLabel = nextLabel,
+        primaryEnabled = nextEnabled,
+        onPrimary = onNext,
+        backLabel = if (showBack) {
+            stringResource(if (step == AiStep.CAPTURE) R.string.ai_exit else R.string.wizard_back)
+        } else {
+            null
+        },
+        backEnabled = backEnabled,
+        onBack = onBack,
+    )
 }

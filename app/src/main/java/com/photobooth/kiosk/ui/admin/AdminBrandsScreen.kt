@@ -82,14 +82,7 @@ internal fun AdminBrandsScreen(
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 12.dp,
-            bottom = 28.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    AdminScreenColumn {
         item {
             AdminCard(
                 title = stringResource(R.string.admin_profiles_title),

@@ -132,14 +132,7 @@ internal fun AdminHomeScreen(
         ),
     )
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 12.dp,
-            bottom = 28.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    AdminScreenColumn {
         item {
             Text(
                 text = stringResource(R.string.admin_settings_group),

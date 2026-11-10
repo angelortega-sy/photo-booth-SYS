@@ -3,6 +3,10 @@
 Kiosko de fotos para Android. El scaffold ya existe: un módulo `app/` que compila con el Gradle wrapper.
 Paquete: `com.photobooth.kiosk`. App visible: “Cabina de Fotos”.
 
+> **Antes de diseñar o modificar cualquier UI**, lee [`docs/superpowers/specs/2026-11-09-ui-design-standard.md`](docs/superpowers/specs/2026-11-09-ui-design-standard.md).
+> Dice qué componente usar (`ui/components/BoothControls.kt` para invitado y `ui/admin/AdminScreenScaffold.kt` para admin), la jerarquía de botones, las medidas y cuándo se guarda en Admin.
+> Si un diseño nuevo no encaja, actualiza primero ese estándar.
+
 ## Stack y alcance (decidido)
 
 - Kotlin + Jetpack Compose, un solo módulo `app/`.
@@ -31,7 +35,7 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - El resultado incluye un wizard de personalización; el CTA grande es **“Descargar · 4 fotos”** (3 fotos + tira) y “Guardar” queda como acción secundaria.
 - Después de descargar/compartir, se cierra la sesión y vuelve a bienvenida. Guardar mantiene el resultado en pantalla.
 - Paleta **azul Syscom** sobre fondo oscuro: `SyscomBlue #0B63CE`, `SyscomBlueLight #5EA8FF`, `Ink #050B14`, `InkSoft #0B1727`, `Cream #F3F8FF`.
-- Los dos modos comparten el **mismo shell** (`AiSingleFlow` y `ui/collage/CollageFlow`): barra superior con “Paso X de N + nombre”, progreso lineal, contenido scrolleable, barra inferior fija Regresar / Continuar y QR en línea en el último paso. **No volver a usar modales para la entrega ni contadores distintos**: el collage usa el mismo 3-2-1 de 700 ms por segundo que el modo IA.
+- Los dos modos comparten el **mismo shell** (`AiSingleFlow` y `ui/collage/CollageFlow`), hecho con `BoothFlowHeader`, `BoothBottomBar` y los botones de `ui/components/BoothControls.kt`. Incluye barra superior con “Paso X de N + nombre”, progreso lineal, contenido scrolleable, barra inferior fija **siempre visible** (también en Captura, donde la acción azul es “Tomar foto(s)”) y QR en línea en el último paso. **No volver a usar modales para la entrega ni contadores distintos**: el collage usa el mismo 3-2-1 de 700 ms por segundo que el modo IA.
 - `CollageFlow` pasos: Captura (un toque = 3 tomas con pausa “Posa 2 de 3”; rail lateral 1/2/3 para ver o repetir una foto, **nunca muestra la tira ni marcos**) → Fondo (las 3 fotos en un pager grande de una en una y los fondos como cuadritos de 3 columnas; selector híbrido “Las 3 fotos” o una foto en particular) → Diseño (marca del evento si hay más de una, marco, adorno, formato y borde) → Entrega (pager con foto 1/2/3 y la tira, QR automático, copiar liga y Quick Share). `StudioWizardScreen` y los diálogos de entrega se eliminaron.
 
 ## Modo administrador
@@ -40,6 +44,7 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - PIN de **4 a 8 dígitos**, guardado como hash SHA-256 con salt en `SharedPreferences` (`admin_auth`); nunca guardar el PIN en claro.
 - `AdminAuth` maneja el PIN; `AdminGate` pide crearlo la primera vez y verificarlo después.
 - El admin vive en `ui/admin/`: `AdminShell` (PIN, back stack con `rememberSaveable` + `BackHandler`, header) y una pantalla por área (`AdminHomeScreen`, `AdminBrandsScreen`, `AdminBrandEditorScreen`, `AdminEventScreen`, `AdminCameraScreen`, `AdminStylesScreen`, `AdminPhotosScreen`, `AdminUsageScreen`, `AdminNetworkScreen`, `AdminSystemScreen`). `ui/AdminScreen.kt` es solo el wrapper de `AdminGate`. **No volver a meter todas las secciones en un solo scroll.**
+- Las pantallas de ajustes (Cámara, Estilos, Fotos, Uso IA, Sistema, Editor de marca) usan `AdminSettingsScreen`. Editan un borrador y solo guardan con la barra “Guardar cambios”, que está deshabilitada si no hay cambios. Al salir con cambios pendientes se pide confirmación. **No volver a guardar ajustes al tocar un switch o chip.**
 - `AdminHomeScreen` es un grid de tarjetas grandes (Marcas, Fondos, Cámara, Estilos, Fotos, Red, Uso IA) con resumen; cada una abre su pantalla. Sirve para pantalla de 55". **No volver a poner una tarjeta “Evento” que abra lo mismo que Fondos**: los textos de la marca se editan dentro de su editor.
 - El admin muestra: resumen del dispositivo, cámaras del sistema (frontal/trasera/externa, MP, resolución y nivel de hardware), dispositivos USB, prueba de cámara en vivo, fotos guardadas con borrado individual/todas, red/IP local y accesos a ajustes de red/hotspot.
 - Fotos: `PhotoLibrary` consulta `MediaStore` en `Pictures/Cabina de Fotos`, usa `READ_MEDIA_IMAGES` en API 33+ y `READ_EXTERNAL_STORAGE` en API ≤32. El borrado directo puede fallar si la app ya no es dueña del archivo; mostrar error, no crashear.

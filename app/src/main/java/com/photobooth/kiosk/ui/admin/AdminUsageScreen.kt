@@ -69,6 +69,7 @@ import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.InkSoft
 import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
+import com.photobooth.kiosk.ui.theme.SyscomTeal
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -82,19 +83,48 @@ internal fun AdminUsageScreen(
     isStatusChecking: Boolean,
     onMessage: (String) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 12.dp,
-            bottom = 28.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    val context = LocalContext.current
+    var savedUrl by remember { mutableStateOf(viewModel.loadIdentity().baseUrl) }
+    var draftUrl by remember { mutableStateOf(savedUrl) }
+    var draftModelId by remember(selectedModelId) { mutableStateOf(selectedModelId) }
+    val urlChanged = draftUrl.trim() != savedUrl.trim()
+    val modelChanged = draftModelId != selectedModelId
+
+    fun saveUrlIfChanged() {
+        if (!urlChanged) return
+        viewModel.saveServerBaseUrl(draftUrl)
+        savedUrl = draftUrl.trim()
+    }
+
+    AdminSettingsScreen(
+        dirty = urlChanged || modelChanged,
+        onSave = {
+            val modelOk = !modelChanged || viewModel.saveAdminModel(draftModelId)
+            val refreshCatalog = urlChanged
+            saveUrlIfChanged()
+            if (refreshCatalog) viewModel.refreshServerCatalog()
+            onMessage(
+                context.getString(
+                    if (modelOk) R.string.admin_changes_saved else R.string.admin_model_save_error,
+                ),
+            )
+            if (!modelOk) draftModelId = selectedModelId
+        },
+        onDiscard = {
+            draftUrl = savedUrl
+            draftModelId = selectedModelId
+        },
     ) {
         item {
             AiServerAdminCard(
                 viewModel = viewModel,
+                baseUrl = draftUrl,
+                onBaseUrlChange = { draftUrl = it },
+                onBeforeServerCall = ::saveUrlIfChanged,
                 models = models,
-                selectedModelId = selectedModelId,
+                selectedModelId = draftModelId,
+                savedModelId = selectedModelId,
+                onSelectModel = { draftModelId = it },
                 statusProbe = statusProbe,
                 statusError = statusError,
                 isStatusChecking = isStatusChecking,
@@ -110,8 +140,13 @@ internal fun AdminUsageScreen(
 @Composable
 private fun AiServerAdminCard(
     viewModel: PhotoBoothViewModel,
+    baseUrl: String,
+    onBaseUrlChange: (String) -> Unit,
+    onBeforeServerCall: () -> Unit,
     models: List<BoothModel>,
     selectedModelId: String,
+    savedModelId: String,
+    onSelectModel: (String) -> Unit,
     statusProbe: ServerStatusProbe?,
     statusError: String?,
     isStatusChecking: Boolean,
@@ -119,7 +154,6 @@ private fun AiServerAdminCard(
 ) {
     val context = LocalContext.current
     val identity = remember { viewModel.loadIdentity() }
-    var baseUrl by remember { mutableStateOf(identity.baseUrl) }
     var enrollCode by remember { mutableStateOf("") }
     var deviceId by remember { mutableStateOf(identity.deviceId) }
     var enrolling by remember { mutableStateOf(false) }
@@ -166,24 +200,40 @@ private fun AiServerAdminCard(
         )
         OutlinedTextField(
             value = baseUrl,
-            onValueChange = { baseUrl = it },
+            onValueChange = onBaseUrlChange,
             label = { Text(stringResource(R.string.admin_ai_url)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
-        Button(
-            onClick = {
-                viewModel.saveServerBaseUrl(baseUrl)
-                onMessage(context.getString(R.string.admin_ai_saved))
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SyscomBlue,
-                contentColor = Color.White,
-            ),
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(50.dp),
-        ) {
-            Text(stringResource(R.string.admin_ai_save))
+        if (models.isNotEmpty()) {
+            ModelSelectField(
+                models = models,
+                selectedModelId = selectedModelId,
+                savedModelId = savedModelId,
+                onSelect = onSelectModel,
+            )
         }
+        OutlinedButton(
+            onClick = {
+                onBeforeServerCall()
+                viewModel.refreshServerDiagnostics()
+            },
+            enabled = !isStatusChecking,
+            modifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(50.dp),
+        ) {
+            Text(
+                stringResource(
+                    if (isStatusChecking) R.string.admin_ai_testing else R.string.admin_ai_test,
+                ),
+            )
+        }
+        Text(
+            text = stringResource(R.string.admin_ai_enroll_section),
+            color = Cream,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 18.dp),
+        )
         OutlinedTextField(
             value = enrollCode,
             onValueChange = { enrollCode = it },
@@ -193,9 +243,9 @@ private fun AiServerAdminCard(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
-        Button(
+        OutlinedButton(
             onClick = {
-                viewModel.saveServerBaseUrl(baseUrl)
+                onBeforeServerCall()
                 enrolling = true
                 statusText = ""
                 scope.launch {
@@ -212,10 +262,6 @@ private fun AiServerAdminCard(
                 }
             },
             enabled = !enrolling && enrollCode.isNotBlank(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SyscomBlue,
-                contentColor = Color.White,
-            ),
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(50.dp),
         ) {
             Text(
@@ -233,27 +279,6 @@ private fun AiServerAdminCard(
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
-        if (models.isNotEmpty()) {
-            ModelSelectField(
-                models = models,
-                selectedModelId = selectedModelId,
-                onSelect = viewModel::selectServerModel,
-            )
-        }
-        OutlinedButton(
-            onClick = {
-                viewModel.saveServerBaseUrl(baseUrl)
-                viewModel.refreshServerDiagnostics()
-            },
-            enabled = !isStatusChecking,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(50.dp),
-        ) {
-            Text(
-                stringResource(
-                    if (isStatusChecking) R.string.admin_ai_testing else R.string.admin_ai_test,
-                ),
-            )
-        }
     }
 }
 
@@ -262,12 +287,14 @@ private fun AiServerAdminCard(
 private fun ModelSelectField(
     models: List<BoothModel>,
     selectedModelId: String,
+    savedModelId: String,
     onSelect: (String) -> Unit,
 ) {
     val context = LocalContext.current
     var open by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     val selected = models.firstOrNull { it.id == selectedModelId }
+    val saved = models.firstOrNull { it.id == savedModelId }
     val unknownPrice = stringResource(R.string.ai_price_unknown)
     val unitImage = stringResource(R.string.ai_unit_image)
     val unitMegapixel = stringResource(R.string.ai_unit_megapixel)
@@ -333,6 +360,18 @@ private fun ModelSelectField(
                 imageVector = Icons.Rounded.ArrowDropDown,
                 contentDescription = null,
                 tint = SyscomBlueLight,
+            )
+        }
+        if (selectedModelId != savedModelId) {
+            Text(
+                text = stringResource(
+                    R.string.admin_model_pending,
+                    saved?.name ?: stringResource(R.string.ai_model_none),
+                ),
+                color = SyscomTeal,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
     }

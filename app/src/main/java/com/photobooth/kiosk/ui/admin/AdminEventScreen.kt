@@ -70,14 +70,7 @@ internal fun AdminEventScreen(
     onDeleteBackground: (String) -> Unit,
     onRenameBackground: (String, String) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 12.dp,
-            bottom = 28.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    AdminScreenColumn {
         item {
             BackgroundsAdminCard(
                 backgrounds = backgrounds,
