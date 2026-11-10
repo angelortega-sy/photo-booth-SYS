@@ -531,6 +531,11 @@ object AiStyles {
                 "look without turning them into a different person. Do " +
                 "not add text, logos, watermarks, or frames.",
         ),
+        AiStyle(
+            id = "sketch",
+            labelRes = R.string.ai_style_sketch,
+            prompt = "Redraw the photo as a graphite pencil sketch made by hand. Keep every person, the pose, the clothing and the framing exactly as they are; only the medium changes. The whole image is monochrome: black and white with soft grey tones, built from pencil hatching, cross hatching and smudged graphite shading instead of photographic detail. Contours are drawn with visible pencil lines, with a slightly rough paper texture and a few loose strokes at the edges of the drawing. Faces stay recognizable: same person, same features, same expression, drawn as a careful portrait sketch rather than a caricature. No colour at all, no ink outlines, no digital painting, no halftone dots, no comic style. Soft studio lighting becomes grayscale shading. Vertical composition, full scene preserved. Do not add text, logos, watermarks, or frames.",
+        ),
     )
 
     fun byId(id: String): AiStyle = ALL.firstOrNull { it.id == id } ?: ALL.first()
