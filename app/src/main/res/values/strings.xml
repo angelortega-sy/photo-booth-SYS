@@ -273,6 +273,9 @@
     <string name="ai_accessory_ssj_blue">Goku SSJ Blue</string>
     <string name="ai_accessory_ssj_rose">Goku Black Rose</string>
     <string name="ai_accessory_naruto">Naruto</string>
+    <string name="ai_accessory_akatsuki">Capa Akatsuki</string>
+    <string name="ai_accessory_naruto_outfit">Traje Naruto</string>
+    <string name="ai_accessory_sharingan">Sharingan</string>
     <string name="ai_accessory_gi_syscom">Gi con la S de Syscom</string>
     <string name="ai_accessory_bulma_style">Traje tipo heroína</string>
     <string name="ai_accessory_gown">Vestido de gala</string>
@@ -388,6 +391,7 @@
     <string name="admin_usage_showing">Mostrando %1$d de %2$d</string>
     <string name="admin_usage_load_more">Cargar más</string>
     <string name="admin_event_hashtag">Hashtag del evento</string>
+    <string name="admin_event_drive_folder">Nombre de la carpeta en Drive</string>
     <string name="admin_home_brands">Marcas del evento</string>
     <string name="admin_home_event">Evento</string>
     <string name="admin_home_backgrounds">Fondos</string>

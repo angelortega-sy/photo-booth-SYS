@@ -289,8 +289,13 @@ class AiBackendClient(
         }
     }
 
-    fun createSession(): BoothSession {
-        val body = "{}".toByteArray(Charsets.UTF_8)
+    fun createSession(folderName: String? = null): BoothSession {
+        val requestBody = if (folderName.isNullOrBlank()) {
+            "{}"
+        } else {
+            JSONObject().put("folderName", folderName).toString()
+        }
+        val body = requestBody.toByteArray(Charsets.UTF_8)
         val (_, text) = open("POST", "/v1/sessions", body, JSON, sign = true)
         val json = JSONObject(text)
         return BoothSession(id = json.getString("id"), expiresAt = json.optString("expiresAt"))

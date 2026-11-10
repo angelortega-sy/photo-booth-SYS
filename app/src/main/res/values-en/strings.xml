@@ -273,6 +273,9 @@
     <string name="ai_accessory_ssj_blue">Goku SSJ Blue</string>
     <string name="ai_accessory_ssj_rose">Goku Black Rose</string>
     <string name="ai_accessory_naruto">Naruto</string>
+    <string name="ai_accessory_akatsuki">Akatsuki cloak</string>
+    <string name="ai_accessory_naruto_outfit">Naruto outfit</string>
+    <string name="ai_accessory_sharingan">Sharingan</string>
     <string name="ai_accessory_gi_syscom">Gi with the Syscom S</string>
     <string name="ai_accessory_bulma_style">Heroine-style outfit</string>
     <string name="ai_accessory_gown">Evening gown</string>
@@ -388,6 +391,7 @@
     <string name="admin_usage_showing">Showing %1$d of %2$d</string>
     <string name="admin_usage_load_more">Load more</string>
     <string name="admin_event_hashtag">Event hashtag</string>
+    <string name="admin_event_drive_folder">Drive folder name</string>
     <string name="language_system">System</string>
     <string name="language_spanish">Spanish</string>
     <string name="language_english">English</string>

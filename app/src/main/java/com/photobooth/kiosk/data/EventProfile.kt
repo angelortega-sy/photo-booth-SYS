@@ -187,6 +187,7 @@ class EventProfileStore(context: Context) {
             primaryColor = json.optLong("primaryColor", defaults.primaryColor),
             secondaryColor = json.optLong("secondaryColor", defaults.secondaryColor),
             logoPath = json.optString("logoPath", "").ifBlank { null },
+            driveFolderName = json.optString("driveFolderName", defaults.driveFolderName),
         )
     }
 
@@ -202,6 +203,7 @@ class EventProfileStore(context: Context) {
         put("primaryColor", branding.primaryColor)
         put("secondaryColor", branding.secondaryColor)
         if (!branding.logoPath.isNullOrBlank()) put("logoPath", branding.logoPath)
+        if (branding.driveFolderName.isNotBlank()) put("driveFolderName", branding.driveFolderName)
     }
 
     companion object {
