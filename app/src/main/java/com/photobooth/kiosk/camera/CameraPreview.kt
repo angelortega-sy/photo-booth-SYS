@@ -6,6 +6,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.os.SystemClock
 import android.util.Log
 import android.util.Size
+import android.view.Surface
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
@@ -84,6 +85,11 @@ fun CameraPreview(
 
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var isFrontCamera by remember { mutableStateOf(false) }
+    var isExternalCamera by remember { mutableStateOf(false) }
+    // One correction for both preview and capture. A built-in camera keeps 0 so a
+    // value tuned for the USB webcam never leaks into the front-camera fallback.
+    val mountRotation = mountRotationFor(isExternalCamera, previewRotationDegrees)
+    val currentMountRotation by rememberUpdatedState(mountRotation)
     val currentOnReady by rememberUpdatedState(onReady)
     val currentOnCaptured by rememberUpdatedState(onCaptured)
     val currentOnError by rememberUpdatedState(onError)
@@ -110,13 +116,21 @@ fun CameraPreview(
                     else -> CameraSelector.DEFAULT_BACK_CAMERA
                 }
                 isFrontCamera = useFront
+                isExternalCamera = useExternal
 
-                val preview = Preview.Builder().build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
+                // Pin the rotation so imageInfo.rotationDegrees only depends on the
+                // camera hardware, not on the display rotation of the host device.
+                // Without this the same build behaves differently on a portrait
+                // tablet and on a landscape 55" kiosk panel.
+                val preview = Preview.Builder()
+                    .setTargetRotation(Surface.ROTATION_0)
+                    .build().also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
                 @Suppress("DEPRECATION")
                 val capture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .setTargetRotation(Surface.ROTATION_0)
                     // Portrait target: a landscape request makes CameraX crop the field of
                     // view to 16:9, so the saved photo ends up tighter than the preview.
                     .setTargetResolution(Size(1080, 1920))
@@ -125,6 +139,7 @@ fun CameraPreview(
                 @Suppress("DEPRECATION")
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setTargetRotation(Surface.ROTATION_0)
                     .setTargetResolution(Size(640, 480))
                     .build()
                 var lastAnalysisAt = 0L
@@ -135,8 +150,12 @@ fun CameraPreview(
                             if (now - lastAnalysisAt >= HAND_ANALYSIS_INTERVAL_MS) {
                                 lastAnalysisAt = now
                                 val bitmap = image.toBitmap()
-                                val rotation = (image.imageInfo.rotationDegrees +
-                                    previewRotationDegrees) % 360
+                                // Same policy as capture: the gesture model must see the
+                                // frame exactly as the guest and the photo do.
+                                val rotation = effectiveCaptureRotation(
+                                    image.imageInfo.rotationDegrees,
+                                    currentMountRotation,
+                                )
                                 val upright = if (rotation == 0) {
                                     bitmap
                                 } else {
@@ -156,6 +175,12 @@ fun CameraPreview(
                 }
 
                 cameraProvider.unbindAll()
+                Log.i(
+                    TAG,
+                    "Binding camera external=$useExternal front=$useFront " +
+                        "displayRotation=${previewView.display?.rotation ?: Surface.ROTATION_0} " +
+                        "configuredMount=$previewRotationDegrees targetRotation=${Surface.ROTATION_0}",
+                )
                 try {
                     cameraProvider.bindToLifecycle(
                         lifecycleOwner,
@@ -194,7 +219,7 @@ fun CameraPreview(
     }
 
     BoxWithConstraints(modifier = modifier) {
-        val extraRotation = ((previewRotationDegrees % 360) + 360) % 360
+        val extraRotation = ((mountRotation % 360) + 360) % 360
         val fillScale = if (extraRotation == 90 || extraRotation == 270) {
             maxOf(maxHeight / maxWidth, maxWidth / maxHeight)
         } else {
@@ -227,7 +252,13 @@ fun CameraPreview(
                     val cameraXRotationDegrees = image.imageInfo.rotationDegrees
                     val rotationDegrees = effectiveCaptureRotation(
                         cameraXRotationDegrees,
-                        previewRotationDegrees,
+                        mountRotation,
+                    )
+                    Log.i(
+                        TAG,
+                        "Captured ${image.width}x${image.height} " +
+                            "cameraX=$cameraXRotationDegrees mount=$mountRotation " +
+                            "applied=$rotationDegrees",
                     )
                     val buffer = image.planes[0].buffer
                     val bytes = ByteArray(buffer.remaining())
