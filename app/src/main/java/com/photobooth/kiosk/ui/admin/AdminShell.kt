@@ -337,7 +337,6 @@ private fun AdminShellContent(
                     AdminRoute.System -> {
                         AdminSystemScreen(
                             onChangePin = { guarded(onChangePin) },
-                            onMessage = ::onMessage,
                         )
                     }
                 }

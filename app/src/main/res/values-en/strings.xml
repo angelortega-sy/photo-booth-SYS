@@ -396,13 +396,8 @@
     <string name="admin_usage_load_more">Load more</string>
     <string name="admin_event_hashtag">Event hashtag</string>
     <string name="admin_event_drive_folder">Drive folder name</string>
-    <string name="language_system">System</string>
-    <string name="language_spanish">Spanish</string>
-    <string name="language_english">English</string>
     <string name="language_short_spanish">ES</string>
     <string name="language_short_english">EN</string>
-    <string name="language_title">Language</string>
-    <string name="language_subtitle">Booth language for guests and admin.</string>
     <string name="mode_select_title">Choose how you want to create</string>
     <string name="mode_ai_title">AI photo</string>
     <string name="mode_ai_subtitle">Your photo, many styles</string>

@@ -1,16 +1,18 @@
 package com.photobooth.kiosk.ui
 
 import android.app.Activity
+import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,82 +32,26 @@ import com.photobooth.kiosk.data.LanguageStore
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.InkSoft
 import com.photobooth.kiosk.ui.theme.SyscomBlue
-import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 
 /**
- * Three-chip language picker for the admin System screen.
- * Persists the choice and recreates the host activity.
- */
-@Composable
-fun LanguageSelector(
-    language: AppLanguage,
-    onPick: (AppLanguage) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        LanguageChip(
-            label = stringResource(R.string.language_system),
-            selected = language == AppLanguage.SYSTEM,
-            onClick = { onPick(AppLanguage.SYSTEM) },
-        )
-        LanguageChip(
-            label = stringResource(R.string.language_spanish),
-            selected = language == AppLanguage.SPANISH,
-            onClick = { onPick(AppLanguage.SPANISH) },
-        )
-        LanguageChip(
-            label = stringResource(R.string.language_english),
-            selected = language == AppLanguage.ENGLISH,
-            onClick = { onPick(AppLanguage.ENGLISH) },
-        )
-    }
-}
-
-@Composable
-private fun LanguageChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) SyscomBlue else InkSoft)
-            .border(
-                1.dp,
-                if (selected) SyscomBlueLight else Cream.copy(alpha = 0.18f),
-                RoundedCornerShape(16.dp),
-            )
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = Cream,
-            fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-        )
-    }
-}
-
-/**
- * Discreet two-state ES | EN toggle for the welcome screen.
- * Guests can switch language without entering admin.
+ * ES | EN switch on the welcome screen. This is the only language control:
+ * the choice is saved and used by the guest flow and by admin.
  */
 @Composable
 fun LanguageQuickToggle(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    var current by remember { mutableStateOf(LanguageStore.current(context)) }
-    val english = current == AppLanguage.ENGLISH
+    var english by remember { mutableStateOf(LanguageStore.isEnglish(context)) }
+
+    LaunchedEffect(Unit) {
+        if (LanguageStore.current(context) == AppLanguage.SYSTEM) {
+            LanguageStore.set(context, if (english) AppLanguage.ENGLISH else AppLanguage.SPANISH)
+        }
+    }
 
     fun apply(language: AppLanguage) {
+        if (LanguageStore.current(context) == language) return
         LanguageStore.set(context, language)
-        current = language
+        english = language == AppLanguage.ENGLISH
         (context as? Activity)?.recreate()
     }
 
@@ -120,13 +66,32 @@ fun LanguageQuickToggle(modifier: Modifier = Modifier) {
         QuickToggleOption(
             label = stringResource(R.string.language_short_spanish),
             selected = !english,
-            onClick = { if (english) apply(AppLanguage.SPANISH) },
+            onClick = { apply(AppLanguage.SPANISH) },
         )
         QuickToggleOption(
             label = stringResource(R.string.language_short_english),
             selected = english,
-            onClick = { if (!english) apply(AppLanguage.ENGLISH) },
+            onClick = { apply(AppLanguage.ENGLISH) },
         )
+    }
+}
+
+/** True when the booth is showing English, including an older "follow the device" choice. */
+fun LanguageStore.isEnglish(context: Context): Boolean {
+    return when (current(context)) {
+        AppLanguage.ENGLISH -> true
+        AppLanguage.SPANISH -> false
+        AppLanguage.SYSTEM -> shownLanguage(context).startsWith("en")
+    }
+}
+
+private fun shownLanguage(context: Context): String {
+    val configuration = context.resources.configuration
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        configuration.locales[0].language
+    } else {
+        @Suppress("DEPRECATION")
+        configuration.locale.language
     }
 }
 

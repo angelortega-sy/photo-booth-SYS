@@ -416,13 +416,8 @@
     <string name="admin_brand_name_label">Nombre de la marca</string>
     <string name="admin_brand_active_badge">En uso</string>
     <string name="admin_event_edit_active">Editar marca activa</string>
-    <string name="language_system">Sistema</string>
-    <string name="language_spanish">Español</string>
-    <string name="language_english">English</string>
     <string name="language_short_spanish">ES</string>
     <string name="language_short_english">EN</string>
-    <string name="language_title">Idioma</string>
-    <string name="language_subtitle">Idioma de la cabina para invitados y administrador.</string>
     <string name="mode_select_title">Elige cómo quieres crear</string>
     <string name="mode_ai_title">Foto IA</string>
     <string name="mode_ai_subtitle">Tu foto, muchos estilos</string>
