@@ -79,7 +79,6 @@ import com.photobooth.kiosk.camera.CameraPreview
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.CollageLayout
-import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.ui.backgroundLabel
 import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.PhotoBorderStyle
@@ -407,10 +406,6 @@ fun CollageFlow(
 
                         CollageStep.DESIGN -> CollageDesignContent(
                             state = state,
-                            onSelectProfile = {
-                                viewModel.selectEventProfile(it)
-                                onInteraction()
-                            },
                             onSelectFrame = {
                                 viewModel.selectFrameStyle(it)
                                 onInteraction()
@@ -841,7 +836,6 @@ private fun CollageBackgroundContent(
 @Composable
 private fun CollageDesignContent(
     state: PhotoBoothUiState,
-    onSelectProfile: (String) -> Unit,
     onSelectFrame: (CollageFrameStyle) -> Unit,
     onSelectDecoration: (FrameDecoration) -> Unit,
     onSelectLayout: (CollageLayout) -> Unit,
@@ -868,43 +862,6 @@ private fun CollageDesignContent(
         color = Cream.copy(alpha = 0.7f),
         fontSize = 15.sp,
     )
-    // Same "Marca del evento" row as the AI flow: only when there is more than
-    // one enabled brand, so a single-brand booth stays uncluttered.
-    if (state.eventProfiles.size > 1) {
-        BoothSectionTitle(stringResource(R.string.ai_section_brand))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            state.eventProfiles.forEach { profile: EventProfile ->
-                val isSelected = profile.id == state.selectedEventProfileId
-                Surface(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(18.dp))
-                        .clickable { onSelectProfile(profile.id) }
-                        .then(
-                            if (isSelected) {
-                                Modifier.border(2.dp, SyscomBlue, RoundedCornerShape(18.dp))
-                            } else {
-                                Modifier
-                            },
-                        ),
-                    color = if (isSelected) SyscomBlue.copy(alpha = 0.22f) else InkSoft,
-                    shape = RoundedCornerShape(18.dp),
-                ) {
-                    Text(
-                        profile.name,
-                        color = Cream,
-                        fontSize = 15.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    )
-                }
-            }
-        }
-    }
     val palette = state.customization.palette()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         CollageFrameStyle.entries.forEach { style ->

@@ -142,6 +142,10 @@ data class EventBranding(
     val primaryColor: Long = 0xFF050B14,
     val secondaryColor: Long = 0xFF0B63CE,
     val logoPath: String? = null,
+    /** Catalog logo used as the brand mark. Shared across booths; [logoPath] is only local. */
+    val brandLogoId: String? = null,
+    /** True when the server has a custom brand-logo file for this event. */
+    val hasRemoteLogo: Boolean = false,
     /** Provider logo ids drawn as sponsors in the frame header. */
     val sponsorLogoIds: List<String> = emptyList(),
     /** Base name for the Drive folder; the app appends the session timestamp. */

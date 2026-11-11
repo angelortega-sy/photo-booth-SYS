@@ -20,6 +20,7 @@ import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.data.EventBadgePreset
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.EventProfileStore
+import com.photobooth.kiosk.data.EventSync
 import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.driveFolderBase
 import com.photobooth.kiosk.data.GestureSettingsStore
@@ -105,7 +106,9 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
 
     private val _uiState = MutableStateFlow(
         AiSingleUiState(
-            customization = CollageCustomization(eventBranding = profileStore.activeBranding()),
+            customization = withSponsorLogos(
+                CollageCustomization(eventBranding = profileStore.activeBranding()),
+            ),
             eventProfiles = profileStore.enabledProfiles(),
             selectedEventProfileId = profileStore.active().id,
             palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
@@ -117,6 +120,14 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshCameraSettings() {
         _uiState.update { it.copy(cameraAdjustments = cameraSettings.load()) }
+    }
+
+    /** Resolves the event's selected sponsor logos to the files stored on this device. */
+    private fun withSponsorLogos(customization: CollageCustomization): CollageCustomization {
+        val byId = ProviderLogoStore.load(getApplication()).associateBy { it.id }
+        return customization.copy(
+            sponsorLogoPaths = customization.eventBranding.sponsorLogoIds.mapNotNull { byId[it]?.path },
+        )
     }
 
     /**
@@ -311,32 +322,41 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         _uiState.update {
             it.copy(
                 selectedEventProfileId = profileId,
-                customization = it.customization.copy(
-                    eventBranding = profile.branding,
-                    badgePreset = EventBadgePreset.CUSTOM,
+                customization = withSponsorLogos(
+                    it.customization.copy(
+                        eventBranding = profile.branding,
+                        badgePreset = EventBadgePreset.CUSTOM,
+                    ),
                 ),
             )
         }
         rebuildFramed()
     }
 
-    /** Re-reads the admin profile list so a brand added or hidden mid-session is honored. */
+    /** Re-reads the event chosen in admin, including a newer copy from the server. */
     fun refreshEventProfiles() {
-        val profiles = profileStore.enabledProfiles()
-        val active = profileStore.active()
-        _uiState.update { state ->
-            val selection = profiles.firstOrNull { it.id == state.selectedEventProfileId }
-                ?: profiles.firstOrNull { it.id == active.id }
-                ?: profiles.first()
-            state.copy(
-                eventProfiles = profiles,
-                selectedEventProfileId = selection.id,
-                customization = if (state.resultFile == null) {
-                    state.customization.copy(eventBranding = selection.branding)
-                } else {
-                    state.customization
-                },
-            )
+        viewModelScope.launch {
+            if (identityStore.load().enrolled) {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        ProviderLogoStore.sync(getApplication(), aiClient.providerLogos(), aiClient::downloadProviderLogo)
+                        EventSync.reconcile(getApplication(), profileStore, aiClient)
+                    }
+                }
+            }
+            val profiles = profileStore.enabledProfiles()
+            val active = profileStore.active()
+            _uiState.update { state ->
+                state.copy(
+                    eventProfiles = profiles,
+                    selectedEventProfileId = active.id,
+                    customization = if (state.resultFile == null) {
+                        withSponsorLogos(state.customization.copy(eventBranding = active.branding))
+                    } else {
+                        state.customization
+                    },
+                )
+            }
         }
     }
 
@@ -403,10 +423,8 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(status = AiStatus.UPLOADING, uploadProgress = 0, progress = 0, error = null, cost = null)
                 }
-                val branding = profileStore.enabledProfiles()
-                    .firstOrNull { it.id == snapshot.selectedEventProfileId }
-                    ?.branding
-                    ?: profileStore.active().branding
+                val activeProfile = profileStore.active()
+                val branding = activeProfile.branding
                 val session = withContext(Dispatchers.IO) {
                     aiClient.createSession(branding.driveFolderBase())
                 }
@@ -438,10 +456,12 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                 bitmap = cropped
                 styledBitmap?.let { if (!it.isRecycled) it.recycle() }
                 styledBitmap = bitmap
-                val customization = _uiState.value.customization.copy(
-                    eventBranding = branding,
-                    badgePreset = EventBadgePreset.CUSTOM,
-                    decoration = _uiState.value.frameDecoration,
+                val customization = withSponsorLogos(
+                    _uiState.value.customization.copy(
+                        eventBranding = branding,
+                        badgePreset = EventBadgePreset.CUSTOM,
+                        decoration = _uiState.value.frameDecoration,
+                    ),
                 )
                 val framed = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = true)
                 val full = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = false)
@@ -462,6 +482,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                         resultPreview = framed,
                         resultFile = framedFile,
                         customization = customization,
+                        selectedEventProfileId = activeProfile.id,
                     )
                 }
             } catch (e: CancellationException) {
@@ -552,9 +573,11 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         val bitmap = styledBitmap ?: return
         if (bitmap.isRecycled) return
         viewModelScope.launch(Dispatchers.Default) {
-            val customization = _uiState.value.customization.copy(
-                frameStyle = _uiState.value.frameStyle,
-                decoration = _uiState.value.frameDecoration,
+            val customization = withSponsorLogos(
+                _uiState.value.customization.copy(
+                    frameStyle = _uiState.value.frameStyle,
+                    decoration = _uiState.value.frameDecoration,
+                ),
             )
             val framed = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = true)
             val full = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = false)

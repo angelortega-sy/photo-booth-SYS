@@ -164,6 +164,16 @@ class AiBackendClient(
         return openBytes("GET", "/v1/logos/${URLEncoder.encode(id, Charsets.UTF_8.name())}", ByteArray(0), sign = true)
     }
 
+    fun eventsDocument(): String = open("GET", "/v1/events", ByteArray(0), null, sign = true).second
+
+    fun putEvents(body: ByteArray) {
+        open("PUT", "/v1/events", body, JSON, sign = true)
+    }
+
+    fun eventLogo(id: String): ByteArray {
+        return openBytes("GET", "/v1/events/${URLEncoder.encode(id, Charsets.UTF_8.name())}/logo", ByteArray(0), sign = true)
+    }
+
     /** Signed readiness probe for the Drive share path and TOTEMEXPO service. */
     fun status(): ServerStatusProbe {
         val startedAt = SystemClock.elapsedRealtime()

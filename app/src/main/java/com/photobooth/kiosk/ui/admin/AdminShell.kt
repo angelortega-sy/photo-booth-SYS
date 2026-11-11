@@ -229,6 +229,7 @@ private fun AdminShellContent(
                     }
 
                     AdminRoute.Brands -> {
+                        LaunchedEffect(Unit) { viewModel.refreshServerCatalog() }
                         AdminBrandsScreen(
                             profiles = appState.eventProfiles,
                             activeProfileId = appState.activeEventProfileId,

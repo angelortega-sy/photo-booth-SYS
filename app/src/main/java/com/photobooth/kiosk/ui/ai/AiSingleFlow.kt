@@ -105,7 +105,6 @@ import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.ui.backgroundLabel
 import com.photobooth.kiosk.data.CollageFrameStyle
-import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.FramePalette
 import com.photobooth.kiosk.data.palette
@@ -457,9 +456,6 @@ fun AiSingleFlow(
                             selected = state.frameStyle,
                             palette = state.customization.palette(),
                             onSelectFrame = { viewModel.selectFrame(it); onInteraction() },
-                            profiles = state.eventProfiles,
-                            selectedProfileId = state.selectedEventProfileId,
-                            onSelectProfile = { viewModel.selectEventProfile(it); onInteraction() },
                             decoration = state.frameDecoration,
                             onSelectDecoration = { viewModel.selectDecoration(it); onInteraction() },
                         )
@@ -1157,9 +1153,6 @@ private fun FramedContent(
     selected: CollageFrameStyle,
     palette: FramePalette,
     onSelectFrame: (CollageFrameStyle) -> Unit,
-    profiles: List<EventProfile>,
-    selectedProfileId: String,
-    onSelectProfile: (String) -> Unit,
     decoration: FrameDecoration,
     onSelectDecoration: (FrameDecoration) -> Unit,
 ) {
@@ -1190,41 +1183,6 @@ private fun FramedContent(
     cost?.let { Text(stringResource(R.string.ai_generation_cost, it.toString()), color = Cream.copy(alpha = 0.7f), fontSize = 14.sp) }
     if (status == AiStatus.ERROR) {
         Text(stringResource(R.string.ai_generation_error), color = Cream, fontSize = 15.sp)
-    }
-    if (profiles.size > 1) {
-        BoothSectionTitle(stringResource(R.string.ai_section_brand))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            profiles.forEach { profile ->
-                val isSelected = profile.id == selectedProfileId
-                Surface(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(18.dp))
-                        .clickable(role = Role.Button) { onSelectProfile(profile.id) }
-                        .then(
-                            if (isSelected) {
-                                Modifier.border(2.dp, SyscomBlue, RoundedCornerShape(18.dp))
-                            } else {
-                                Modifier
-                            },
-                        ),
-                    shape = RoundedCornerShape(18.dp),
-                    color = if (isSelected) SyscomBlue.copy(alpha = 0.22f) else InkSoft,
-                ) {
-                    Text(
-                        profile.name,
-                        color = Cream,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
-                    )
-                }
-            }
-        }
     }
     BoothSectionTitle(stringResource(R.string.ai_section_frame))
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

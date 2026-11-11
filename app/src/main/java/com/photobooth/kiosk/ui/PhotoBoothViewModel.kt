@@ -29,6 +29,7 @@ import com.photobooth.kiosk.data.EventBadgePreset
 import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.EventProfileStore
+import com.photobooth.kiosk.data.EventSync
 import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.PhotoBorderStyle
 import com.photobooth.kiosk.data.PhotoSettingsStore
@@ -351,6 +352,30 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             )
         }
         if (isActive) requestPreviewUpdate(sessionToken)
+        publishEvents()
+    }
+
+    /** Uploads the event list after an admin change so the other booths can download it. */
+    private fun publishEvents() {
+        if (!identityStore.load().enrolled) return
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { EventSync.publish(profileStore, aiClient) }
+        }
+    }
+
+    private fun PhotoBoothUiState.withStoredEvents(): PhotoBoothUiState {
+        val active = profileStore.active()
+        val logos = providerLogos.ifEmpty { ProviderLogoStore.load(getApplication()) }
+        return copy(
+            eventProfiles = profileStore.loadAll(),
+            activeEventProfileId = active.id,
+            selectedEventProfileId = active.id,
+            providerLogos = logos,
+            customization = customization.copy(
+                eventBranding = active.branding,
+                sponsorLogoPaths = sponsorLogoPaths(active.branding, logos),
+            ),
+        )
     }
 
     fun setSavePhotosToDevice(enabled: Boolean) {
@@ -375,6 +400,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             )
         }
         requestPreviewUpdate(sessionToken)
+        publishEvents()
     }
 
     fun addEventProfile(name: String): String {
@@ -389,6 +415,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update {
             it.copy(eventProfiles = profileStore.loadAll())
         }
+        publishEvents()
     }
 
     fun deleteEventProfile(profileId: String) {
@@ -407,6 +434,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             )
         }
         requestPreviewUpdate(sessionToken)
+        publishEvents()
     }
 
     fun setEventProfileEnabled(profileId: String, enabled: Boolean) {
@@ -425,6 +453,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             )
         }
         requestPreviewUpdate(sessionToken)
+        publishEvents()
     }
 
     private fun defaultBadgePreset(): EventBadgePreset =
@@ -830,6 +859,9 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                     ProviderLogoStore.sync(getApplication(), aiClient.providerLogos(), aiClient::downloadProviderLogo)
                 }.getOrNull()
             }
+            val eventsChanged = withContext(Dispatchers.IO) {
+                runCatching { EventSync.reconcile(getApplication(), profileStore, aiClient) }.getOrDefault(false)
+            }
             loaded.onSuccess { (styles, models) ->
                 val saved = aiSettings.load().modelId
                 _uiState.update { state ->
@@ -844,7 +876,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                         else -> styles.firstOrNull()?.id ?: state.selectedAiStyleId
                     }
                     val newLogos = logos ?: state.providerLogos
-                    state.copy(
+                    val next = state.copy(
                         serverStyles = styles,
                         serverModels = models,
                         selectedModelId = modelId,
@@ -854,16 +886,18 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                             sponsorLogoPaths = sponsorLogoPaths(state.customization.eventBranding, newLogos),
                         ),
                     )
+                    if (eventsChanged) next.withStoredEvents() else next
                 }
             }
-            if (loaded.isFailure && logos != null) {
+            if (loaded.isFailure && (logos != null || eventsChanged)) {
                 _uiState.update {
-                    it.copy(
-                        providerLogos = logos,
+                    val next = it.copy(
+                        providerLogos = logos ?: it.providerLogos,
                         customization = it.customization.copy(
-                            sponsorLogoPaths = sponsorLogoPaths(it.customization.eventBranding, logos),
+                            sponsorLogoPaths = sponsorLogoPaths(it.customization.eventBranding, logos ?: it.providerLogos),
                         ),
                     )
+                    if (eventsChanged) next.withStoredEvents() else next
                 }
             }
         }
