@@ -166,6 +166,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
     private val sourceFiles = arrayOfNulls<File>(PhotoBoothUiState.PHOTO_COUNT)
     private val rawPreviews = arrayOfNulls<Bitmap>(PhotoBoothUiState.PHOTO_COUNT)
+    /** Per-slot take id so a late write from a retaken shot cannot replace the new one. */
+    private val captureGenerations = IntArray(PhotoBoothUiState.PHOTO_COUNT)
     private val preparedCutouts = arrayOfNulls<PreparedCutout>(PhotoBoothUiState.PHOTO_COUNT)
     private val unframedComposites = arrayOfNulls<Bitmap>(PhotoBoothUiState.PHOTO_COUNT)
     private val unframedCompositeBgIds = arrayOfNulls<String>(PhotoBoothUiState.PHOTO_COUNT)
@@ -476,6 +478,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         if (index !in 0 until PhotoBoothUiState.PHOTO_COUNT) return
         if (index >= state.capturedCount) return
         if (state.isCapturing || state.isProcessing) return
+        captureGenerations[index] += 1
         _uiState.update { it.copy(retakeIndex = index, errorMessage = null) }
     }
 
@@ -500,11 +503,12 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
         val token = sessionToken
         val index = retake ?: state.capturedCount
+        val generation = ++captureGenerations[index]
         viewModelScope.launch {
             val oriented = withContext(Dispatchers.Default) {
                 mirrorAndRelease(photo, mirror)
             }
-            if (token != sessionToken) {
+            if (token != sessionToken || generation != captureGenerations[index]) {
                 oriented?.let { if (!it.isRecycled) it.recycle() }
                 return@launch
             }
@@ -519,20 +523,20 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 return@launch
             }
 
-            // Prepare 540x960 preview and 180x320 capture thumbnail immediately
+            // Prepare 540x960 preview and 180x320 capture thumbnail immediately.
+            // The capture is already cropped to the visible panel aspect in CameraPreview.
             val preview540 = withContext(Dispatchers.Default) {
-                val cropped = BitmapTransforms.centerCrop(
+                BitmapTransforms.centerCrop(
                     oriented,
                     PhotoProcessor.PREVIEW_WIDTH,
                     PhotoProcessor.PREVIEW_HEIGHT,
                 )
-                cropped
             }
             val thumb = withContext(Dispatchers.Default) {
                 Bitmap.createScaledBitmap(preview540, 180, 320, true)
             }
 
-            if (token != sessionToken) {
+            if (token != sessionToken || generation != captureGenerations[index]) {
                 if (!oriented.isRecycled) oriented.recycle()
                 if (!preview540.isRecycled) preview540.recycle()
                 if (!thumb.isRecycled) thumb.recycle()
@@ -580,7 +584,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 val cutout = processor.extractCutout(oriented)
                 if (!oriented.isRecycled) oriented.recycle()
 
-                if (token != sessionToken || !saved) {
+                if (token != sessionToken || generation != captureGenerations[index] || !saved) {
                     sourceFile.delete()
                     cutout.recycle()
                     return@launch
@@ -1205,12 +1209,12 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                     }
                     if (styled.all { it != null }) {
                         val framed = styled.map { bitmap ->
-                            PhotoFrameComposer.framePhoto(bitmap!!, customization, previewScale = true)
+                            PhotoFrameComposer.framePhoto(bitmap!!, customization, previewScale = false)
                         }
                         val collage = PhotoFrameComposer.composeCollage(
                             styled.filterNotNull(),
                             customization,
-                            previewScale = true,
+                            previewScale = false,
                         )
                         if (token != sessionToken) {
                             framed.forEach { it.recycle() }
@@ -1276,18 +1280,18 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
                 if (token != sessionToken) return@withLock
 
-                // 2. Render 540x960 framed individual previews and the live collage preview
+                // 2. Full-resolution frame so brand/sponsor logos stay sharp on the totem.
                 val newPhotoPreviews = currentUnframed.map { unframed ->
                     PhotoFrameComposer.framePhoto(
                         photo = unframed,
                         customization = customization,
-                        previewScale = true,
+                        previewScale = false,
                     )
                 }
                 val newCollagePreview = PhotoFrameComposer.composeCollage(
                     photos = currentUnframed,
                     customization = customization,
-                    previewScale = true,
+                    previewScale = false,
                 )
 
                 if (token != sessionToken) {
@@ -1529,6 +1533,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             unframedCompositeBgIds[i] = null
             unframedCompositeSegmented[i] = false
             aiFullBitmaps[i] = null
+            captureGenerations[i] = 0
         }
         sessionDirectory = null
         outputDirectory = null

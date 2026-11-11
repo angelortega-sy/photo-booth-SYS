@@ -2,8 +2,10 @@ package com.photobooth.kiosk.ui.admin
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +16,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -29,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -193,6 +200,7 @@ internal fun AdminBrandEditorScreen(
                             bitmap = logoBitmap.asImageBitmap(),
                             contentDescription = stringResource(R.string.admin_brand_logo_title),
                             contentScale = ContentScale.Fit,
+                            filterQuality = FilterQuality.High,
                             modifier = Modifier.fillMaxSize().padding(12.dp),
                         )
                     }
@@ -264,6 +272,7 @@ internal fun AdminBrandEditorScreen(
                                         bitmap = bitmap.asImageBitmap(),
                                         contentDescription = logo.name,
                                         contentScale = ContentScale.Fit,
+                                        filterQuality = FilterQuality.High,
                                         modifier = Modifier.fillMaxSize().padding(6.dp),
                                     )
                                 }
@@ -357,23 +366,6 @@ internal fun AdminBrandEditorScreen(
                     onValueChange = { draft = draft.copy(brand = it) },
                 )
                 BrandingField(
-                    label = stringResource(R.string.admin_event_tagline),
-                    value = draft.tagline,
-                    onValueChange = { draft = draft.copy(tagline = it) },
-                )
-                BrandingField(
-                    label = stringResource(R.string.admin_event_welcome_title),
-                    value = draft.welcomeTitle,
-                    onValueChange = { draft = draft.copy(welcomeTitle = it) },
-                    minLines = 2,
-                )
-                BrandingField(
-                    label = stringResource(R.string.admin_event_welcome_subtitle),
-                    value = draft.welcomeSubtitle,
-                    onValueChange = { draft = draft.copy(welcomeSubtitle = it) },
-                    minLines = 2,
-                )
-                BrandingField(
                     label = stringResource(R.string.admin_event_badge_headline),
                     value = draft.badgeHeadline,
                     onValueChange = { draft = draft.copy(badgeHeadline = it) },
@@ -393,11 +385,64 @@ internal fun AdminBrandEditorScreen(
                     value = draft.hashtag,
                     onValueChange = { draft = draft.copy(hashtag = it) },
                 )
-                BrandingField(
-                    label = stringResource(R.string.admin_event_drive_folder),
-                    value = draft.driveFolderName,
-                    onValueChange = { draft = draft.copy(driveFolderName = it) },
-                )
+            }
+        }
+        item {
+            var welcomeOpen by remember(profileId) { mutableStateOf(false) }
+            AdminCard(
+                title = stringResource(R.string.admin_event_welcome_section),
+                subtitle = stringResource(R.string.admin_event_welcome_section_hint),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { welcomeOpen = !welcomeOpen }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (welcomeOpen) {
+                            stringResource(R.string.admin_event_welcome_hide)
+                        } else {
+                            stringResource(R.string.admin_event_welcome_show)
+                        },
+                        color = SyscomBlueLight,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = if (welcomeOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = null,
+                        tint = SyscomBlueLight,
+                    )
+                }
+                if (welcomeOpen) {
+                    Column {
+                        BrandingField(
+                            label = stringResource(R.string.admin_event_tagline),
+                            value = draft.tagline,
+                            onValueChange = { draft = draft.copy(tagline = it) },
+                        )
+                        BrandingField(
+                            label = stringResource(R.string.admin_event_welcome_title),
+                            value = draft.welcomeTitle,
+                            onValueChange = { draft = draft.copy(welcomeTitle = it) },
+                            minLines = 2,
+                        )
+                        BrandingField(
+                            label = stringResource(R.string.admin_event_welcome_subtitle),
+                            value = draft.welcomeSubtitle,
+                            onValueChange = { draft = draft.copy(welcomeSubtitle = it) },
+                            minLines = 2,
+                        )
+                        BrandingField(
+                            label = stringResource(R.string.admin_event_drive_folder),
+                            value = draft.driveFolderName,
+                            onValueChange = { draft = draft.copy(driveFolderName = it) },
+                        )
+                    }
+                }
             }
         }
     }

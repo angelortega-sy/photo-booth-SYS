@@ -162,17 +162,29 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
         lastInteraction = SystemClock.uptimeMillis()
     }
 
-    LaunchedEffect(showWelcome, state.isProcessing, showAdmin) {
-        if (showWelcome || showAdmin) return@LaunchedEffect
+    var idleRemainingSec by remember { mutableIntStateOf((IDLE_TIMEOUT_MS / 1000L).toInt()) }
+    val showIdleTimer = !showWelcome && !showAdmin && hasCameraPermission
+
+    LaunchedEffect(showWelcome, state.isProcessing, showAdmin, lastInteraction) {
+        if (showWelcome || showAdmin) {
+            idleRemainingSec = (IDLE_TIMEOUT_MS / 1000L).toInt()
+            return@LaunchedEffect
+        }
         while (true) {
-            delay(1_000L)
-            if (viewModel.uiState.value.isProcessing) continue
-            if (SystemClock.uptimeMillis() - lastInteraction >= IDLE_TIMEOUT_MS) {
+            val elapsed = SystemClock.uptimeMillis() - lastInteraction
+            val remainingMs = (IDLE_TIMEOUT_MS - elapsed).coerceAtLeast(0L)
+            idleRemainingSec = ((remainingMs + 999L) / 1000L).toInt()
+            if (viewModel.uiState.value.isProcessing) {
+                delay(1_000L)
+                continue
+            }
+            if (remainingMs <= 0L) {
                 viewModel.endSession()
                 boothMode = null
                 showWelcome = true
                 break
             }
+            delay(250L)
         }
     }
 
@@ -254,6 +266,39 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
                 onHome = { goHome() },
                 onInteraction = { lastInteraction = SystemClock.uptimeMillis() },
             )
+        }
+
+        if (showIdleTimer) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 18.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .clickable {
+                        lastInteraction = SystemClock.uptimeMillis()
+                        idleRemainingSec = (IDLE_TIMEOUT_MS / 1000L).toInt()
+                    },
+                color = InkSoft.copy(alpha = 0.88f),
+                border = BorderStroke(1.dp, Cream.copy(alpha = 0.28f)),
+                shape = RoundedCornerShape(999.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = stringResource(R.string.idle_timer_seconds, idleRemainingSec),
+                        color = Cream,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = stringResource(R.string.idle_timer_hint),
+                        color = Cream.copy(alpha = 0.65f),
+                        fontSize = 12.sp,
+                    )
+                }
+            }
         }
     }
 }

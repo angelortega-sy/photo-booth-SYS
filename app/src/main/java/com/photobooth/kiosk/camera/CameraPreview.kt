@@ -16,12 +16,10 @@ import android.view.Surface
 import android.view.View
 import android.view.WindowManager
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
-import androidx.camera.core.UseCase
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Box
@@ -31,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,14 +41,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.photobooth.kiosk.data.CameraAdjustments
 import com.photobooth.kiosk.photo.BitmapTransforms
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -82,9 +81,11 @@ fun CameraPreview(
     val previewRotationDegrees = remember { AtomicInteger(0) }
     val outputRotationDegrees = remember { AtomicInteger(0) }
     val outputMirrored = remember { AtomicBoolean(false) }
-    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val gestureDetector = remember(context) { sharedHandGestureDetector(context) }
     val leftScreen = remember { AtomicBoolean(false) }
+    val latestCaptureRequest = remember { AtomicInteger(0) }
+    var panelAspectWidth by remember { mutableFloatStateOf(3f) }
+    var panelAspectHeight by remember { mutableFloatStateOf(4f) }
 
     val previewView = remember(context) {
         PreviewView(context).apply {
@@ -116,14 +117,8 @@ fun CameraPreview(
         }
     }
 
-    // Declared before the camera effect so it runs after the camera is unbound.
-    DisposableEffect(analysisExecutor) {
-        onDispose { analysisExecutor.shutdown() }
-    }
-
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var bindGeneration by remember { mutableIntStateOf(0) }
-    var analysisEnabled by remember { mutableStateOf(true) }
     val currentOnReady by rememberUpdatedState(onReady)
     val currentOnCaptured by rememberUpdatedState(onCaptured)
     val currentOnError by rememberUpdatedState(onError)
@@ -132,7 +127,6 @@ fun CameraPreview(
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(receiverContext: Context?, intent: Intent?) {
                 if (leftScreen.get()) return
-                analysisEnabled = true
                 bindGeneration += 1
             }
         }
@@ -149,13 +143,10 @@ fun CameraPreview(
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
 
-    DisposableEffect(lifecycleOwner, previewView, bindGeneration, analysisEnabled) {
+    DisposableEffect(lifecycleOwner, previewView, bindGeneration) {
         val future = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
         val disposed = AtomicBoolean(false)
-        var stateObserver: Observer<androidx.camera.core.CameraState>? = null
-        var boundCamera: androidx.camera.core.Camera? = null
-        var analysisUseCase: ImageAnalysis? = null
 
         val listener = Runnable {
             if (disposed.get()) return@Runnable
@@ -164,10 +155,7 @@ fun CameraPreview(
                 provider = cameraProvider
                 val choice = chooseCamera(context, cameraProvider)
                 val rotation = displayRotation(previewView)
-                Log.i(
-                    TAG,
-                    "bind external=${choice.isExternal} targetRotation=$rotation analysis=$analysisEnabled",
-                )
+                Log.i(TAG, "bind external=${choice.isExternal} targetRotation=$rotation")
 
                 val preview = Preview.Builder().build().also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
@@ -182,65 +170,14 @@ fun CameraPreview(
                     .setTargetRotation(rotation)
                     .build()
 
-                val useCases = mutableListOf<UseCase>(preview, capture)
-                var analysis: ImageAnalysis? = null
-                if (analysisEnabled) {
-                    @Suppress("DEPRECATION")
-                    analysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setTargetResolution(Size(640, 480))
-                        .setTargetRotation(rotation)
-                        .build()
-                    var lastAnalysisAt = 0L
-                    analysis.setAnalyzer(analysisExecutor) { image ->
-                        try {
-                            if (handDetectionEnabledState.get()) {
-                                val now = SystemClock.uptimeMillis()
-                                if (now - lastAnalysisAt >= HAND_ANALYSIS_INTERVAL_MS) {
-                                    lastAnalysisAt = now
-                                    val upright = uprightBitmap(
-                                        image,
-                                        previewRotationDegrees.get(),
-                                    )
-                                    gestureDetector.analyze(upright, now)
-                                }
-                            }
-                        } catch (error: Throwable) {
-                            Log.w(TAG, "Hand analysis failed", error)
-                        } finally {
-                            image.close()
-                        }
-                    }
-                    useCases += analysis
-                    analysisUseCase = analysis
-                }
-
                 cameraProvider.unbindAll()
-                val camera = try {
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        choice.selector,
-                        *useCases.toTypedArray(),
-                    )
-                } catch (error: Throwable) {
-                    if (analysis == null) throw error
-                    Log.w(TAG, "Hand analysis unavailable, using camera without it", error)
-                    analysis.clearAnalyzer()
-                    runCatching { cameraProvider.unbindAll() }
-                    // Rebind once without the analysis stream. Some USB cameras drop
-                    // off the bus when a third stream is opened.
-                    analysisEnabled = false
-                    return@Runnable
-                }
-                boundCamera = camera
-                val observer = Observer<androidx.camera.core.CameraState> { state ->
-                    val cameraError = state.error ?: return@Observer
-                    if (disposed.get() || analysis == null || !analysisEnabled) return@Observer
-                    Log.w(TAG, "Camera dropped during hand analysis: ${cameraError.code}")
-                    analysisEnabled = false
-                }
-                stateObserver = observer
-                camera.cameraInfo.cameraState.observe(lifecycleOwner, observer)
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    choice.selector,
+                    preview,
+                    capture,
+                )
+                leftScreen.set(false)
                 imageCapture = capture
                 currentOnReady()
             } catch (error: Throwable) {
@@ -257,11 +194,7 @@ fun CameraPreview(
             gestureDetector.enabled = false
             gestureDetector.listener = {}
             handDetectionEnabledState.set(false)
-            runCatching { analysisUseCase?.clearAnalyzer() }
             imageCapture = null
-            stateObserver?.let { observer ->
-                boundCamera?.cameraInfo?.cameraState?.removeObserver(observer)
-            }
             if (future.isDone) {
                 runCatching { provider?.unbindAll() }
             } else {
@@ -270,8 +203,38 @@ fun CameraPreview(
         }
     }
 
+    // Palm detection reads the same preview the guest sees. A third CameraX stream
+    // (ImageAnalysis) fails on many USB cameras and used to disable the gesture path.
+    LaunchedEffect(handDetectionEnabled, imageCapture) {
+        if (!handDetectionEnabled || imageCapture == null) return@LaunchedEffect
+        while (isActive) {
+            delay(HAND_ANALYSIS_INTERVAL_MS)
+            if (!handDetectionEnabledState.get() || leftScreen.get()) continue
+            val frame = runCatching { previewView.bitmap }.getOrNull() ?: continue
+            val rotation = previewRotationDegrees.get()
+            withContext(Dispatchers.Default) {
+                val upright = try {
+                    rotateBitmap(frame, rotation)
+                } catch (_: Throwable) {
+                    if (!frame.isRecycled) frame.recycle()
+                    return@withContext
+                }
+                try {
+                    gestureDetector.analyze(upright, SystemClock.uptimeMillis())
+                } finally {
+                    if (upright !== frame && !upright.isRecycled) upright.recycle()
+                    if (!frame.isRecycled) frame.recycle()
+                }
+            }
+        }
+    }
+
     val framed = adjustments.normalized()
     BoxWithConstraints(modifier) {
+        if (maxWidth.value > 0f && maxHeight.value > 0f) {
+            panelAspectWidth = maxWidth.value
+            panelAspectHeight = maxHeight.value
+        }
         val rotation = framed.previewRotation
         val fillScale = if (
             (rotation == 90 || rotation == 270) && maxWidth.value > 0f && maxHeight.value > 0f
@@ -300,11 +263,15 @@ fun CameraPreview(
 
     LaunchedEffect(captureRequest) {
         if (captureRequest <= 0) return@LaunchedEffect
+        latestCaptureRequest.set(captureRequest)
+        val requestId = captureRequest
         val capture = imageCapture ?: run {
             currentOnError("Camera is not ready")
             return@LaunchedEffect
         }
         val mirror = outputMirrored.get()
+        val aspectW = panelAspectWidth
+        val aspectH = panelAspectHeight
 
         capture.takePicture(
             mainExecutor,
@@ -320,6 +287,7 @@ fun CameraPreview(
                     image.close()
 
                     scope.launch(Dispatchers.Default) {
+                        if (latestCaptureRequest.get() != requestId) return@launch
                         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         if (bitmap == null) {
                             withContext(Dispatchers.Main) {
@@ -336,22 +304,43 @@ fun CameraPreview(
                             }
                             return@launch
                         }
+                        if (latestCaptureRequest.get() != requestId) {
+                            if (!oriented.isRecycled) oriented.recycle()
+                            return@launch
+                        }
+                        val cropped = try {
+                            BitmapTransforms.centerCropToAspect(oriented, aspectW, aspectH)
+                        } catch (error: Throwable) {
+                            if (!oriented.isRecycled) oriented.recycle()
+                            withContext(Dispatchers.Main) {
+                                currentOnError(error.message ?: "Could not crop captured image")
+                            }
+                            return@launch
+                        }
+                        if (cropped !== oriented && !oriented.isRecycled) oriented.recycle()
+                        if (latestCaptureRequest.get() != requestId) {
+                            if (!cropped.isRecycled) cropped.recycle()
+                            return@launch
+                        }
                         var ownershipTransferred = false
                         try {
                             withContext(Dispatchers.Main) {
+                                if (latestCaptureRequest.get() != requestId) return@withContext
                                 ownershipTransferred = true
-                                currentOnCaptured(oriented, mirror)
+                                currentOnCaptured(cropped, mirror)
                             }
                         } finally {
-                            if (!ownershipTransferred && !oriented.isRecycled) {
-                                oriented.recycle()
+                            if (!ownershipTransferred && !cropped.isRecycled) {
+                                cropped.recycle()
                             }
                         }
                     }
                 }
 
                 override fun onError(exception: ImageCaptureException) {
-                    currentOnError(exception.message ?: "Capture failed")
+                    if (latestCaptureRequest.get() == requestId) {
+                        currentOnError(exception.message ?: "Capture failed")
+                    }
                 }
             },
         )
@@ -365,12 +354,6 @@ private fun sharedHandGestureDetector(context: Context): HandGestureDetector =
 
 private object SharedHandGesture {
     var detector: HandGestureDetector? = null
-}
-
-private fun uprightBitmap(image: ImageProxy, extraDegrees: Int): Bitmap {
-    val bitmap = image.toBitmap()
-    val rotation = manualRotation(image.imageInfo.rotationDegrees, extraDegrees)
-    return rotateBitmap(bitmap, rotation)
 }
 
 private fun rotateBitmap(bitmap: Bitmap, degrees: Int): Bitmap {

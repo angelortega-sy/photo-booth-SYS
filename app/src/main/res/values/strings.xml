@@ -195,6 +195,12 @@
     <string name="admin_event_tagline">Tagline</string>
     <string name="admin_event_welcome_title">Título de bienvenida</string>
     <string name="admin_event_welcome_subtitle">Subtítulo de bienvenida</string>
+    <string name="admin_event_welcome_section">Pantalla de inicio</string>
+    <string name="admin_event_welcome_section_hint">No salen en la foto. Solo en la bienvenida y en Drive.</string>
+    <string name="admin_event_welcome_show">Mostrar campos de bienvenida y Drive</string>
+    <string name="admin_event_welcome_hide">Ocultar campos de bienvenida y Drive</string>
+    <string name="idle_timer_seconds">%1$d s</string>
+    <string name="idle_timer_hint">Toca para reiniciar</string>
     <string name="admin_event_badge_headline">Título del evento en la foto</string>
     <string name="admin_event_badge_subheadline">Subtítulo del evento</string>
     <string name="admin_event_badge_tag">Etiqueta corta</string>
