@@ -102,7 +102,7 @@ fun BoothFlowHeader(
 @Composable
 fun BoothBottomBar(
     horizontalPadding: Dp,
-    primaryLabel: String,
+    primaryLabel: String?,
     primaryEnabled: Boolean,
     onPrimary: () -> Unit,
     backLabel: String? = null,
@@ -125,12 +125,14 @@ fun BoothBottomBar(
                 modifier = Modifier.weight(1f),
             )
         }
-        BoothPrimaryButton(
-            text = primaryLabel,
-            onClick = onPrimary,
-            enabled = primaryEnabled,
-            modifier = Modifier.weight(if (backLabel != null) 1.4f else 1f),
-        )
+        if (primaryLabel != null) {
+            BoothPrimaryButton(
+                text = primaryLabel,
+                onClick = onPrimary,
+                enabled = primaryEnabled,
+                modifier = Modifier.weight(if (backLabel != null) 1.4f else 1f),
+            )
+        }
     }
 }
 

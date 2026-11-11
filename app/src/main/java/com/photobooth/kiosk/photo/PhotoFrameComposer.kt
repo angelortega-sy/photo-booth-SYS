@@ -37,6 +37,11 @@ object PhotoFrameComposer {
     const val HEIGHT = PhotoProcessor.OUTPUT_HEIGHT
     private const val STRIP_HEIGHT = 2640
     private const val JPEG_QUALITY = 94
+    /** Brand logo max height on a full 1080×1920 frame (scaled for previews). */
+    private const val BRAND_LOGO_MAX_HEIGHT = 96f
+    /** Vertical band reserved for the sponsor row between header and photo. */
+    private const val SPONSOR_BAND_HEIGHT = 100f
+    private const val BRAND_LOGO_SLOT_HEIGHT = 100f
 
     fun framePhoto(
         photo: Bitmap,
@@ -51,13 +56,15 @@ object PhotoFrameComposer {
 
         drawFrameBackground(canvas, outWidth.toFloat(), outHeight.toFloat(), scale, customization)
         drawTopHeader(canvas, outWidth.toFloat(), 44f * scale, scale, customization)
-        val sponsorShift = if (customization.sponsorLogoPaths.isEmpty()) 0f else 56f * scale
+        // Clears the taller brand-logo slot before the sponsor row / photo.
+        val contentTop = 152f * scale
+        val sponsorShift = if (customization.sponsorLogoPaths.isEmpty()) 0f else SPONSOR_BAND_HEIGHT * scale
         drawSponsorLogos(
             canvas,
             customization,
             outWidth.toFloat(),
-            108f * scale,
-            108f * scale + sponsorShift,
+            contentTop,
+            contentTop + sponsorShift,
         )
 
         val shape = customization.frameStyle.shape
@@ -67,12 +74,15 @@ object PhotoFrameComposer {
             FrameShape.CYBER -> 52f
             FrameShape.GALA -> 84f
         } * scale
-        val photoTop = when (shape) {
-            FrameShape.TECH -> 136f
-            FrameShape.POLAROID -> 158f
-            FrameShape.CYBER -> 150f
-            FrameShape.GALA -> 196f
-        } * scale + sponsorShift
+        val photoTop = max(
+            when (shape) {
+                FrameShape.TECH -> 136f
+                FrameShape.POLAROID -> 158f
+                FrameShape.CYBER -> 150f
+                FrameShape.GALA -> 196f
+            } * scale,
+            contentTop,
+        ) + sponsorShift
         val photoRect = RectF(
             marginX,
             photoTop,
@@ -121,20 +131,22 @@ object PhotoFrameComposer {
 
         drawFrameBackground(canvas, outWidth.toFloat(), outHeight.toFloat(), scale, customization)
         drawTopHeader(canvas, outWidth.toFloat(), 42f * scale, scale, customization)
-        val sponsorShift = if (customization.sponsorLogoPaths.isEmpty()) 0f else 56f * scale
+        val contentTop = 150f * scale
+        val sponsorShift = if (customization.sponsorLogoPaths.isEmpty()) 0f else SPONSOR_BAND_HEIGHT * scale
         drawSponsorLogos(
             canvas,
             customization,
             outWidth.toFloat(),
-            106f * scale,
-            106f * scale + sponsorShift,
+            contentTop,
+            contentTop + sponsorShift,
         )
+        val slotShift = (contentTop + sponsorShift - 106f * scale).coerceAtLeast(sponsorShift)
 
         val slots = slotRects(customization.layout, scale).map { rect ->
-            if (sponsorShift == 0f || rect.top >= 220f * scale) {
+            if (slotShift == 0f || rect.top >= 220f * scale) {
                 rect
             } else {
-                RectF(rect.left, rect.top + sponsorShift, rect.right, rect.bottom)
+                RectF(rect.left, rect.top + slotShift, rect.right, rect.bottom)
             }
         }
         slots.forEachIndexed { index, slotRect ->
@@ -674,11 +686,11 @@ object PhotoFrameComposer {
     }
 
     /**
-     * Draws the brand logo fitted inside the header band (top..top+64*scale):
-     * at most 58*scale tall and 45% of the frame wide, keeping the aspect ratio.
-     * Returns the drawn width, or 0f when there is no usable logo so the caller
-     * falls back to the brand text. The decoded bitmap is always recycled.
-     * Never throws.
+     * Draws the brand logo fitted inside the header band:
+     * at most [BRAND_LOGO_MAX_HEIGHT]*scale tall and 45% of the frame wide.
+     * Never upscales a small source. Returns the drawn width, or 0f when there
+     * is no usable logo so the caller falls back to the brand text.
+     * The decoded bitmap is always recycled. Never throws.
      */
     private fun drawBrandLogo(
         canvas: Canvas,
@@ -689,10 +701,12 @@ object PhotoFrameComposer {
         scale: Float,
         centerX: Float? = null,
     ): Float {
-        val bitmap = decodeBrandLogo(logoPath) ?: return 0f
+        val decoded = decodeBrandLogo(logoPath) ?: return 0f
+        var bitmap = decoded
+        var ownsBitmap = true
         try {
             val maxWidth = frameWidth * 0.45f
-            val maxHeight = 58f * scale
+            val maxHeight = BRAND_LOGO_MAX_HEIGHT * scale
             if (maxWidth <= 0f || maxHeight <= 0f) return 0f
             val fit = minOf(
                 maxWidth / bitmap.width.toFloat(),
@@ -702,24 +716,36 @@ object PhotoFrameComposer {
             val drawnWidth = bitmap.width * fit
             val drawnHeight = bitmap.height * fit
             val drawLeft = if (centerX != null) centerX - drawnWidth * 0.5f else left
-            val drawTop = top + ((64f * scale - drawnHeight) * 0.5f).coerceAtLeast(0f)
+            val drawTop = top + ((BRAND_LOGO_SLOT_HEIGHT * scale - drawnHeight) * 0.5f).coerceAtLeast(0f)
+            val dest = RectF(drawLeft, drawTop, drawLeft + drawnWidth, drawTop + drawnHeight)
+            val scaled = BitmapTransforms.downscaleForDraw(
+                bitmap,
+                drawnWidth.toInt().coerceAtLeast(1),
+                drawnHeight.toInt().coerceAtLeast(1),
+            )
+            if (scaled !== bitmap) {
+                if (ownsBitmap && !bitmap.isRecycled) bitmap.recycle()
+                bitmap = scaled
+                ownsBitmap = true
+            }
             canvas.drawBitmap(
                 bitmap,
                 null,
-                RectF(drawLeft, drawTop, drawLeft + drawnWidth, drawTop + drawnHeight),
+                dest,
                 Paint(Paint.FILTER_BITMAP_FLAG),
             )
             return drawnWidth
         } catch (_: Throwable) {
             return 0f
         } finally {
-            if (!bitmap.isRecycled) bitmap.recycle()
+            if (ownsBitmap && !bitmap.isRecycled) bitmap.recycle()
         }
     }
 
     /**
      * Draws every enabled sponsor logo in one row between the header and the photo.
-     * The row shrinks so the whole selection stays inside the frame. Never throws.
+     * The row shrinks so the whole selection stays inside the frame. Short sources
+     * are not enlarged past 1:1. Never throws.
      */
     private fun drawSponsorLogos(
         canvas: Canvas,
@@ -732,23 +758,35 @@ object PhotoFrameComposer {
         if (paths.isEmpty() || bandBottom - bandTop < 8f) return
         val bitmaps = paths.mapNotNull { decodeBrandLogo(it) }
         if (bitmaps.isEmpty()) return
+        val scratch = mutableListOf<Bitmap>()
         try {
             val maxHeight = bandBottom - bandTop
             val gap = 16f
             val side = width * 0.04f
             val available = (width - side * 2f).coerceAtLeast(1f)
             val naturalWidths = bitmaps.map { bitmap ->
-                bitmap.width * (maxHeight / bitmap.height.toFloat())
+                val heightFit = (maxHeight / bitmap.height.toFloat()).coerceAtMost(1f)
+                bitmap.width * heightFit
+            }
+            val naturalHeights = bitmaps.map { bitmap ->
+                val heightFit = (maxHeight / bitmap.height.toFloat()).coerceAtMost(1f)
+                bitmap.height * heightFit
             }
             val naturalTotal = naturalWidths.sum() + gap * (bitmaps.size - 1).coerceAtLeast(0)
             val fit = if (naturalTotal > available) available / naturalTotal else 1f
             var x = (width - naturalTotal * fit) * 0.5f
-            bitmaps.forEachIndexed { index, bitmap ->
+            bitmaps.forEachIndexed { index, source ->
                 val drawnWidth = naturalWidths[index] * fit
-                val drawnHeight = maxHeight * fit
+                val drawnHeight = naturalHeights[index] * fit
                 val top = bandTop + (maxHeight - drawnHeight) * 0.5f
+                val scaled = BitmapTransforms.downscaleForDraw(
+                    source,
+                    drawnWidth.toInt().coerceAtLeast(1),
+                    drawnHeight.toInt().coerceAtLeast(1),
+                )
+                if (scaled !== source) scratch += scaled
                 canvas.drawBitmap(
-                    bitmap,
+                    scaled,
                     null,
                     RectF(x, top, x + drawnWidth, top + drawnHeight),
                     Paint(Paint.FILTER_BITMAP_FLAG),
@@ -756,6 +794,7 @@ object PhotoFrameComposer {
                 x += drawnWidth + gap * fit
             }
         } finally {
+            scratch.forEach { if (!it.isRecycled) it.recycle() }
             bitmaps.forEach { if (!it.isRecycled) it.recycle() }
         }
     }

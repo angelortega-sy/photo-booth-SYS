@@ -25,9 +25,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -67,6 +69,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -112,8 +115,8 @@ private enum class CollageStep(val index: Int, val titleRes: Int) {
 }
 
 private const val TOTAL_STEPS = 4
-private const val COUNTDOWN_SECONDS = 3
-private const val COUNTDOWN_TICK_MS = 700L
+private const val COUNTDOWN_SECONDS = 5
+private const val COUNTDOWN_TICK_MS = 1_000L
 
 /**
  * Three-photo collage flow. Uses the exact same shell, countdown and delivery
@@ -381,6 +384,10 @@ fun CollageFlow(
                                 onInteraction()
                                 startSequence()
                             },
+                            onShutter = {
+                                onInteraction()
+                                startSequence()
+                            },
                         )
 
                         CollageStep.BACKGROUND -> CollageBackgroundContent(
@@ -476,7 +483,7 @@ fun CollageFlow(
                 step = step,
                 shotsDone = shotsDone,
                 nextEnabled = when (step) {
-                    CollageStep.CAPTURE -> if (shotsDone) canContinueFromCapture else cameraReady && !captureBusy
+                    CollageStep.CAPTURE -> shotsDone && canContinueFromCapture
                     CollageStep.SHARE -> finishArmed
                     else -> true
                 },
@@ -494,7 +501,7 @@ fun CollageFlow(
                 },
                 onNext = {
                     when (step) {
-                        CollageStep.CAPTURE -> if (shotsDone) step = CollageStep.BACKGROUND else startSequence()
+                        CollageStep.CAPTURE -> if (shotsDone) step = CollageStep.BACKGROUND
                         CollageStep.BACKGROUND -> step = CollageStep.DESIGN
                         CollageStep.DESIGN -> step = CollageStep.SHARE
                         CollageStep.SHARE -> exit()
@@ -526,6 +533,7 @@ private fun ColumnScope.CollageCaptureContent(
     onCaptured: (Bitmap, Boolean) -> Unit,
     onError: (String) -> Unit,
     onPalm: () -> Unit,
+    onShutter: () -> Unit,
 ) {
     val done = state.capturedCount >= PhotoBoothUiState.PHOTO_COUNT
     val viewing = viewIndex?.takeIf { it < state.capturedCount }
@@ -600,6 +608,33 @@ private fun ColumnScope.CollageCaptureContent(
                     onCaptured = onCaptured,
                     onError = onError,
                 )
+            }
+            val showShutter = viewing == null &&
+                !done &&
+                !sequenceActive &&
+                countdown == 0 &&
+                cameraReady &&
+                cameraError == null &&
+                !state.isCapturing &&
+                !state.isProcessing
+            if (showShutter) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(112.dp)
+                        .clip(CircleShape)
+                        .background(Cream.copy(alpha = 0.28f))
+                        .border(2.dp, Cream.copy(alpha = 0.7f), CircleShape)
+                        .clickable(role = Role.Button, onClick = onShutter),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.CameraAlt,
+                        contentDescription = stringResource(R.string.capture),
+                        tint = Cream,
+                        modifier = Modifier.size(44.dp),
+                    )
+                }
             }
             if (viewing != null) {
                 Row(
@@ -1106,7 +1141,8 @@ private fun CollageBottomBar(
     onNext: () -> Unit,
 ) {
     val nextLabel = when (step) {
-        CollageStep.CAPTURE -> stringResource(if (shotsDone) R.string.wizard_next else R.string.collage_take_three)
+        // Shutter sits on the preview; the bar only advances after all three shots.
+        CollageStep.CAPTURE -> if (shotsDone) stringResource(R.string.wizard_next) else null
         CollageStep.SHARE -> stringResource(R.string.finish)
         else -> stringResource(R.string.wizard_next)
     }

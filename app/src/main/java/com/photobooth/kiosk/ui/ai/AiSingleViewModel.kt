@@ -52,6 +52,8 @@ import kotlinx.coroutines.withContext
 
 data class AiSingleUiState(
     val hasPhoto: Boolean = false,
+    /** True while a fresh shot is being saved; blocks continue/generate on a stale photo. */
+    val isPreparingPhoto: Boolean = false,
     val photoPreview: Bitmap? = null,
     val selectedStyleId: String = "ghibli",
     val serverStyles: List<BoothStyle> = emptyList(),
@@ -79,7 +81,10 @@ data class AiSingleUiState(
     val cameraAdjustments: CameraAdjustments = CameraAdjustments(),
 ) {
     val canGenerate: Boolean =
-        hasPhoto && status != AiStatus.UPLOADING && status != AiStatus.GENERATING
+        hasPhoto &&
+            !isPreparingPhoto &&
+            status != AiStatus.UPLOADING &&
+            status != AiStatus.GENERATING
     val hasResult: Boolean = resultPreview != null && resultFile != null
 }
 
@@ -102,6 +107,9 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
     private var originalFile: File? = null
     private var styledBitmap: Bitmap? = null
     private var aiJob: Job? = null
+    private var photoJob: Job? = null
+    /** Bumps on every new shot or retake so a late write from an older take is ignored. */
+    private var captureGeneration = 0
     private var sessionDir: File? = null
 
     private val _uiState = MutableStateFlow(
@@ -156,50 +164,91 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
 
     fun customBackgroundFile(id: String): File? = repository.customBackgroundFile(id)
 
+    /**
+     * Drops the previous shot as soon as the guest starts a retake so continue
+     * and generate cannot keep using the first photo while the second is saving.
+     */
+    fun clearPhotoForRetake() {
+        captureGeneration += 1
+        photoJob?.cancel()
+        originalFile = null
+        val oldPreview = _uiState.value.photoPreview
+        _uiState.update {
+            it.copy(hasPhoto = false, isPreparingPhoto = true, photoPreview = null, error = null)
+        }
+        oldPreview?.let { if (!it.isRecycled) it.recycle() }
+    }
+
     fun onPhotoCaptured(photo: Bitmap, mirror: Boolean) {
-        viewModelScope.launch(Dispatchers.Default) {
+        val generation = ++captureGeneration
+        photoJob?.cancel()
+        photoJob = viewModelScope.launch(Dispatchers.Default) {
+            _uiState.update { it.copy(isPreparingPhoto = true, error = null) }
             var current = photo
-            if (mirror) {
-                val mirrored = BitmapTransforms.mirrorHorizontally(current)
+            try {
+                if (mirror) {
+                    val mirrored = BitmapTransforms.mirrorHorizontally(current)
+                    if (!current.isRecycled) current.recycle()
+                    current = mirrored
+                }
+                // CameraPreview already cropped to the visible panel. Only shrink
+                // wide buffers down to the frame width; never force a fixed 9:16.
+                val targetWidth = minOf(PhotoProcessor.OUTPUT_WIDTH, current.width)
+                val targetHeight = (current.height.toLong() * targetWidth / current.width)
+                    .toInt()
+                    .coerceAtLeast(1)
+                val full = if (targetWidth == current.width && targetHeight == current.height) {
+                    current.copy(Bitmap.Config.ARGB_8888, false)
+                } else {
+                    Bitmap.createScaledBitmap(current, targetWidth, targetHeight, true)
+                }
                 if (!current.isRecycled) current.recycle()
-                current = mirrored
-            }
-            // Keep the whole frame. Forcing 9:16 here cut the sides of a 3:4 camera
-            // buffer, so the guest ended up with a close-up of one cheek.
-            val targetWidth = minOf(PhotoProcessor.OUTPUT_WIDTH, current.width)
-            val targetHeight = current.height * targetWidth / current.width
-            val full = if (targetWidth == current.width && targetHeight == current.height) {
-                current.copy(Bitmap.Config.ARGB_8888, false)
-            } else {
-                Bitmap.createScaledBitmap(current, targetWidth, targetHeight, true)
-            }
-            if (!current.isRecycled) current.recycle()
-            val previewWidth = 540
-            val preview = Bitmap.createScaledBitmap(
-                full,
-                previewWidth,
-                full.height * previewWidth / full.width,
-                true,
-            )
-            val dir = ensureSessionDir()
-            val file = File(dir, "ai_single_original.jpg")
-            withContext(Dispatchers.IO) { PhotoFrameComposer.writeJpeg(full, file) }
-            if (!full.isRecycled) full.recycle()
-            originalFile = file
-            _uiState.value.photoPreview?.let { if (!it.isRecycled) it.recycle() }
-            _uiState.update {
-                it.copy(
-                    hasPhoto = true,
-                    photoPreview = preview,
-                    // A fresh shot starts with no accessories so a stale selection
-                    // is never applied to a different photo by accident.
-                    accessories = emptySet(),
-                    frameStyle = CollageFrameStyle.SYSCOM_DARK,
-                    frameDecoration = FrameDecoration.NONE,
-                    eventProfiles = profileStore.enabledProfiles(),
-                    selectedEventProfileId = profileStore.active().id,
-                    error = null,
+                current = full
+                if (generation != captureGeneration) return@launch
+
+                val previewWidth = 540
+                val preview = Bitmap.createScaledBitmap(
+                    full,
+                    previewWidth,
+                    (full.height.toLong() * previewWidth / full.width).toInt().coerceAtLeast(1),
+                    true,
                 )
+                val dir = ensureSessionDir()
+                val file = File(dir, "ai_single_original.jpg")
+                withContext(Dispatchers.IO) { PhotoFrameComposer.writeJpeg(full, file) }
+                if (generation != captureGeneration) {
+                    if (!preview.isRecycled) preview.recycle()
+                    return@launch
+                }
+                originalFile = file
+                val oldPreview = _uiState.value.photoPreview
+                _uiState.update {
+                    it.copy(
+                        hasPhoto = true,
+                        isPreparingPhoto = false,
+                        photoPreview = preview,
+                        // A fresh shot starts with no accessories so a stale selection
+                        // is never applied to a different photo by accident.
+                        accessories = emptySet(),
+                        frameStyle = CollageFrameStyle.SYSCOM_DARK,
+                        frameDecoration = FrameDecoration.NONE,
+                        eventProfiles = profileStore.enabledProfiles(),
+                        selectedEventProfileId = profileStore.active().id,
+                        error = null,
+                    )
+                }
+                oldPreview?.let { if (!it.isRecycled) it.recycle() }
+            } finally {
+                if (!current.isRecycled) current.recycle()
+                if (generation == captureGeneration) {
+                    _uiState.update { state ->
+                        if (state.isPreparingPhoto && !state.hasPhoto) {
+                            state.copy(isPreparingPhoto = false)
+                        } else {
+                            state
+                        }
+                    }
+                }
             }
         }
     }
@@ -366,6 +415,8 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
 
     fun reset() {
         aiJob?.cancel()
+        photoJob?.cancel()
+        captureGeneration += 1
         _uiState.value.photoPreview?.let { if (!it.isRecycled) it.recycle() }
         _uiState.value.resultPreview?.let { if (!it.isRecycled) it.recycle() }
         styledBitmap?.let { if (!it.isRecycled) it.recycle() }
@@ -374,6 +425,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         _uiState.update {
             it.copy(
                 hasPhoto = false,
+                isPreparingPhoto = false,
                 photoPreview = null,
                 status = AiStatus.IDLE,
                 progress = 0,
@@ -463,11 +515,10 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                         decoration = _uiState.value.frameDecoration,
                     ),
                 )
-                val framed = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = true)
-                val full = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = false)
+                // Full-resolution frame on the totem so logos stay sharp when scaled up.
+                val framed = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = false)
                 val framedFile = File(ensureSessionDir(), "ai_single_framed_${UUID.randomUUID()}.jpg")
-                withContext(Dispatchers.IO) { PhotoFrameComposer.writeJpeg(full, framedFile) }
-                if (!full.isRecycled) full.recycle()
+                withContext(Dispatchers.IO) { PhotoFrameComposer.writeJpeg(framed, framedFile) }
                 if (photoSettings.saveToDevice()) {
                     withContext(Dispatchers.IO) {
                         PhotoArchive.save(getApplication<Application>(), listOf(framedFile))
@@ -579,12 +630,10 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
                     decoration = _uiState.value.frameDecoration,
                 ),
             )
-            val framed = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = true)
-            val full = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = false)
+            val framed = PhotoFrameComposer.framePhoto(bitmap, customization, previewScale = false)
             val dir = ensureSessionDir()
             val framedFile = File(dir, "ai_single_framed_${UUID.randomUUID()}.jpg")
-            withContext(Dispatchers.IO) { PhotoFrameComposer.writeJpeg(full, framedFile) }
-            if (!full.isRecycled) full.recycle()
+            withContext(Dispatchers.IO) { PhotoFrameComposer.writeJpeg(framed, framedFile) }
             _uiState.value.resultPreview?.let { if (!it.isRecycled) it.recycle() }
             _uiState.update { it.copy(resultPreview = framed, resultFile = framedFile) }
         }
@@ -604,6 +653,8 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
 
     override fun onCleared() {
         aiJob?.cancel()
+        photoJob?.cancel()
+        captureGeneration += 1
         _uiState.value.photoPreview?.let { if (!it.isRecycled) it.recycle() }
         _uiState.value.resultPreview?.let { if (!it.isRecycled) it.recycle() }
         styledBitmap?.let { if (!it.isRecycled) it.recycle() }

@@ -209,6 +209,12 @@
     <string name="admin_event_tagline">Tagline</string>
     <string name="admin_event_welcome_title">Welcome title</string>
     <string name="admin_event_welcome_subtitle">Welcome subtitle</string>
+    <string name="admin_event_welcome_section">Home screen</string>
+    <string name="admin_event_welcome_section_hint">Not printed on the photo. Welcome screen and Drive only.</string>
+    <string name="admin_event_welcome_show">Show welcome and Drive fields</string>
+    <string name="admin_event_welcome_hide">Hide welcome and Drive fields</string>
+    <string name="idle_timer_seconds">%1$d s</string>
+    <string name="idle_timer_hint">Tap to reset</string>
     <string name="admin_event_badge_headline">Event title on the photo</string>
     <string name="admin_event_badge_subheadline">Event subtitle</string>
     <string name="admin_event_badge_tag">Short tag</string>

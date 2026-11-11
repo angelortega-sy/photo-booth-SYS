@@ -50,6 +50,7 @@ import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material.icons.rounded.Whatshot
 import androidx.compose.material.icons.rounded.WorkspacePremium
+import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ImageNotSupported
 import androidx.compose.material.icons.rounded.QrCode2
@@ -309,11 +310,12 @@ fun AiSingleFlow(
     }
 
     fun startCapture() {
-        if (countdown > 0 || step != AiStep.CAPTURE) return
+        if (countdown > 0 || step != AiStep.CAPTURE || state.isPreparingPhoto) return
+        if (state.hasPhoto) viewModel.clearPhotoForRetake()
         scope.launch {
-            countdown = 3
+            countdown = 5
             while (countdown > 0) {
-                delay(700)
+                delay(1_000L)
                 countdown--
             }
             flash = true
@@ -364,6 +366,7 @@ fun AiSingleFlow(
     val gestureActive = state.palmCaptureEnabled &&
         step == AiStep.CAPTURE &&
         !state.hasPhoto &&
+        !state.isPreparingPhoto &&
         countdown == 0
 
     // Auto-start the QR server when the share screen opens.
@@ -508,7 +511,7 @@ fun AiSingleFlow(
                 hPad = hPad,
                 step = step,
                 hasPhoto = state.hasPhoto,
-                capturing = countdown > 0,
+                capturing = countdown > 0 || state.isPreparingPhoto,
                 canGenerate = state.canGenerate,
                 generating = state.status == AiStatus.UPLOADING || state.status == AiStatus.GENERATING,
                 retryGeneration = state.status == AiStatus.ERROR,
@@ -530,7 +533,7 @@ fun AiSingleFlow(
                 },
                 onNext = {
                     onInteraction()
-                    if (step == AiStep.CAPTURE && !state.hasPhoto) return@BottomBar startCapture()
+                    if (step == AiStep.CAPTURE && !state.hasPhoto) return@BottomBar
                     step = when (step) {
                         AiStep.CAPTURE -> AiStep.STYLE
                         AiStep.STYLE -> AiStep.BACKGROUND
@@ -612,6 +615,25 @@ private fun CaptureContent(
             onCaptured = onCaptured,
             onError = onError,
         )
+        if (!hasPhoto && countdown == 0 && cameraReady && cameraError == null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(112.dp)
+                    .clip(CircleShape)
+                    .background(Cream.copy(alpha = 0.28f))
+                    .border(2.dp, Cream.copy(alpha = 0.7f), CircleShape)
+                    .clickable(role = Role.Button, onClick = onCapture),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.CameraAlt,
+                    contentDescription = stringResource(R.string.ai_take_photo),
+                    tint = Cream,
+                    modifier = Modifier.size(44.dp),
+                )
+            }
+        }
         if (countdown > 0) {
             Box(Modifier.fillMaxSize().background(Ink.copy(alpha = 0.35f)), contentAlignment = Alignment.Center) {
                 Text("$countdown", color = Cream, fontSize = 110.sp, fontWeight = FontWeight.ExtraBold)
@@ -1399,14 +1421,15 @@ private fun BottomBar(
     onNext: () -> Unit,
 ) {
     val nextLabel = when (step) {
-        AiStep.CAPTURE -> stringResource(if (hasPhoto) R.string.wizard_next else R.string.ai_take_photo)
+        // Capture shutter lives on the preview; the bar only advances once a photo exists.
+        AiStep.CAPTURE -> if (hasPhoto) stringResource(R.string.wizard_next) else null
         AiStep.STYLE -> stringResource(R.string.wizard_next)
         AiStep.BACKGROUND -> stringResource(R.string.wizard_next)
         AiStep.ACCESSORIES -> if (retryGeneration) stringResource(R.string.ai_regenerate) else stringResource(R.string.ai_generate)
         AiStep.FRAMED, AiStep.SHARE -> stringResource(R.string.finish)
     }
     val nextEnabled = when (step) {
-        AiStep.CAPTURE -> !capturing
+        AiStep.CAPTURE -> hasPhoto && !capturing
         AiStep.ACCESSORIES -> canGenerate && !generating
         // Arm the closing buttons late so a guest cannot skip the screen by tapping twice.
         AiStep.FRAMED, AiStep.SHARE -> finishArmed
