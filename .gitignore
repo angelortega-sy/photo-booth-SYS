@@ -20,6 +20,7 @@ node_modules/
 # Android (cuando exista el scaffold)
 local.properties
 .gradle/
+.kotlin/
 build/
 *.apk
 *.aab

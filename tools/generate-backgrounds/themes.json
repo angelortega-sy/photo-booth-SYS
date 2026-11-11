@@ -22,5 +22,61 @@
   {
     "id": "jardin",
     "prompt": "Elegant garden wedding photo booth backdrop, a few elegantly dressed guests softly blurred in the background on both sides, out of focus, no recognizable faces, soft flowers and greenery, string lights, warm romantic atmosphere, no text, no logos, no watermark, vertical portrait composition, empty center area for a person, generous headroom and full-body space, soft cinematic lighting, photorealistic, high detail"
+  },
+  {
+    "id": "pixel",
+    "prompt": "16-bit pixel art video game level used as a photo booth backdrop, side-scrolling platform stage built from chunky tiles one step behind the person: brick platforms, gold coins and floating blocks close to the camera, a row of heart icons as a health bar across the top corner, a small castle wall and green pipes at the sides, bright blue sky with pixel clouds, limited retro palette, hard pixel edges and no anti-aliasing, playful arcade mood, completely empty level with no characters, no player sprite, no creatures and no people anywhere in the frame, no readable text, no logos, no watermark, vertical portrait composition, empty center column of tiles for a full-body person with headroom, everything compact and close rather than a wide scrolling level, crisp pixel art, high detail"
+  },
+  {
+    "id": "bricks",
+    "prompt": "Life-size toy brick room used as a photo booth backdrop, every surface built from glossy interlocking plastic building bricks: a brick wall one step behind the person with a big red brick arch, a stack of oversized loose bricks and a large yellow toy figure head on a shelf right next to the camera, a brick-built floor with round studs, a small brick plant, warm playful lighting with soft shadows and shallow depth of field, completely empty with no people and no toy figures standing in the frame, no readable text, no logos, no watermark, vertical portrait composition, empty center area of plain bricks for a full-body person with headroom, compact intimate set instead of a wide room, macro-toy look, high detail"
+  },
+  {
+    "id": "toyshelf",
+    "prompt": "Collector toy shelf used as a photo booth backdrop, a wall of shelves packed with boxed and loose collectible action figures, miniature vehicles and model kits, all turned slightly away or out of focus so nothing is readable, a few big figures and a plastic display base right in the foreground next to the person, warm shop spotlights, dust-free glossy plastic, shallow depth of field with the far shelves softly blurred, completely empty with no people, no shoppers and no figures standing in the frame, no readable text, no logos, no watermark, vertical portrait composition, empty center area for a full-body person with headroom, compact collector corner instead of a wide store, photorealistic, high detail"
+  },
+  {
+    "id": "anime_room",
+    "prompt": "Cozy anime fan bedroom used as a photo booth backdrop, drawn in a clean modern anime style with cel shading and soft line art: shelves stacked with colorful figure boxes turned so no label is readable, rolled posters with abstract art, a low table with snacks, floor cushions and a paper lantern right beside the person, a window with a soft afternoon sky, warm lamp glow, tidy and inviting, completely empty room with no characters and no people in the frame, no readable text, no logos, no watermark, vertical portrait composition, empty center area for a full-body person with headroom, compact room close to the camera instead of a wide shot, anime background art, high detail"
+  },
+  {
+    "id": "dojo",
+    "prompt": "Empty martial arts tournament arena used as a photo booth backdrop, drawn in a bold 90s anime style: a raised stone fighting platform seen from eye level, cracked tiles, a low ring of wooden lanterns and banners with abstract symbols around it, faint crackling energy aura and floating dust sparks in the air, a distant crowd suggested only by soft dark shapes with no recognizable faces, dramatic backlight and warm rim light, the arena is completely empty with absolutely no people, no fighter, no silhouette and no figure standing on the platform, no person seen from behind, no readable text, no logos, no watermark, vertical portrait composition, empty center area of the platform for a full-body person with headroom, compact arena close to the camera instead of a wide stadium, dynamic cel-shaded animation background, high detail"
+  },
+  {
+    "id": "sakura",
+    "prompt": "Narrow Japanese alley in cherry blossom season used as a photo booth backdrop, thick sakura branches and hanging petals filling the top and sides of the foreground right next to the person, a wooden shop front and paper lanterns a few steps behind, stone pavement with fallen petals, soft pink daylight and warm bokeh, empty street with no people and no characters in the frame, no readable text, no logos, no watermark, vertical portrait composition, empty center area for a full-body person with headroom, narrow intimate alley instead of a wide avenue, cinematic soft lighting, photorealistic, high detail"
+  },
+  {
+    "id": "neon_alley",
+    "prompt": "Narrow cyberpunk alley at night used as a photo booth backdrop, wet walls and dripping pipes right beside the person, steam vents and holographic signs with abstract glyphs and no readable text, stacked crates, cables and a humming vending machine in the foreground, deep magenta and cyan neon glow reflected on the wet floor, light rain, a few blurred silhouettes far down the alley with no recognizable faces, no logos, no watermark, vertical portrait composition, empty center area for a full-body person with headroom, claustrophobic close alley instead of a wide city view, cinematic lighting, photorealistic, high detail"
+  },
+  {
+    "id": "noir_office",
+    "prompt": "1940s film noir detective office used as a photo booth backdrop, black and white silver-gelatin look: a wooden desk with a rotary phone, a stack of folders and a green-shaded desk lamp right in the foreground, venetian blinds casting hard slats of light across the wall one step behind, a trench coat on a hook, a ceiling fan, drifting cigarette smoke haze, high contrast with deep blacks and bright highlights, no readable text, no logos, no watermark, vertical portrait composition, empty center area for a full-body person with headroom, cramped office close to the camera instead of a wide room, classic noir cinematography, fine grain, high detail"
+  },
+  {
+    "id": "videoclub",
+    "prompt": "1990s video rental store used as a photo booth backdrop, tall shelves of VHS tapes with blank white spines turned away from the camera, a stack of tapes and a bulky CRT television with static glow right beside the person, a popcorn bucket and a cardboard standee with an abstract shape, buzzing fluorescent light mixed with a warm lamp, slight VHS softness and color fringe, completely empty aisle with no shoppers and no people in the frame, no readable text, no logos, no watermark, vertical portrait composition, empty center area in the aisle for a full-body person with headroom, narrow aisle close to the camera instead of a wide store, nostalgic analog look, high detail"
+  },
+  {
+    "id": "altar",
+    "prompt": "Day of the Dead altar used as a photo booth backdrop, warm and elegant and never gory: three tiers of an ofrenda one step behind the person covered in deep orange marigolds, sugar skulls, candles and pan de muerto, strings of colorful papel picado with abstract cut-out shapes overhead, terracotta pots and a framed empty frame beside the person, soft candlelight with warm golden bokeh and drifting incense smoke, no readable text, no logos, no watermark, vertical portrait composition, empty center area for a full-body person with headroom, compact altar close to the camera instead of a wide hall, cinematic warm lighting, photorealistic, high detail"
+  },
+  {
+    "id": "plaza",
+    "prompt": "Mexican plaza at night used as a photo booth backdrop, strings of colorful papel picado and warm lanterns hanging low over the person, a stone arch and a small bandstand a few steps behind, cacti and flower pots in the foreground, a cart with paper flowers and a stack of sombreros beside the camera, string lights and candle glow with deep blue night sky, a few blurred dancers with no recognizable faces, no readable text, no logos, no watermark, vertical portrait composition, empty center area for a full-body person with headroom, intimate corner of the plaza instead of a wide square, cinematic warm lighting, photorealistic, high detail"
+  },
+  {
+    "id": "xmas_cabin",
+    "prompt": "Cozy Christmas cabin interior used as a photo booth backdrop, a decorated evergreen tree with warm fairy lights and wooden ornaments right beside the person, a stack of wrapped gifts, a knitted stocking and a small wooden reindeer figure in the foreground, a frosted window showing falling snow and pine trees, a stone fireplace with soft fire glow behind, a warm knit blanket on a bench, gentle golden bokeh, no readable text, no logos, no watermark, vertical portrait composition, empty center area for a full-body person with headroom, compact cabin corner close to the camera instead of a wide room, cinematic warm lighting, photorealistic, high detail"
+  },
+  {
+    "id": "kpop_stage",
+    "prompt": "K-pop concert stage used as a photo booth backdrop, a glossy black stage floor with reflective haze right under the person, a low barricade with glowing light sticks and a few blurred fans with no recognizable faces in the foreground, abstract LED panels and neon light bars with no readable text behind, pink, cyan and violet rim light, confetti and smoke in the air, shimmering sequins and chrome details, no logos, no watermark, vertical portrait composition, empty center area for a full-body person with headroom, compact stage close to the camera instead of a wide arena, high-end concert lighting, photorealistic, high detail"
+  },
+  {
+    "id": "meadow",
+    "prompt": "Dreamy hand-painted meadow used as a photo booth backdrop in the style of a classic animated film: tall grass and wildflowers filling the foreground right around the person, a small stone cottage with a red roof and a wooden fence a few steps behind, fluffy painted clouds and a soft blue sky, a bicycle leaning on the fence, warm afternoon sunlight with floating pollen and gentle painterly bokeh, no readable text, no logos, no watermark, vertical portrait composition, empty center area for a full-body person with headroom, everything close and intimate instead of a wide landscape, hand-painted cel background, high detail"
   }
 ]
