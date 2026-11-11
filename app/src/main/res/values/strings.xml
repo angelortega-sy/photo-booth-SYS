@@ -328,7 +328,6 @@
     <string name="ai_cancel">Cancelar</string>
     <string name="ai_uploading">Subiendo foto %1$d de 3…</string>
     <string name="ai_generating">Creando estilo… %1$d%%</string>
-    <string name="ai_cost">Costo aprox.: $%1$s</string>
     <string name="ai_ready">Estilo aplicado. Revisa el diseño y descarga tus fotos.</string>
     <string name="ai_error_no_server">Configura la URL del servidor en Modo administrador.</string>
     <string name="ai_error_network">No se pudo conectar con el servidor de IA. Revisa la red.</string>
@@ -343,7 +342,7 @@
     <string name="ai_error_quota">Se alcanzó el cupo de generaciones de hoy.</string>
     <string name="ai_error_budget">Se alcanzó el presupuesto del mes.</string>
     <string name="ai_error_clock">La hora del tótem no coincide con el servidor. Revisa la fecha y la hora.</string>
-    <string name="ai_error_model_budget">Ese modelo supera el precio máximo por imagen.</string>
+    <string name="ai_error_model_budget">Ese estilo no está disponible en esta cabina. Prueba con otro.</string>
     <string name="ai_error_enroll_code">La contraseña no es correcta.</string>
     <string name="ai_error_enroll_missing">El servidor todavía no tiene contraseña de registro.</string>
     <string name="ai_error_revoked">Este tótem fue revocado.</string>
@@ -363,7 +362,6 @@
     <string name="ai_style_vhs">VHS 90s</string>
     <string name="ai_style_watercolor">Acuarela</string>
     <string name="ai_style_lego">LEGO</string>
-    <string name="ai_models_empty">Registra el tótem para ver modelos y precios.</string>
     <string name="ai_price_unknown">Precio no disponible</string>
     <string name="ai_unit_image">imagen</string>
     <string name="ai_unit_megapixel">megapíxel</string>
@@ -458,7 +456,6 @@
     <string name="ai_register_hint">Registra el tótem en el administrador para cargar los estilos.</string>
     <string name="ai_reset">Reiniciar</string>
     <string name="ai_generating_photo">Generando tu foto…</string>
-    <string name="ai_generation_cost">Costo de generación: $%1$s</string>
     <string name="ai_generation_error">Hubo un error. Vuelve a accesorios e intenta de nuevo.</string>
     <string name="ai_section_brand">Marca del evento</string>
     <string name="ai_section_frame">Marco</string>

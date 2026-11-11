@@ -29,6 +29,7 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 
 ## Experiencia de uso
 
+- **Regla dura: el invitado nunca ve precios ni costos.** Nada de “Costo aprox.”, “Costo de generación”, montos en USD, “precio no disponible” ni mensajes de error que hablen de precio. Toda cifra de dinero vive solo en **Admin → Uso IA** (y en el editor de estilos del admin). Si un modelo supera el presupuesto, el invitado recibe un mensaje neutro (“Ese estilo no está disponible en esta cabina”).
 - La app abre en una **pantalla de bienvenida**; la cámara no se enciende hasta tocar “Comenzar”.
 - Si el invitado no interactúa por **60 s**, la sesión termina y vuelve a bienvenida (se libera la cámara).
 - En cámara, el botón “Fondos” abre un **bottom sheet con carrusel** de fondos; no dejar el selector fijo sobre el preview.

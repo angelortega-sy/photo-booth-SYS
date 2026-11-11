@@ -328,7 +328,6 @@
     <string name="ai_cancel">Cancel</string>
     <string name="ai_uploading">Uploading photo %1$d of 3…</string>
     <string name="ai_generating">Creating style… %1$d%%</string>
-    <string name="ai_cost">Est. cost: $%1$s</string>
     <string name="ai_ready">Style applied. Review the design and download your photos.</string>
     <string name="ai_error_no_server">Set the server URL in Admin mode.</string>
     <string name="ai_error_network">Could not reach the AI server. Check the network.</string>
@@ -343,7 +342,7 @@
     <string name="ai_error_quota">Today\'s generation quota was reached.</string>
     <string name="ai_error_budget">The monthly budget was reached.</string>
     <string name="ai_error_clock">The kiosk clock does not match the server. Check the date and time.</string>
-    <string name="ai_error_model_budget">That model exceeds the maximum price per image.</string>
+    <string name="ai_error_model_budget">That style is not available on this booth. Try another one.</string>
     <string name="ai_error_enroll_code">The password is not correct.</string>
     <string name="ai_error_enroll_missing">The server has no enrollment password yet.</string>
     <string name="ai_error_revoked">This kiosk was revoked.</string>
@@ -363,7 +362,6 @@
     <string name="ai_style_vhs">VHS 90s</string>
     <string name="ai_style_watercolor">Watercolor</string>
     <string name="ai_style_lego">LEGO</string>
-    <string name="ai_models_empty">Enroll the kiosk to see models and prices.</string>
     <string name="ai_price_unknown">Price unavailable</string>
     <string name="ai_unit_image">image</string>
     <string name="ai_unit_megapixel">megapixel</string>
@@ -438,7 +436,6 @@
     <string name="ai_register_hint">Enroll the kiosk in admin to load the styles.</string>
     <string name="ai_reset">Reset</string>
     <string name="ai_generating_photo">Generating your photo…</string>
-    <string name="ai_generation_cost">Generation cost: $%1$s</string>
     <string name="ai_generation_error">Something went wrong. Go back to accessories and try again.</string>
     <string name="ai_section_brand">Event brand</string>
     <string name="ai_section_frame">Frame</string>
