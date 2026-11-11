@@ -40,6 +40,7 @@ class BackgroundRepository(private val context: Context) {
         private const val KEY_CUSTOM = "custom"
         private const val OUTPUT_WIDTH = 1080
         private const val OUTPUT_HEIGHT = 1920
+        private const val MAX_CACHED_PREVIEWS = 6
 
         /**
          * English scene descriptions for the six bundled backgrounds. The app
@@ -62,6 +63,48 @@ class BackgroundRepository(private val context: Context) {
                 "chrome and pastel tones, arcade glow, nostalgic mood, no readable text.",
             "jardin" to "Sunlit Mediterranean garden: blooming flowers, stone fountain softly blurred, " +
                 "green hedges, floating petals, daylight bokeh, no readable text.",
+            "pixel" to "16-bit pixel art video game level: chunky brick platforms, gold coins and " +
+                "floating blocks close to the guest, a row of heart icons as a health bar, blue sky " +
+                "with pixel clouds, no readable text.",
+            "bricks" to "Life-size LEGO brick room: glossy plastic brick walls, a red brick arch, " +
+                "oversized loose bricks and a yellow minifigure head on a shelf, studs on the floor, " +
+                "no readable text.",
+            "toyshelf" to "Collector toy shelf: shelves packed with boxed and loose action figures " +
+                "and model kits turned so no label is readable, warm shop spotlights, shallow depth " +
+                "of field, no readable text.",
+            "anime_room" to "Cozy anime fan bedroom drawn in cel-shaded anime style: shelves of " +
+                "figure boxes with no readable labels, rolled posters with abstract art, a low table " +
+                "with snacks, floor cushions and a paper lantern, no readable text.",
+            "dojo" to "Martial arts tournament arena in bold 90s anime style: raised stone platform, " +
+                "cracked tiles, lanterns and banners with abstract symbols, faint crackling energy " +
+                "aura, blurred spectators, no readable text.",
+            "sakura" to "Narrow Japanese street in cherry blossom season: thick sakura branches and " +
+                "falling petals in the foreground, wooden shop front, paper lanterns, stone pavement, " +
+                "pink daylight bokeh, no readable text.",
+            "neon_alley" to "Narrow cyberpunk alley at night: wet walls and pipes, steam vents, " +
+                "holographic signs with abstract glyphs, stacked crates and cables, magenta and cyan " +
+                "neon reflected on the floor, light rain, no readable text.",
+            "noir_office" to "1940s film noir detective office in black and white: wooden desk with " +
+                "a rotary phone and a green-shaded lamp, venetian blinds casting hard light slats, " +
+                "trench coat on a hook, smoke haze, no readable text.",
+            "videoclub" to "1990s video rental store: tall shelves of VHS tapes with blank spines, a " +
+                "CRT television with static glow, a popcorn bucket, fluorescent light mixed with warm " +
+                "lamp, slight VHS softness, no readable text.",
+            "altar" to "Elegant Day of the Dead altar, never gory: tiers covered in marigolds, sugar " +
+                "skulls, candles and pan de muerto, papel picado with abstract cut-outs overhead, " +
+                "warm candlelight and incense smoke, no readable text.",
+            "plaza" to "Mexican plaza at night: papel picado and warm lanterns hanging low, stone arch " +
+                "and bandstand behind, cacti and flower pots, a cart with paper flowers and sombreros, " +
+                "string lights over a deep blue sky, no readable text.",
+            "xmas_cabin" to "Cozy Christmas cabin interior: decorated evergreen tree with fairy lights, " +
+                "wrapped gifts and a wooden reindeer figure, frosted window with falling snow, stone " +
+                "fireplace glow, warm golden bokeh, no readable text.",
+            "kpop_stage" to "K-pop concert stage: glossy black floor with reflective haze, low " +
+                "barricade with glowing light sticks, abstract LED panels and neon bars, pink cyan and " +
+                "violet rim light, confetti and smoke, no readable text.",
+            "meadow" to "Dreamy hand-painted meadow in classic animated film style: tall grass and " +
+                "wildflowers in the foreground, a small stone cottage with a red roof, fluffy painted " +
+                "clouds, a bicycle on the fence, warm afternoon light, no readable text.",
         )
     }
 
@@ -83,12 +126,36 @@ class BackgroundRepository(private val context: Context) {
         builtIn("estudio", R.string.background_estudio, "backgrounds/estudio.webp"),
         builtIn("retro80s", R.string.background_retro80s, "backgrounds/retro80s.webp"),
         builtIn("jardin", R.string.background_jardin, "backgrounds/jardin.webp"),
+        builtIn("pixel", R.string.background_pixel, "backgrounds/pixel.webp"),
+        builtIn("bricks", R.string.background_bricks, "backgrounds/bricks.webp"),
+        builtIn("toyshelf", R.string.background_toyshelf, "backgrounds/toyshelf.webp"),
+        builtIn("anime_room", R.string.background_anime_room, "backgrounds/anime_room.webp"),
+        builtIn("dojo", R.string.background_dojo, "backgrounds/dojo.webp"),
+        builtIn("sakura", R.string.background_sakura, "backgrounds/sakura.webp"),
+        builtIn("neon_alley", R.string.background_neon_alley, "backgrounds/neon_alley.webp"),
+        builtIn("noir_office", R.string.background_noir_office, "backgrounds/noir_office.webp"),
+        builtIn("videoclub", R.string.background_videoclub, "backgrounds/videoclub.webp"),
+        builtIn("altar", R.string.background_altar, "backgrounds/altar.webp"),
+        builtIn("plaza", R.string.background_plaza, "backgrounds/plaza.webp"),
+        builtIn("xmas_cabin", R.string.background_xmas_cabin, "backgrounds/xmas_cabin.webp"),
+        builtIn("kpop_stage", R.string.background_kpop_stage, "backgrounds/kpop_stage.webp"),
+        builtIn("meadow", R.string.background_meadow, "backgrounds/meadow.webp"),
     )
 
     private val customOptions = mutableListOf<BackgroundOption>()
 
     private val thumbnails = ConcurrentHashMap<String, Bitmap>()
-    private val previewBackgrounds = ConcurrentHashMap<String, Bitmap>()
+
+    /**
+     * A 540x960 preview is about 2 MB. With 20+ bundled backgrounds an unbounded
+     * map would keep every one the guest ever tapped, so only the most recently
+     * used few stay cached.
+     */
+    private val previewLock = Any()
+    private val previewBackgrounds = object : LinkedHashMap<String, Bitmap>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>): Boolean =
+            size > MAX_CACHED_PREVIEWS
+    }
 
     /** Only one full-size background is kept in memory; the kiosk shows one at a time. */
     private var fullBackgroundId: String? = null
@@ -131,8 +198,11 @@ class BackgroundRepository(private val context: Context) {
     /** Loads a 540x960 preview background cached in memory for instant studio recomposition. */
     fun loadPreview(id: String): Bitmap? {
         if (id == ORIGINAL_ID) return null
-        return previewBackgrounds[id]?.takeIf { !it.isRecycled }
-            ?: decode(id, sampleSize = 2)?.also { previewBackgrounds[id] = it }
+        return synchronized(previewLock) {
+            previewBackgrounds[id]?.takeIf { !it.isRecycled }
+        } ?: decode(id, sampleSize = 2)?.also {
+            synchronized(previewLock) { previewBackgrounds[id] = it }
+        }
     }
 
     @Synchronized
@@ -269,7 +339,9 @@ class BackgroundRepository(private val context: Context) {
 
     private fun invalidateCache(id: String) {
         thumbnails.remove(id)?.let { if (!it.isRecycled) it.recycle() }
-        previewBackgrounds.remove(id)?.let { if (!it.isRecycled) it.recycle() }
+        synchronized(previewLock) {
+            previewBackgrounds.remove(id)?.let { if (!it.isRecycled) it.recycle() }
+        }
         if (fullBackgroundId == id) {
             fullBackground?.let { if (!it.isRecycled) it.recycle() }
             fullBackground = null
@@ -329,8 +401,10 @@ class BackgroundRepository(private val context: Context) {
     fun clear() {
         thumbnails.values.forEach { if (!it.isRecycled) it.recycle() }
         thumbnails.clear()
-        previewBackgrounds.values.forEach { if (!it.isRecycled) it.recycle() }
-        previewBackgrounds.clear()
+        synchronized(previewLock) {
+            previewBackgrounds.values.forEach { if (!it.isRecycled) it.recycle() }
+            previewBackgrounds.clear()
+        }
         fullBackground?.let { if (!it.isRecycled) it.recycle() }
         fullBackground = null
         fullBackgroundId = null

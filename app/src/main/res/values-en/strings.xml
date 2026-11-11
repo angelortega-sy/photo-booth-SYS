@@ -53,6 +53,20 @@
     <string name="background_estudio">Studio</string>
     <string name="background_retro80s">Retro 80s</string>
     <string name="background_jardin">Garden</string>
+    <string name="background_pixel">Pixel Arcade</string>
+    <string name="background_bricks">Brick Room</string>
+    <string name="background_toyshelf">Collector Shelf</string>
+    <string name="background_anime_room">Anime Room</string>
+    <string name="background_dojo">Dojo</string>
+    <string name="background_sakura">Sakura Street</string>
+    <string name="background_neon_alley">Neon Alley</string>
+    <string name="background_noir_office">Noir Office</string>
+    <string name="background_videoclub">Video Store</string>
+    <string name="background_altar">Day of the Dead Altar</string>
+    <string name="background_plaza">Mexican Plaza</string>
+    <string name="background_xmas_cabin">Christmas Cabin</string>
+    <string name="background_kpop_stage">K-Pop Stage</string>
+    <string name="background_meadow">Dream Meadow</string>
     <string name="background_original">No background</string>
     <string name="background_custom_default">Custom backdrop</string>
 

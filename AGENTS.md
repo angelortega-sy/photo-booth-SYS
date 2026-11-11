@@ -154,7 +154,9 @@ captura (webcam USB; CameraX en teléfono) → 3 fotos → estilo del servidor o
 - `out/` está gitignored: se revisan las imágenes y solo las aprobadas se copian a `app/src/main/assets/backgrounds/`.
 - **Pack aprobado:** 6 temas verticales generados con Grok Imagine 2.0 (`x-ai/grok-imagine-image-2.0`), 9:16 a 2K, ~$0.08/imagen, en `out/grok-pack-portrait/`: `gala`, `neon`, `playa`, `estudio`, `retro80s`, `jardin`.
 - Personas de fondo: `gala`, `neon`, `playa`, `retro80s` y `jardin` incluyen invitados/siluetas desenfocadas; `estudio` va sin personas. Centro libre y sin caras reconocibles.
-- Assets de la app: 1080×1920 WebP en `app/src/main/assets/backgrounds/` (6 archivos). El pack horizontal anterior (`out/grok-pack/`) ya no se usa.
+- **Segundo pack (2026-11):** 14 fondos temáticos más generados con `black-forest-labs/flux-3-image-klein` (~$0.014/imagen) desde `tools/generate-backgrounds/themes.json`: `pixel`, `bricks`, `toyshelf`, `anime_room`, `dojo`, `sakura`, `neon_alley`, `noir_office`, `videoclub`, `altar`, `plaza`, `xmas_cabin`, `kpop_stage`, `meadow`. Son **20 fondos** en total. Los prompts se duplican: `BUILTIN_BACKGROUND_PROMPTS` en la app y `ServerPhotoBoot/backgrounds.json` en el backend; si el id no está allá, el flujo IA responde 400 `background_not_found`. Se piden sets compactos con todo cerca del invitado, sin personas, texto ni logos.
+- El caché de previews de `BackgroundRepository` es LRU (`MAX_CACHED_PREVIEWS = 6`, `LinkedHashMap` access-order bajo `previewLock`): con 20 fondos un mapa sin tope se comía ~2 MB por fondo.
+- Assets de la app: 1080×1920 WebP en `app/src/main/assets/backgrounds/` (20 archivos). El pack horizontal anterior (`out/grok-pack/`) ya no se usa.
 - Prompts: vertical 9:16, centro libre, espacio para cuerpo completo, personas de fondo desenfocadas y sin caras reconocibles, sin texto/logos.
 
 ## Gotchas
