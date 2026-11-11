@@ -7,8 +7,13 @@
     <string name="welcome_tagline">EXPO · 2027</string>
     <string name="welcome_title">Tu momento.\nEn grande.</string>
     <string name="welcome_subtitle">Tres poses, tu fondo favorito y cuatro recuerdos para llevar.</string>
-    <string name="welcome_cta">Comenzar</string>
+    <string name="welcome_cta">Toca aquí</string>
     <string name="welcome_hint">Toca para comenzar</string>
+    <string name="welcome_far_title">Acércate</string>
+    <string name="welcome_far_line">Tómate la foto</string>
+    <string name="welcome_flow_1">Posa</string>
+    <string name="welcome_flow_2">Elige</string>
+    <string name="welcome_flow_3">Llévatela</string>
     <string name="home">Inicio</string>
     <string name="backgrounds">Fondos</string>
     <string name="capture_hint">Muestra la palma o toca el botón</string>

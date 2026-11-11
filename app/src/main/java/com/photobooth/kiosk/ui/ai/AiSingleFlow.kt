@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -400,8 +401,12 @@ fun AiSingleFlow(
                     Modifier
                         .widthIn(max = maxWidth)
                         .fillMaxWidth()
+                        .then(if (step == AiStep.CAPTURE) Modifier.fillMaxHeight() else Modifier)
                         .padding(horizontal = hPad)
-                        .verticalScroll(contentScroll),
+                        .then(
+                            if (step == AiStep.CAPTURE) Modifier
+                            else Modifier.verticalScroll(contentScroll),
+                        ),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     when (step) {
@@ -573,7 +578,7 @@ fun AiSingleFlow(
 }
 
 @Composable
-private fun CaptureContent(
+private fun ColumnScope.CaptureContent(
     hasPhoto: Boolean,
     photoPreview: Bitmap?,
     countdown: Int,
@@ -590,18 +595,10 @@ private fun CaptureContent(
     adjustments: com.photobooth.kiosk.data.CameraAdjustments,
 ) {
     var showPreview by remember { mutableStateOf(false) }
-    if (!hasPhoto) {
-        Text(
-            stringResource(if (gestureActive) R.string.ai_hint_palm else R.string.ai_hint_tap),
-            color = Cream.copy(alpha = 0.8f),
-            fontSize = 16.sp,
-        )
-    }
     Box(
         Modifier
             .fillMaxWidth()
-            .aspectRatio(3f / 4f)
-            .heightIn(max = 560.dp)
+            .weight(1f)
             .clip(RoundedCornerShape(24.dp))
             .background(InkSoft),
     ) {
@@ -638,6 +635,20 @@ private fun CaptureContent(
             Box(Modifier.fillMaxSize().background(Ink.copy(alpha = 0.35f)), contentAlignment = Alignment.Center) {
                 Text("$countdown", color = Cream, fontSize = 110.sp, fontWeight = FontWeight.ExtraBold)
             }
+        }
+        if (!hasPhoto && countdown == 0) {
+            Text(
+                text = stringResource(if (gestureActive) R.string.ai_hint_palm else R.string.ai_hint_tap),
+                color = Cream,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 16.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Ink.copy(alpha = 0.55f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
         }
         if (flash) Box(Modifier.fillMaxSize().background(Cream))
     }

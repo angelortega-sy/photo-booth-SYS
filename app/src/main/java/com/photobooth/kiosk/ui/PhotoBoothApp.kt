@@ -41,10 +41,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -86,7 +86,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -94,8 +93,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.animation.core.StartOffset
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -235,7 +236,6 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
             )
 
             showWelcome -> WelcomeScreen(
-                loadThumbnail = viewModel::loadThumbnail,
                 branding = state.customization.eventBranding,
                 onStart = { startSession() },
                 onAdminRequested = {
@@ -305,24 +305,14 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
 
 @Composable
 private fun WelcomeScreen(
-    loadThumbnail: (String) -> Bitmap?,
     branding: EventBranding,
     onStart: () -> Unit,
     onAdminRequested: () -> Unit,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "welcome_pulse")
-    val glowScale by infiniteTransition.animateFloat(
-        initialValue = 0.92f,
-        targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "glow_scale",
-    )
     val ctaPulse by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.035f,
+        targetValue = 1.04f,
         animationSpec = infiniteRepeatable(
             animation = tween(1400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
@@ -330,42 +320,15 @@ private fun WelcomeScreen(
         label = "cta_pulse",
     )
 
-    val thumbGala by produceState<Bitmap?>(initialValue = null, "gala") {
-        value = withContext(Dispatchers.IO) { loadThumbnail("gala") }
-    }
-    val thumbNeon by produceState<Bitmap?>(initialValue = null, "neon") {
-        value = withContext(Dispatchers.IO) { loadThumbnail("neon") }
-    }
-    val thumbPlaya by produceState<Bitmap?>(initialValue = null, "playa") {
-        value = withContext(Dispatchers.IO) { loadThumbnail("playa") }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Brush.verticalGradient(listOf(InkSoft, Ink))),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(520.dp)
-                .scale(glowScale)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            SyscomBlue.copy(alpha = 0.42f),
-                            SyscomBlueDeep.copy(alpha = 0.16f),
-                            Color.Transparent,
-                        ),
-                    ),
-                ),
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 30.dp, vertical = 26.dp),
+                .padding(horizontal = 36.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(
@@ -380,247 +343,83 @@ private fun WelcomeScreen(
                         .pointerInput(Unit) {
                             detectTapGestures(onLongPress = { onAdminRequested() })
                         }
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Text(
                         text = branding.brand,
                         color = SyscomBlueLight,
-                        fontSize = 13.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 3.5.sp,
+                        letterSpacing = 3.sp,
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Cream.copy(alpha = 0.06f))
-                        .border(1.dp, Cream.copy(alpha = 0.14f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.AutoAwesome,
-                        contentDescription = null,
-                        tint = SyscomBlueLight,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = branding.tagline.uppercase(),
-                        color = Cream.copy(alpha = 0.78f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 2.sp,
-                    )
-                }
+                LanguageQuickToggle()
             }
 
-            Spacer(Modifier.weight(0.8f))
-
-            // Fanned 3-card collage showcase with actual booth background thumbnails
-            Box(
-                modifier = Modifier.size(width = 330.dp, height = 300.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                WelcomeShowcaseCard(
-                    bitmap = thumbPlaya,
-                    label = "PLAYA",
-                    modifier = Modifier
-                        .offset(x = (-66).dp, y = 14.dp)
-                        .rotate(-12f)
-                        .size(width = 166.dp, height = 232.dp),
-                    accentColor = SyscomBlue.copy(alpha = 0.65f),
-                )
-                WelcomeShowcaseCard(
-                    bitmap = thumbNeon,
-                    label = "CYBER NEÓN",
-                    modifier = Modifier
-                        .offset(x = 66.dp, y = 14.dp)
-                        .rotate(12f)
-                        .size(width = 166.dp, height = 232.dp),
-                    accentColor = Color(0xFF00E5FF).copy(alpha = 0.65f),
-                )
-                // Center hero card simulating the 1+2 poster collage
-                Column(
-                    modifier = Modifier
-                        .size(width = 204.dp, height = 272.dp)
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    InkSoft,
-                                    Ink,
-                                ),
-                            ),
-                        )
-                        .border(2.dp, SyscomBlueLight.copy(alpha = 0.78f), RoundedCornerShape(26.dp))
-                        .padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(SyscomBlue)
-                                .padding(horizontal = 7.dp, vertical = 2.dp),
-                        ) {
-                            Text(
-                                text = branding.brand,
-                                color = Color.White,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.4.sp,
-                            )
-                        }
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = "COLLAGE STUDIO",
-                            color = SyscomBlueLight,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1.25f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(SyscomBlue.copy(alpha = 0.25f))
-                            .border(1.dp, SyscomBlueLight.copy(alpha = 0.45f), RoundedCornerShape(14.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        thumbGala?.let { bmp ->
-                            Image(
-                                bitmap = bmp.asImageBitmap(),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .size(54.dp)
-                                .background(Ink.copy(alpha = 0.65f), CircleShape)
-                                .border(1.5.dp, SyscomBlueLight, CircleShape),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.CameraAlt,
-                                contentDescription = null,
-                                tint = Cream,
-                                modifier = Modifier.size(28.dp),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().weight(0.85f),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(InkSoft)
-                                .border(1.dp, SyscomBlueLight.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
-                        ) {
-                            thumbNeon?.let { bmp ->
-                                Image(
-                                    bitmap = bmp.asImageBitmap(),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(InkSoft)
-                                .border(1.dp, SyscomBlueLight.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
-                        ) {
-                            thumbPlaya?.let { bmp ->
-                                Image(
-                                    bitmap = bmp.asImageBitmap(),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = branding.badgeHeadline,
-                        color = Cream,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.6.sp,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(28.dp))
 
             Text(
-                text = branding.welcomeTitle,
+                text = stringResource(R.string.welcome_far_title),
                 color = Cream,
-                fontSize = 46.sp,
-                lineHeight = 50.sp,
+                fontSize = 92.sp,
+                lineHeight = 96.sp,
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(10.dp))
             Text(
-                text = branding.welcomeSubtitle,
-                color = Cream.copy(alpha = 0.72f),
-                fontSize = 16.sp,
-                lineHeight = 22.sp,
+                text = stringResource(R.string.welcome_far_line),
+                color = SyscomBlueLight,
+                fontSize = 40.sp,
+                lineHeight = 46.sp,
+                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.widthIn(max = 460.dp),
             )
-            if (branding.hashtag.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = branding.hashtag,
-                    color = SyscomBlueLight,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
-                    textAlign = TextAlign.Center,
+
+            Spacer(Modifier.height(12.dp))
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                FloatingFlowStep(
+                    imageRes = R.drawable.flow_pose,
+                    step = "1",
+                    label = stringResource(R.string.welcome_flow_1),
+                    phaseMs = 0,
+                    alignEnd = false,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+                FloatingFlowStep(
+                    imageRes = R.drawable.flow_style,
+                    step = "2",
+                    label = stringResource(R.string.welcome_flow_2),
+                    phaseMs = 500,
+                    alignEnd = true,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+                FloatingFlowStep(
+                    imageRes = R.drawable.flow_keep,
+                    step = "3",
+                    label = stringResource(R.string.welcome_flow_3),
+                    phaseMs = 1000,
+                    alignEnd = false,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
             }
 
-            Spacer(Modifier.height(18.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                WelcomeStepPill(stringResource(R.string.welcome_step_1))
-                WelcomeStepPill(stringResource(R.string.welcome_step_2))
-                WelcomeStepPill(stringResource(R.string.welcome_step_3))
-            }
-
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(8.dp))
 
             Button(
                 onClick = onStart,
                 modifier = Modifier
                     .scale(ctaPulse)
-                    .widthIn(max = 430.dp)
                     .fillMaxWidth()
-                    .height(70.dp)
-                    .border(1.5.dp, SyscomBlueLight.copy(alpha = 0.65f), RoundedCornerShape(35.dp)),
-                shape = RoundedCornerShape(35.dp),
+                    .height(104.dp)
+                    .border(2.dp, SyscomBlueLight.copy(alpha = 0.7f), RoundedCornerShape(52.dp)),
+                shape = RoundedCornerShape(52.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SyscomBlue,
                     contentColor = Color.White,
@@ -629,95 +428,81 @@ private fun WelcomeScreen(
                 Icon(
                     imageVector = Icons.Rounded.CameraAlt,
                     contentDescription = null,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(36.dp),
                 )
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(16.dp))
                 Text(
                     text = stringResource(R.string.welcome_cta),
-                    fontSize = 19.sp,
+                    fontSize = 36.sp,
                     fontWeight = FontWeight.Bold,
                 )
-                Spacer(Modifier.width(10.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                )
             }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = stringResource(R.string.welcome_hint),
-                color = Cream.copy(alpha = 0.45f),
-                fontSize = 13.sp,
-            )
+            Spacer(Modifier.height(18.dp))
         }
-
-        // Discreet guest language switch: absolute corner so the kiosk
-        // layout (including the 55" vertical panel) never shifts.
-        LanguageQuickToggle(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 14.dp, bottom = 12.dp),
-        )
     }
 }
 
 @Composable
-private fun WelcomeShowcaseCard(
-    bitmap: Bitmap?,
+private fun FloatingFlowStep(
+    imageRes: Int,
+    step: String,
     label: String,
+    phaseMs: Int,
+    alignEnd: Boolean,
     modifier: Modifier = Modifier,
-    accentColor: Color,
 ) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(InkSoft)
-            .border(1.5.dp, accentColor, RoundedCornerShape(22.dp))
-            .padding(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    val floatY by rememberInfiniteTransition(label = "flow_$step").animateFloat(
+        initialValue = -14f,
+        targetValue = 14f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+            initialStartOffset = StartOffset(phaseMs),
+        ),
+        label = "flow_y_$step",
+    )
+    Row(
+        modifier = modifier.graphicsLayer { translationY = floatY },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (alignEnd) Arrangement.End else Arrangement.Start,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Ink),
-        ) {
-            bitmap?.let { bmp ->
-                Image(
-                    bitmap = bmp.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+        if (alignEnd) {
+            FlowCaption(step, label, TextAlign.End)
+            Spacer(Modifier.width(22.dp))
         }
-        Spacer(Modifier.height(6.dp))
+        Image(
+            painter = painterResource(imageRes),
+            contentDescription = label,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxHeight()
+                .aspectRatio(3f / 4f, matchHeightConstraintsFirst = true)
+                .clip(RoundedCornerShape(28.dp))
+                .border(1.dp, Cream.copy(alpha = 0.16f), RoundedCornerShape(28.dp)),
+        )
+        if (!alignEnd) {
+            Spacer(Modifier.width(22.dp))
+            FlowCaption(step, label, TextAlign.Start)
+        }
+    }
+}
+
+@Composable
+private fun FlowCaption(step: String, label: String, align: TextAlign) {
+    Column(horizontalAlignment = if (align == TextAlign.End) Alignment.End else Alignment.Start) {
+        Text(
+            text = step,
+            color = SyscomBlueLight,
+            fontSize = 54.sp,
+            fontWeight = FontWeight.Black,
+            textAlign = align,
+        )
         Text(
             text = label,
-            color = Cream.copy(alpha = 0.78f),
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.4.sp,
-        )
-    }
-}
-
-@Composable
-private fun WelcomeStepPill(text: String) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(InkSoft.copy(alpha = 0.9f))
-            .border(1.dp, SyscomBlueLight.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 11.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = text,
-            color = Cream.copy(alpha = 0.86f),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            color = Cream,
+            fontSize = 40.sp,
+            fontWeight = FontWeight.ExtraBold,
+            textAlign = align,
         )
     }
 }

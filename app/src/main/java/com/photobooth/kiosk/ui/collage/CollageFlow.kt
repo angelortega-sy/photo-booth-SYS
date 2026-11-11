@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -339,6 +340,7 @@ fun CollageFlow(
                     Modifier
                         .widthIn(max = maxWidth)
                         .fillMaxWidth()
+                        .then(if (step == CollageStep.CAPTURE) Modifier.fillMaxHeight() else Modifier)
                         .padding(horizontal = hPad)
                         .then(
                             // The capture step owns the whole height: the camera

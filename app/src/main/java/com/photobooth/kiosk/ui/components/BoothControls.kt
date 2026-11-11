@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -109,11 +110,12 @@ fun BoothBottomBar(
     backEnabled: Boolean = true,
     onBack: () -> Unit = {},
 ) {
+    val captureOnly = primaryLabel == null
     Row(
         Modifier
             .fillMaxWidth()
             .background(Ink)
-            .padding(horizontal = horizontalPadding, vertical = 14.dp),
+            .padding(horizontal = horizontalPadding, vertical = if (captureOnly) 8.dp else 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (backLabel != null) {
@@ -121,8 +123,8 @@ fun BoothBottomBar(
                 text = backLabel,
                 onClick = onBack,
                 enabled = backEnabled,
-                height = BoothDimens.BarButtonHeight,
-                modifier = Modifier.weight(1f),
+                height = if (captureOnly) 52.dp else BoothDimens.BarButtonHeight,
+                modifier = if (captureOnly) Modifier.widthIn(max = 220.dp) else Modifier.weight(1f),
             )
         }
         if (primaryLabel != null) {
