@@ -142,6 +142,8 @@ data class EventBranding(
     val primaryColor: Long = 0xFF050B14,
     val secondaryColor: Long = 0xFF0B63CE,
     val logoPath: String? = null,
+    /** Provider logo ids drawn as sponsors in the frame header. */
+    val sponsorLogoIds: List<String> = emptyList(),
     /** Base name for the Drive folder; the app appends the session timestamp. */
     val driveFolderName: String = "",
 ) {
@@ -213,6 +215,8 @@ data class CollageCustomization(
     val photoBorderStyle: PhotoBorderStyle = PhotoBorderStyle.CLEAN_ROUNDED,
     val badgePreset: EventBadgePreset = EventBadgePreset.EXPO_2027,
     val eventBranding: EventBranding = EventBranding(),
+    /** Absolute paths of the sponsor logo files to draw, resolved for the active event. */
+    val sponsorLogoPaths: List<String> = emptyList(),
     val showDateStamp: Boolean = true,
     val decoration: FrameDecoration = FrameDecoration.NONE,
 )

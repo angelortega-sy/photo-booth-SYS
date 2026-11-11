@@ -85,7 +85,7 @@ internal fun AdminEventScreen(
 }
 
 @Composable
-private fun BackgroundsAdminCard(
+internal fun BackgroundsAdminCard(
     backgrounds: List<BackgroundOption>,
     loadThumbnail: (String) -> Bitmap?,
     onImport: (Uri, String?) -> Unit,

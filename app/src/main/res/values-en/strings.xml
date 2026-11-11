@@ -476,7 +476,7 @@
     <string name="ai_hint_tap">Tap to take the photo</string>
     <string name="ai_delivery_title">AI Booth</string>
     <!-- Event profiles / admin home -->
-    <string name="admin_home_brands">Event brands</string>
+    <string name="admin_home_brands">Events</string>
     <string name="admin_home_event">Event</string>
     <string name="admin_home_backgrounds">Backgrounds</string>
     <string name="admin_home_camera">Camera</string>
@@ -484,7 +484,7 @@
     <string name="admin_home_photos">Photos</string>
     <string name="admin_home_network_system">Network &amp; system</string>
     <string name="admin_home_usage_ai">AI usage</string>
-    <string name="admin_home_brands_summary">%1$d brands · %2$s active</string>
+    <string name="admin_home_brands_summary">%1$d events · %2$s active</string>
     <string name="admin_home_event_summary">Active brand: %1$s</string>
     <string name="admin_home_backgrounds_summary">%1$d backgrounds · %2$d visible</string>
     <string name="admin_home_camera_summary">%1$d cameras · %2$d USB</string>
@@ -503,6 +503,10 @@
     <string name="admin_brand_logo_title">Logo</string>
     <string name="admin_brand_logo_hint">PNG or WebP with a transparent background. Without a logo the brand name is used.</string>
     <string name="admin_brand_logo_library">Logos from the server. Tap one to use it.</string>
+    <string name="admin_sponsor_title">Sponsors in the frame</string>
+    <string name="admin_sponsor_subtitle">Enabled logos are drawn in the frame of every photo.</string>
+    <string name="admin_sponsor_empty">No logos yet. The server pulls them from Drive on refresh.</string>
+    <string name="admin_sponsor_use_as_brand">Use as brand logo</string>
     <string name="admin_brand_logo_choose">Choose image</string>
     <string name="admin_brand_logo_remove">Remove logo</string>
     <string name="admin_brand_logo_error">The image could not be read. Try another one.</string>

@@ -58,8 +58,6 @@ internal fun AdminHomeScreen(
     compact: Boolean,
     brandCount: Int,
     activeBrandName: String,
-    backgroundTotal: Int,
-    backgroundVisible: Int,
     cameraCount: Int,
     usbCount: Int,
     styleVisible: Int,
@@ -81,16 +79,6 @@ internal fun AdminHomeScreen(
                 activeBrandName,
             ),
             icon = Icons.Rounded.Settings,
-        ),
-        HomeCard(
-            route = AdminRoute.Event,
-            titleRes = R.string.admin_home_backgrounds,
-            summary = stringResource(
-                R.string.admin_home_backgrounds_summary,
-                backgroundTotal,
-                backgroundVisible,
-            ),
-            icon = Icons.Rounded.PhotoLibrary,
         ),
         HomeCard(
             route = AdminRoute.Camera,

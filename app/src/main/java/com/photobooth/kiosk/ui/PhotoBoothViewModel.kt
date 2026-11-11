@@ -202,9 +202,21 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             activeEventProfileId = profileStore.active().id,
             selectedEventProfileId = profileStore.active().id,
             savePhotosToDevice = photoSettings.saveToDevice(),
-        ),
+        ).let { state ->
+            state.copy(
+                customization = state.customization.copy(
+                    sponsorLogoPaths = sponsorLogoPaths(state.customization.eventBranding, ProviderLogoStore.load(getApplication())),
+                ),
+            )
+        },
     )
     val uiState: StateFlow<PhotoBoothUiState> = _uiState.asStateFlow()
+
+    /** Absolute paths of the sponsor logos enabled on the active event, resolved from the cache. */
+    private fun sponsorLogoPaths(branding: EventBranding, logos: List<com.photobooth.kiosk.data.CachedProviderLogo>): List<String> {
+        val byId = logos.associateBy { it.id }
+        return branding.sponsorLogoIds.mapNotNull { byId[it]?.path }
+    }
 
     init {
         refreshBackgrounds()
@@ -331,6 +343,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                     it.customization.copy(
                         eventBranding = branding,
                         badgePreset = EventBadgePreset.CUSTOM,
+                        sponsorLogoPaths = sponsorLogoPaths(branding, it.providerLogos),
                     )
                 } else {
                     it.customization
@@ -357,6 +370,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 customization = it.customization.copy(
                     eventBranding = profile.branding,
                     badgePreset = EventBadgePreset.CUSTOM,
+                    sponsorLogoPaths = sponsorLogoPaths(profile.branding, it.providerLogos),
                 ),
             )
         }
@@ -388,6 +402,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 customization = it.customization.copy(
                     eventBranding = active.branding,
                     badgePreset = EventBadgePreset.CUSTOM,
+                    sponsorLogoPaths = sponsorLogoPaths(active.branding, it.providerLogos),
                 ),
             )
         }
@@ -405,6 +420,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 customization = it.customization.copy(
                     eventBranding = active.branding,
                     badgePreset = EventBadgePreset.CUSTOM,
+                    sponsorLogoPaths = sponsorLogoPaths(active.branding, it.providerLogos),
                 ),
             )
         }
@@ -827,17 +843,28 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                         styles.any { it.id == state.selectedAiStyleId } -> state.selectedAiStyleId
                         else -> styles.firstOrNull()?.id ?: state.selectedAiStyleId
                     }
+                    val newLogos = logos ?: state.providerLogos
                     state.copy(
                         serverStyles = styles,
                         serverModels = models,
                         selectedModelId = modelId,
                         selectedAiStyleId = styleId,
-                        providerLogos = logos ?: state.providerLogos,
+                        providerLogos = newLogos,
+                        customization = state.customization.copy(
+                            sponsorLogoPaths = sponsorLogoPaths(state.customization.eventBranding, newLogos),
+                        ),
                     )
                 }
             }
             if (loaded.isFailure && logos != null) {
-                _uiState.update { it.copy(providerLogos = logos) }
+                _uiState.update {
+                    it.copy(
+                        providerLogos = logos,
+                        customization = it.customization.copy(
+                            sponsorLogoPaths = sponsorLogoPaths(it.customization.eventBranding, logos),
+                        ),
+                    )
+                }
             }
         }
     }
@@ -1496,6 +1523,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             customization = CollageCustomization(
                 eventBranding = profileStore.activeBranding(),
                 badgePreset = defaultBadgePreset(),
+                sponsorLogoPaths = sponsorLogoPaths(profileStore.activeBranding(), state.providerLogos),
             ),
             backgrounds = repository.visibleOptions,
             adminBackgrounds = repository.allOptions,

@@ -19,10 +19,6 @@ sealed interface AdminRoute {
         override val key: String = "editor:$profileId"
     }
 
-    data object Event : AdminRoute {
-        override val key: String = "event"
-    }
-
     data object Camera : AdminRoute {
         override val key: String = "camera"
     }
@@ -52,7 +48,7 @@ sealed interface AdminRoute {
             key == Home.key -> Home
             key == Brands.key -> Brands
             key.startsWith("editor:") -> BrandEditor(key.removePrefix("editor:"))
-            key == Event.key -> Event
+            key == "event" -> Brands
             key == Camera.key -> Camera
             key == Styles.key -> Styles
             key == Photos.key -> Photos
