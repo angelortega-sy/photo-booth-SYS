@@ -144,8 +144,11 @@
     <string name="admin_pin_hint_enter">Admin-only access.</string>
     <string name="admin_section_camera">Camera</string>
     <string name="admin_section_camera_hint">Hardware detected by the system</string>
-    <string name="admin_camera_rotation">USB camera orientation</string>
-    <string name="admin_camera_rotation_hint">A vertical webcam uses 270°. If it looks wrong, try another angle.</string>
+    <string name="admin_camera_adjust_hint">The live view and the saved photo are adjusted separately. 0° adds no turn.</string>
+    <string name="admin_camera_preview_rotation">Live view rotation</string>
+    <string name="admin_camera_output_rotation">Photo rotation</string>
+    <string name="admin_camera_preview_mirror">Mirror the live view</string>
+    <string name="admin_camera_output_mirror">Mirror the photo</string>
     <string name="admin_tab_gestures">Gestures</string>
     <string name="admin_nav_gestures_description">Open palm to snap the photo</string>
     <string name="admin_tab_styles">Styles</string>
@@ -499,6 +502,7 @@
     <string name="admin_brand_secondary_color">Line color</string>
     <string name="admin_brand_logo_title">Logo</string>
     <string name="admin_brand_logo_hint">PNG or WebP with a transparent background. Without a logo the brand name is used.</string>
+    <string name="admin_brand_logo_library">Logos from the server. Tap one to use it.</string>
     <string name="admin_brand_logo_choose">Choose image</string>
     <string name="admin_brand_logo_remove">Remove logo</string>
     <string name="admin_brand_logo_error">The image could not be read. Try another one.</string>

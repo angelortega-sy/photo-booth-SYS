@@ -144,8 +144,11 @@
     <string name="admin_pin_hint_enter">Acceso exclusivo para administradores.</string>
     <string name="admin_section_camera">Cámara</string>
     <string name="admin_section_camera_hint">Hardware detectado por el sistema</string>
-    <string name="admin_camera_rotation">Orientación de la cámara USB</string>
-    <string name="admin_camera_rotation_hint">La webcam vertical usa 270°. Si se ve mal, prueba otro ángulo.</string>
+    <string name="admin_camera_adjust_hint">La vista en vivo y la foto se ajustan por separado. 0° no agrega giro.</string>
+    <string name="admin_camera_preview_rotation">Rotación de la vista en vivo</string>
+    <string name="admin_camera_output_rotation">Rotación de la foto</string>
+    <string name="admin_camera_preview_mirror">Espejo en la vista en vivo</string>
+    <string name="admin_camera_output_mirror">Espejo en la foto</string>
     <string name="admin_tab_gestures">Gestos</string>
     <string name="admin_nav_gestures_description">Palma abierta para disparar la foto</string>
     <string name="admin_tab_styles">Estilos</string>
@@ -498,6 +501,7 @@
     <string name="admin_brand_secondary_color">Color de líneas</string>
     <string name="admin_brand_logo_title">Logo</string>
     <string name="admin_brand_logo_hint">PNG o WebP con fondo transparente. Sin logo se usa el nombre de la marca.</string>
+    <string name="admin_brand_logo_library">Logos del servidor. Toca uno para usarlo.</string>
     <string name="admin_brand_logo_choose">Elegir imagen</string>
     <string name="admin_brand_logo_remove">Quitar logo</string>
     <string name="admin_brand_logo_error">No se pudo leer la imagen. Prueba con otra.</string>

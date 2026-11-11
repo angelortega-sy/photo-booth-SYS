@@ -247,14 +247,12 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
             boothMode == "ai" -> com.photobooth.kiosk.ui.ai.AiSingleFlow(
                 onHome = { goHome() },
                 onInteraction = { lastInteraction = SystemClock.uptimeMillis() },
-                previewRotationDegrees = state.cameraRotationDegrees,
             )
 
             else -> com.photobooth.kiosk.ui.collage.CollageFlow(
                 viewModel = viewModel,
                 onHome = { goHome() },
                 onInteraction = { lastInteraction = SystemClock.uptimeMillis() },
-                previewRotationDegrees = state.cameraRotationDegrees,
             )
         }
     }

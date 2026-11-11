@@ -259,6 +259,7 @@ private fun AdminShellContent(
                             onSaved = {
                                 onMessage(context.getString(R.string.admin_changes_saved))
                             },
+                            providerLogos = appState.providerLogos,
                         )
                     }
 
@@ -290,8 +291,8 @@ private fun AdminShellContent(
                             summary = summary,
                             cameras = cameras,
                             usbDevices = usbDevices,
-                            rotationDegrees = appState.cameraRotationDegrees,
-                            onRotationChange = viewModel::setCameraRotation,
+                            adjustments = appState.cameraAdjustments,
+                            onAdjustmentsChange = viewModel::setCameraAdjustments,
                             palmEnabled = appState.palmCaptureEnabled,
                             onPalmToggle = viewModel::setPalmCaptureEnabled,
                             onSaved = { onMessage(context.getString(R.string.admin_changes_saved)) },

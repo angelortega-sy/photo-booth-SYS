@@ -5,23 +5,19 @@ import org.junit.Test
 
 class CaptureOrientationPolicyTest {
     @Test
-    fun `capture rotation subtracts preview visual correction from CameraX rotation`() {
-        listOf(
-            CaptureRotationCase(cameraX = 270, preview = 270, expected = 0),
-            CaptureRotationCase(cameraX = 270, preview = 0, expected = 270),
-            CaptureRotationCase(cameraX = 90, preview = 270, expected = 180),
-        ).forEach { case ->
-            assertEquals(
-                "CameraX=${case.cameraX}, preview=${case.preview}",
-                case.expected,
-                effectiveCaptureRotation(case.cameraX, case.preview),
-            )
-        }
+    fun `manual rotation is added to the CameraX rotation`() {
+        assertEquals(0, manualRotation(0, 0))
+        assertEquals(90, manualRotation(0, 90))
+        assertEquals(270, manualRotation(270, 0))
+        assertEquals(0, manualRotation(270, 90))
+        assertEquals(180, manualRotation(270, 270))
+        assertEquals(270, manualRotation(-90, 0))
     }
 
-    private data class CaptureRotationCase(
-        val cameraX: Int,
-        val preview: Int,
-        val expected: Int,
-    )
+    @Test
+    fun `preview and output rotations stay independent`() {
+        val cameraX = 270
+        assertEquals(0, manualRotation(cameraX, 90))
+        assertEquals(270, manualRotation(cameraX, 0))
+    }
 }

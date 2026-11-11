@@ -192,7 +192,6 @@ private fun accessoryTint(id: String?): Color = when (id) {
 fun AiSingleFlow(
     onHome: () -> Unit,
     onInteraction: () -> Unit,
-    previewRotationDegrees: Int = 0,
     viewModel: AiSingleViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -201,6 +200,7 @@ fun AiSingleFlow(
         viewModel.refreshModel()
         viewModel.refreshStyleSettings()
         viewModel.refreshEventProfiles()
+        viewModel.refreshCameraSettings()
     }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -423,7 +423,7 @@ fun AiSingleFlow(
                             onCaptured = viewModel::onPhotoCaptured,
                             onError = { cameraError = it },
                             onPalm = { onInteraction(); startCapture() },
-                            previewRotationDegrees = previewRotationDegrees,
+                            adjustments = state.cameraAdjustments,
                         )
                         AiStep.STYLE -> StyleContent(
                             styles = state.serverStyles.filterNot { it.id in state.disabledStyleIds },
@@ -594,7 +594,7 @@ private fun CaptureContent(
     onCaptured: (Bitmap, Boolean) -> Unit,
     onError: (String) -> Unit,
     onPalm: () -> Unit,
-    previewRotationDegrees: Int,
+    adjustments: com.photobooth.kiosk.data.CameraAdjustments,
 ) {
     var showPreview by remember { mutableStateOf(false) }
     if (!hasPhoto) {
@@ -616,8 +616,8 @@ private fun CaptureContent(
             modifier = Modifier.fillMaxSize(),
             captureRequest = captureRequest,
             handDetectionEnabled = gestureActive && cameraReady,
-            previewRotationDegrees = previewRotationDegrees,
             onPalmDetected = onPalm,
+            adjustments = adjustments,
             onReady = onReady,
             onCaptured = onCaptured,
             onError = onError,

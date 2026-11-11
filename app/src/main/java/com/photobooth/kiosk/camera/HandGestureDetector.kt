@@ -19,11 +19,12 @@ import com.google.mediapipe.tasks.vision.gesturerecognizer.GestureRecognizerResu
  */
 class HandGestureDetector(
     context: Context,
-    private val onPalmDetected: () -> Unit,
 ) : AutoCloseable {
 
     private val appContext = context.applicationContext
     private val lock = Any()
+    @Volatile var listener: () -> Unit = {}
+    @Volatile var enabled: Boolean = false
     private var recognizer: GestureRecognizer? = null
     private var initialized = false
     private var lastTriggerAt = 0L
@@ -32,6 +33,7 @@ class HandGestureDetector(
     private var armed = true
 
     fun analyze(bitmap: Bitmap, timestampMs: Long) {
+        if (!enabled) return
         val current = ensureInitialized() ?: return
         runCatching {
             current.recognizeAsync(BitmapImageBuilder(bitmap).build(), timestampMs)
@@ -53,9 +55,9 @@ class HandGestureDetector(
                     .setBaseOptions(baseOptions)
                     .setRunningMode(RunningMode.LIVE_STREAM)
                     .setNumHands(1)
-                    .setMinHandDetectionConfidence(0.5f)
-                    .setMinHandPresenceConfidence(0.5f)
-                    .setMinTrackingConfidence(0.5f)
+                    .setMinHandDetectionConfidence(0.4f)
+                    .setMinHandPresenceConfidence(0.4f)
+                    .setMinTrackingConfidence(0.4f)
                     .setResultListener { result, _ -> handleResult(result) }
                     .setErrorListener { error ->
                         Log.w(TAG, "Gesture recognizer error", error)
@@ -106,17 +108,20 @@ class HandGestureDetector(
                 }
             }
         }
-        if (trigger) {
+        if (trigger && enabled) {
             Log.i(TAG, "Open palm detected; starting countdown")
-            onPalmDetected()
+            listener()
         }
     }
 
     override fun close() {
+        enabled = false
+        listener = {}
         synchronized(lock) {
-            runCatching { recognizer?.close() }
+            val current = recognizer
             recognizer = null
             initialized = true
+            runCatching { current?.close() }
         }
     }
 
@@ -124,7 +129,7 @@ class HandGestureDetector(
         const val TAG = "HandGesture"
         const val MODEL_ASSET = "models/gesture_recognizer.task"
         const val OPEN_PALM = "Open_Palm"
-        const val MIN_SCORE = 0.55f
+        const val MIN_SCORE = 0.45f
         const val REQUIRED_FRAMES = 2
         const val REARM_MS = 900L
         const val TRIGGER_COOLDOWN_MS = 1_500L

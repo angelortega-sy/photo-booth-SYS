@@ -2,6 +2,8 @@ package com.photobooth.kiosk.ui.admin
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -35,8 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.graphics.BitmapFactory
 import com.photobooth.kiosk.R
 import com.photobooth.kiosk.data.BrandLogoStore
+import com.photobooth.kiosk.data.CachedProviderLogo
 import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.ui.theme.Cream
@@ -44,6 +49,7 @@ import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * Edits the name, colors, logo and the 8 [EventBranding] label fields of one
@@ -59,6 +65,7 @@ internal fun AdminBrandEditorScreen(
     onRename: (String, String) -> Unit,
     onSaveBranding: (String, EventBranding) -> Unit,
     onSaved: () -> Unit,
+    providerLogos: List<CachedProviderLogo> = emptyList(),
 ) {
     val profile = profiles.firstOrNull { it.id == profileId }
     if (profile == null) return
@@ -99,6 +106,9 @@ internal fun AdminBrandEditorScreen(
         draft.logoPath?.let { path ->
             runCatching { android.graphics.BitmapFactory.decodeFile(path) }.getOrNull()
         }
+    }
+    val providerLibrary = remember(providerLogos) {
+        providerLogos.map { logo -> logo to BitmapFactory.decodeFile(logo.path) }
     }
 
     AdminSettingsScreen(
@@ -199,6 +209,48 @@ internal fun AdminBrandEditorScreen(
                             modifier = Modifier.height(46.dp),
                         ) {
                             Text(stringResource(R.string.admin_brand_logo_remove))
+                        }
+                    }
+                }
+                if (providerLibrary.any { it.second != null }) {
+                    Text(
+                        text = stringResource(R.string.admin_brand_logo_library),
+                        color = Cream.copy(alpha = 0.7f),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(top = 14.dp),
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        providerLibrary.forEach { (logo, bitmap) ->
+                            if (bitmap != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Cream.copy(alpha = 0.06f))
+                                        .clickable {
+                                            val copied = BrandLogoStore.copyFile(context, File(logo.path))
+                                                ?: return@clickable
+                                            if (draft.logoPath != profile.branding.logoPath) {
+                                                BrandLogoStore.delete(draft.logoPath)
+                                            }
+                                            draft = draft.copy(logoPath = copied)
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = logo.name,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.fillMaxSize().padding(8.dp),
+                                    )
+                                }
+                            }
                         }
                     }
                 }

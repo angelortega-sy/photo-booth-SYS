@@ -65,10 +65,26 @@ object BrandLogoStore {
         }
     }
 
+    /** Copies a shared provider logo into this brand's own file. */
+    fun copyFile(context: Context, source: File): String? {
+        if (!source.isFile) return null
+        val ext = source.extension.ifBlank { "png" }
+        val target = File(logoDir(context), "logo_${System.currentTimeMillis()}.$ext")
+        return try {
+            source.copyTo(target, overwrite = true)
+            target.absolutePath
+        } catch (_: Exception) {
+            target.delete()
+            null
+        }
+    }
+
     /** Deletes a previously stored logo, if any. Safe to call with null. */
     fun delete(path: String?) {
         if (path.isNullOrBlank()) return
-        runCatching { File(path).delete() }
+        val file = File(path)
+        if (file.parentFile?.name == "provider-logos") return
+        runCatching { file.delete() }
     }
 
     private fun sampleSize(width: Int, maxWidth: Int): Int {

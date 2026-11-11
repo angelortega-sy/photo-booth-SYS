@@ -12,6 +12,8 @@ import com.photobooth.kiosk.data.AiStatus
 import com.photobooth.kiosk.data.AiStyles
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BackgroundRepository
+import com.photobooth.kiosk.data.CameraAdjustments
+import com.photobooth.kiosk.data.CameraSettingsStore
 import com.photobooth.kiosk.data.CollageCustomization
 import com.photobooth.kiosk.data.CollageFrameStyle
 import com.photobooth.kiosk.data.DeviceIdentityStore
@@ -22,6 +24,7 @@ import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.driveFolderBase
 import com.photobooth.kiosk.data.GestureSettingsStore
 import com.photobooth.kiosk.data.PhotoSettingsStore
+import com.photobooth.kiosk.data.ProviderLogoStore
 import com.photobooth.kiosk.data.StyleSettingsStore
 import com.photobooth.kiosk.network.AiBackendClient
 import com.photobooth.kiosk.network.AiBackendException
@@ -72,6 +75,7 @@ data class AiSingleUiState(
     val eventProfiles: List<EventProfile> = emptyList(),
     val selectedEventProfileId: String = EventProfileStore.SYSCOM_ID,
     val palmCaptureEnabled: Boolean = true,
+    val cameraAdjustments: CameraAdjustments = CameraAdjustments(),
 ) {
     val canGenerate: Boolean =
         hasPhoto && status != AiStatus.UPLOADING && status != AiStatus.GENERATING
@@ -85,6 +89,7 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
     private val gestureSettings = GestureSettingsStore(application)
+    private val cameraSettings = CameraSettingsStore(application)
     private val styleSettings = StyleSettingsStore(application)
     private val aiClient = AiBackendClient(identityStore, DeviceKeyStore())
     private var remoteSessionId: String? = null
@@ -104,10 +109,15 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
             eventProfiles = profileStore.enabledProfiles(),
             selectedEventProfileId = profileStore.active().id,
             palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
+            cameraAdjustments = cameraSettings.load(),
             disabledStyleIds = styleSettings.disabledIds,
         ),
     )
     val uiState: StateFlow<AiSingleUiState> = _uiState.asStateFlow()
+
+    fun refreshCameraSettings() {
+        _uiState.update { it.copy(cameraAdjustments = cameraSettings.load()) }
+    }
 
     /**
      * Re-reads the admin style switches. The screen is activity scoped, so
@@ -491,6 +501,11 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val loaded = withContext(Dispatchers.IO) {
                 runCatching { aiClient.styles() to aiClient.models() }
+            }
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    ProviderLogoStore.sync(getApplication(), aiClient.providerLogos(), aiClient::downloadProviderLogo)
+                }
             }
             loaded.onSuccess { (styles, models) ->
                 val saved = aiSettings.load().modelId
