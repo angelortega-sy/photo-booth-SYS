@@ -79,6 +79,20 @@ object BrandLogoStore {
         }
     }
 
+    /** Copies bytes already downloaded from the server into the brand-logo folder. */
+    fun saveBytes(context: Context, name: String, bytes: ByteArray): String? {
+        if (bytes.isEmpty()) return null
+        val safe = name.filter { it.isLetterOrDigit() || it == '_' || it == '-' }.take(40).ifBlank { return null }
+        val target = File(logoDir(context), "$safe.webp")
+        return try {
+            target.writeBytes(bytes)
+            target.absolutePath
+        } catch (_: Exception) {
+            target.delete()
+            null
+        }
+    }
+
     /** Deletes a previously stored logo, if any. Safe to call with null. */
     fun delete(path: String?) {
         if (path.isNullOrBlank()) return

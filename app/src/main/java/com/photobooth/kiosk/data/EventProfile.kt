@@ -58,12 +58,13 @@ class EventProfileStore(context: Context) {
 
     fun setActive(id: String) {
         if (loadAll().none { it.id == id }) return
-        prefs.edit().putString(KEY_ACTIVE, id).apply()
+        prefs.edit().putString(KEY_ACTIVE, id).putLong(KEY_REVISION, System.currentTimeMillis()).apply()
     }
 
     fun updateBranding(id: String, branding: EventBranding) {
         val profiles = loadAll().map { if (it.id == id) it.copy(branding = branding) else it }
         writeAll(profiles)
+        markEdited()
     }
 
     fun setEnabled(id: String, enabled: Boolean) {
@@ -73,6 +74,7 @@ class EventProfileStore(context: Context) {
             if (it.id == id) it.copy(enabled = enabled) else it
         }
         writeAll(profiles)
+        markEdited()
         if (!enabled && prefs.getString(KEY_ACTIVE, SYSCOM_ID) == id) {
             prefs.edit().putString(KEY_ACTIVE, SYSCOM_ID).apply()
         }
@@ -90,6 +92,7 @@ class EventProfileStore(context: Context) {
             enabled = true,
         )
         writeAll(loadAll() + profile)
+        markEdited()
         return profile
     }
 
@@ -98,6 +101,7 @@ class EventProfileStore(context: Context) {
         val profiles = loadAll()
         if (profiles.none { it.id == id }) return false
         writeAll(profiles.filterNot { it.id == id })
+        markEdited()
         if (prefs.getString(KEY_ACTIVE, SYSCOM_ID) == id) {
             prefs.edit().putString(KEY_ACTIVE, SYSCOM_ID).apply()
         }
@@ -108,6 +112,35 @@ class EventProfileStore(context: Context) {
         val label = name.trim()
         if (label.isEmpty()) return
         writeAll(loadAll().map { if (it.id == id) it.copy(name = label) else it })
+        markEdited()
+    }
+
+    /** Milliseconds of the last local or server change. Zero until something is saved. */
+    fun revision(): Long = prefs.getLong(KEY_REVISION, 0L)
+
+    fun markEdited() {
+        prefs.edit().putLong(KEY_REVISION, System.currentTimeMillis()).apply()
+    }
+
+    /**
+     * Replaces the local list with the server document. [revision] is the server
+     * timestamp, so a later local edit is still newer than what just arrived.
+     */
+    fun applyRemote(json: JSONObject) {
+        val profiles = parseProfiles(json.optJSONArray("profiles"))
+        if (profiles.isEmpty()) return
+        val activeId = json.optString("activeId").ifBlank { SYSCOM_ID }
+        val active = if (profiles.any { it.id == activeId }) activeId else SYSCOM_ID
+        writeAll(profiles)
+        prefs.edit()
+            .putString(KEY_ACTIVE, active)
+            .putLong(KEY_REVISION, json.optLong("updatedAt"))
+            .apply()
+    }
+
+    /** Writes resolved logo paths without counting as a new edit. */
+    fun writeLogoPaths(profiles: List<EventProfile>) {
+        writeAll(profiles)
     }
 
     /** True once an admin has created or edited anything beyond the built-in SYSCOM profile. */
@@ -136,24 +169,26 @@ class EventProfileStore(context: Context) {
 
     private fun readStored(): List<EventProfile> {
         val raw = prefs.getString(KEY_PROFILES, null) ?: return emptyList()
-        return runCatching {
-            val array = JSONArray(raw)
-            buildList {
-                for (index in 0 until array.length()) {
-                    val json = array.optJSONObject(index) ?: continue
-                    val id = json.optString("id").ifBlank { continue }
-                    add(
-                        EventProfile(
-                            id = id,
-                            name = json.optString("name").ifBlank { id },
-                            branding = readBranding(json.optJSONObject("branding")),
-                            enabled = json.optBoolean("enabled", true),
-                            builtIn = json.optBoolean("builtIn", id == SYSCOM_ID),
-                        ),
-                    )
-                }
+        return runCatching { parseProfiles(JSONArray(raw)) }.getOrDefault(emptyList())
+    }
+
+    private fun parseProfiles(array: JSONArray?): List<EventProfile> {
+        if (array == null) return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val json = array.optJSONObject(index) ?: continue
+                val id = json.optString("id").ifBlank { continue }
+                add(
+                    EventProfile(
+                        id = id,
+                        name = json.optString("name").ifBlank { id },
+                        branding = readBranding(json.optJSONObject("branding")),
+                        enabled = json.optBoolean("enabled", true),
+                        builtIn = json.optBoolean("builtIn", id == SYSCOM_ID),
+                    ),
+                )
             }
-        }.getOrDefault(emptyList())
+        }
     }
 
     private fun writeAll(profiles: List<EventProfile>) {
@@ -187,6 +222,8 @@ class EventProfileStore(context: Context) {
             primaryColor = json.optLong("primaryColor", defaults.primaryColor),
             secondaryColor = json.optLong("secondaryColor", defaults.secondaryColor),
             logoPath = json.optString("logoPath", "").ifBlank { null },
+            brandLogoId = json.optString("brandLogoId", "").ifBlank { null },
+            hasRemoteLogo = json.optBoolean("brandLogo", false) || json.optBoolean("hasRemoteLogo", false),
             sponsorLogoIds = readSponsorIds(json.optJSONArray("sponsorLogoIds")),
             driveFolderName = json.optString("driveFolderName", defaults.driveFolderName),
         )
@@ -204,6 +241,8 @@ class EventProfileStore(context: Context) {
         put("primaryColor", branding.primaryColor)
         put("secondaryColor", branding.secondaryColor)
         if (!branding.logoPath.isNullOrBlank()) put("logoPath", branding.logoPath)
+        if (!branding.brandLogoId.isNullOrBlank()) put("brandLogoId", branding.brandLogoId)
+        if (branding.hasRemoteLogo) put("hasRemoteLogo", true)
         if (branding.sponsorLogoIds.isNotEmpty()) {
             put("sponsorLogoIds", JSONArray().apply { branding.sponsorLogoIds.forEach { put(it) } })
         }
@@ -226,5 +265,6 @@ class EventProfileStore(context: Context) {
         private const val PREFS_NAME = "event_profiles"
         private const val KEY_PROFILES = "profiles"
         private const val KEY_ACTIVE = "active_id"
+        private const val KEY_REVISION = "revision"
     }
 }

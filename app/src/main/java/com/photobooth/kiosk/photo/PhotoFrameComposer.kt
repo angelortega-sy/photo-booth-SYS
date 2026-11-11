@@ -51,7 +51,14 @@ object PhotoFrameComposer {
 
         drawFrameBackground(canvas, outWidth.toFloat(), outHeight.toFloat(), scale, customization)
         drawTopHeader(canvas, outWidth.toFloat(), 44f * scale, scale, customization)
-        drawSponsorLogos(canvas, customization, outWidth.toFloat(), 44f * scale, scale)
+        val sponsorShift = if (customization.sponsorLogoPaths.isEmpty()) 0f else 56f * scale
+        drawSponsorLogos(
+            canvas,
+            customization,
+            outWidth.toFloat(),
+            108f * scale,
+            108f * scale + sponsorShift,
+        )
 
         val shape = customization.frameStyle.shape
         val marginX = when (shape) {
@@ -65,7 +72,7 @@ object PhotoFrameComposer {
             FrameShape.POLAROID -> 158f
             FrameShape.CYBER -> 150f
             FrameShape.GALA -> 196f
-        } * scale
+        } * scale + sponsorShift
         val photoRect = RectF(
             marginX,
             photoTop,
@@ -114,9 +121,22 @@ object PhotoFrameComposer {
 
         drawFrameBackground(canvas, outWidth.toFloat(), outHeight.toFloat(), scale, customization)
         drawTopHeader(canvas, outWidth.toFloat(), 42f * scale, scale, customization)
-        drawSponsorLogos(canvas, customization, outWidth.toFloat(), 42f * scale, scale)
+        val sponsorShift = if (customization.sponsorLogoPaths.isEmpty()) 0f else 56f * scale
+        drawSponsorLogos(
+            canvas,
+            customization,
+            outWidth.toFloat(),
+            106f * scale,
+            106f * scale + sponsorShift,
+        )
 
-        val slots = slotRects(customization.layout, scale)
+        val slots = slotRects(customization.layout, scale).map { rect ->
+            if (sponsorShift == 0f || rect.top >= 220f * scale) {
+                rect
+            } else {
+                RectF(rect.left, rect.top + sponsorShift, rect.right, rect.bottom)
+            }
+        }
         slots.forEachIndexed { index, slotRect ->
             val photo = photos.getOrNull(index) ?: photos.lastOrNull()
             if (photo != null) {
@@ -698,41 +718,42 @@ object PhotoFrameComposer {
     }
 
     /**
-     * Draws the enabled sponsor logos in a row under the header band, centered.
-     * Each is fitted to the header height, keeping the aspect ratio. Never throws.
+     * Draws every enabled sponsor logo in one row between the header and the photo.
+     * The row shrinks so the whole selection stays inside the frame. Never throws.
      */
     private fun drawSponsorLogos(
         canvas: Canvas,
         customization: CollageCustomization,
         width: Float,
-        headerTop: Float,
-        scale: Float,
+        bandTop: Float,
+        bandBottom: Float,
     ) {
         val paths = customization.sponsorLogoPaths
-        if (paths.isEmpty()) return
-        val bitmaps = paths.mapNotNull { path ->
-            decodeBrandLogo(path)
-        }
+        if (paths.isEmpty() || bandBottom - bandTop < 8f) return
+        val bitmaps = paths.mapNotNull { decodeBrandLogo(it) }
         if (bitmaps.isEmpty()) return
         try {
-            val maxHeight = 40f * scale
-            val gap = 26f * scale
-            val entries = bitmaps.map { bitmap ->
-                val fit = (maxHeight / bitmap.height.toFloat()).coerceAtMost(1f)
-                val w = bitmap.width.toFloat() * fit
-                bitmap to w
+            val maxHeight = bandBottom - bandTop
+            val gap = 16f
+            val side = width * 0.04f
+            val available = (width - side * 2f).coerceAtLeast(1f)
+            val naturalWidths = bitmaps.map { bitmap ->
+                bitmap.width * (maxHeight / bitmap.height.toFloat())
             }
-            val totalWidth = entries.sumOf { it.second.toDouble() }.toFloat() + gap * (entries.size - 1).coerceAtLeast(0)
-            var x = (width - totalWidth) * 0.5f
-            val top = headerTop + 66f * scale
-            entries.forEach { (bitmap, w) ->
+            val naturalTotal = naturalWidths.sum() + gap * (bitmaps.size - 1).coerceAtLeast(0)
+            val fit = if (naturalTotal > available) available / naturalTotal else 1f
+            var x = (width - naturalTotal * fit) * 0.5f
+            bitmaps.forEachIndexed { index, bitmap ->
+                val drawnWidth = naturalWidths[index] * fit
+                val drawnHeight = maxHeight * fit
+                val top = bandTop + (maxHeight - drawnHeight) * 0.5f
                 canvas.drawBitmap(
                     bitmap,
                     null,
-                    RectF(x, top, x + w, top + maxHeight),
+                    RectF(x, top, x + drawnWidth, top + drawnHeight),
                     Paint(Paint.FILTER_BITMAP_FLAG),
                 )
-                x += w + gap
+                x += drawnWidth + gap * fit
             }
         } finally {
             bitmaps.forEach { if (!it.isRecycled) it.recycle() }
