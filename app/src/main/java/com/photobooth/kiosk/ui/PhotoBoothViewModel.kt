@@ -14,10 +14,11 @@ import com.photobooth.kiosk.data.AiStatus
 import com.photobooth.kiosk.data.AiStyle
 import com.photobooth.kiosk.data.AiStyles
 import com.photobooth.kiosk.data.BackgroundOption
+import com.photobooth.kiosk.data.BackgroundRepository
 import com.photobooth.kiosk.data.DeviceIdentity
 import com.photobooth.kiosk.data.DeviceIdentityStore
 import com.photobooth.kiosk.data.driveFolderBase
-import com.photobooth.kiosk.data.BackgroundRepository
+import com.photobooth.kiosk.data.CameraAdjustments
 import com.photobooth.kiosk.data.CameraSettingsStore
 import com.photobooth.kiosk.data.GestureSettingsStore
 import com.photobooth.kiosk.data.StyleSettingsStore
@@ -31,6 +32,7 @@ import com.photobooth.kiosk.data.EventProfileStore
 import com.photobooth.kiosk.data.FrameDecoration
 import com.photobooth.kiosk.data.PhotoBorderStyle
 import com.photobooth.kiosk.data.PhotoSettingsStore
+import com.photobooth.kiosk.data.ProviderLogoStore
 import com.photobooth.kiosk.delivery.DeliverySession
 import com.photobooth.kiosk.delivery.LocalDeliveryServer
 import com.photobooth.kiosk.network.AiBackendClient
@@ -91,11 +93,12 @@ data class PhotoBoothUiState(
     val stripPreview: Bitmap? = null,
     val selectedPhotoIndex: Int? = null,
     val usedFallbackIndices: Set<Int> = emptySet(),
-    val cameraRotationDegrees: Int = 0,
     val palmCaptureEnabled: Boolean = true,
+    val cameraAdjustments: CameraAdjustments = CameraAdjustments(),
     val aiStyles: List<AiStyle> = AiStyles.ALL,
     val serverStyles: List<BoothStyle> = emptyList(),
     val serverModels: List<BoothModel> = emptyList(),
+    val providerLogos: List<com.photobooth.kiosk.data.CachedProviderLogo> = emptyList(),
     val serverStatusProbe: ServerStatusProbe? = null,
     val serverStatusError: String? = null,
     val isServerStatusChecking: Boolean = false,
@@ -148,8 +151,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
     private val repository = BackgroundRepository(application)
     private val processor = PhotoProcessor(application)
-    private val cameraSettings = CameraSettingsStore(application)
     private val gestureSettings = GestureSettingsStore(application)
+    private val cameraSettings = CameraSettingsStore(application)
     private val styleSettings = StyleSettingsStore(application)
     private val profileStore = EventProfileStore(application)
     private val photoSettings = PhotoSettingsStore(application)
@@ -185,8 +188,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
 
     private val _uiState = MutableStateFlow(
         PhotoBoothUiState(
-            cameraRotationDegrees = cameraSettings.rotationDegrees,
             palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
+            cameraAdjustments = cameraSettings.load(),
             disabledStyleIds = styleSettings.disabledIds,
             customization = CollageCustomization(
                 eventBranding = profileStore.activeBranding(),
@@ -199,12 +202,26 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             activeEventProfileId = profileStore.active().id,
             selectedEventProfileId = profileStore.active().id,
             savePhotosToDevice = photoSettings.saveToDevice(),
-        ),
+        ).let { state ->
+            state.copy(
+                customization = state.customization.copy(
+                    sponsorLogoPaths = sponsorLogoPaths(state.customization.eventBranding, ProviderLogoStore.load(getApplication())),
+                ),
+            )
+        },
     )
     val uiState: StateFlow<PhotoBoothUiState> = _uiState.asStateFlow()
 
+    /** Absolute paths of the sponsor logos enabled on the active event, resolved from the cache. */
+    private fun sponsorLogoPaths(branding: EventBranding, logos: List<com.photobooth.kiosk.data.CachedProviderLogo>): List<String> {
+        val byId = logos.associateBy { it.id }
+        return branding.sponsorLogoIds.mapNotNull { byId[it]?.path }
+    }
+
     init {
         refreshBackgrounds()
+        _uiState.update { it.copy(providerLogos = ProviderLogoStore.load(getApplication())) }
+        refreshServerCatalog()
     }
 
     val allBackgrounds: List<BackgroundOption>
@@ -326,6 +343,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                     it.customization.copy(
                         eventBranding = branding,
                         badgePreset = EventBadgePreset.CUSTOM,
+                        sponsorLogoPaths = sponsorLogoPaths(branding, it.providerLogos),
                     )
                 } else {
                     it.customization
@@ -352,6 +370,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 customization = it.customization.copy(
                     eventBranding = profile.branding,
                     badgePreset = EventBadgePreset.CUSTOM,
+                    sponsorLogoPaths = sponsorLogoPaths(profile.branding, it.providerLogos),
                 ),
             )
         }
@@ -383,6 +402,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 customization = it.customization.copy(
                     eventBranding = active.branding,
                     badgePreset = EventBadgePreset.CUSTOM,
+                    sponsorLogoPaths = sponsorLogoPaths(active.branding, it.providerLogos),
                 ),
             )
         }
@@ -400,6 +420,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 customization = it.customization.copy(
                     eventBranding = active.branding,
                     badgePreset = EventBadgePreset.CUSTOM,
+                    sponsorLogoPaths = sponsorLogoPaths(active.branding, it.providerLogos),
                 ),
             )
         }
@@ -575,16 +596,17 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    /** Selects a background before capture or updates one/all photos instantly in the Studio Wizard. */
-    fun setCameraRotation(degrees: Int) {
-        cameraSettings.rotationDegrees = degrees
-        _uiState.update { it.copy(cameraRotationDegrees = cameraSettings.rotationDegrees) }
-    }
-
     /** Enables or disables the open-palm capture gesture for guests. */
     fun setPalmCaptureEnabled(enabled: Boolean) {
         gestureSettings.palmCaptureEnabled = enabled
         _uiState.update { it.copy(palmCaptureEnabled = enabled) }
+    }
+
+    /** Saves the manual preview and photo framing. The two sides do not follow each other. */
+    fun setCameraAdjustments(adjustments: CameraAdjustments) {
+        val value = adjustments.normalized()
+        cameraSettings.save(value)
+        _uiState.update { it.copy(cameraAdjustments = value) }
     }
 
     /** Shows or hides one AI style in the guest flow. */
@@ -803,6 +825,11 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             val loaded = withContext(Dispatchers.IO) {
                 runCatching { aiClient.styles() to aiClient.models() }
             }
+            val logos = withContext(Dispatchers.IO) {
+                runCatching {
+                    ProviderLogoStore.sync(getApplication(), aiClient.providerLogos(), aiClient::downloadProviderLogo)
+                }.getOrNull()
+            }
             loaded.onSuccess { (styles, models) ->
                 val saved = aiSettings.load().modelId
                 _uiState.update { state ->
@@ -816,11 +843,26 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                         styles.any { it.id == state.selectedAiStyleId } -> state.selectedAiStyleId
                         else -> styles.firstOrNull()?.id ?: state.selectedAiStyleId
                     }
+                    val newLogos = logos ?: state.providerLogos
                     state.copy(
                         serverStyles = styles,
                         serverModels = models,
                         selectedModelId = modelId,
                         selectedAiStyleId = styleId,
+                        providerLogos = newLogos,
+                        customization = state.customization.copy(
+                            sponsorLogoPaths = sponsorLogoPaths(state.customization.eventBranding, newLogos),
+                        ),
+                    )
+                }
+            }
+            if (loaded.isFailure && logos != null) {
+                _uiState.update {
+                    it.copy(
+                        providerLogos = logos,
+                        customization = it.customization.copy(
+                            sponsorLogoPaths = sponsorLogoPaths(it.customization.eventBranding, logos),
+                        ),
                     )
                 }
             }
@@ -1471,15 +1513,17 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.value = PhotoBoothUiState(
             selectedBackgroundId = initialBg,
             photoBackgroundIds = List(PhotoBoothUiState.PHOTO_COUNT) { initialBg },
-            cameraRotationDegrees = cameraSettings.rotationDegrees,
             palmCaptureEnabled = gestureSettings.palmCaptureEnabled,
+            cameraAdjustments = cameraSettings.load(),
             serverStyles = state.serverStyles,
             serverModels = state.serverModels,
+            providerLogos = state.providerLogos,
             disabledStyleIds = styleSettings.disabledIds,
             selectedModelId = state.selectedModelId,
             customization = CollageCustomization(
                 eventBranding = profileStore.activeBranding(),
                 badgePreset = defaultBadgePreset(),
+                sponsorLogoPaths = sponsorLogoPaths(profileStore.activeBranding(), state.providerLogos),
             ),
             backgrounds = repository.visibleOptions,
             adminBackgrounds = repository.allOptions,

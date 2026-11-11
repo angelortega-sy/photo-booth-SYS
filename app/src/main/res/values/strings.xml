@@ -144,8 +144,11 @@
     <string name="admin_pin_hint_enter">Acceso exclusivo para administradores.</string>
     <string name="admin_section_camera">Cámara</string>
     <string name="admin_section_camera_hint">Hardware detectado por el sistema</string>
-    <string name="admin_camera_rotation">Orientación de la cámara USB</string>
-    <string name="admin_camera_rotation_hint">Solo aplica a la cámara USB externa. Si la webcam se ve girada, prueba 90°, 180° o 270°.</string>
+    <string name="admin_camera_adjust_hint">La vista en vivo y la foto se ajustan por separado. 0° no agrega giro.</string>
+    <string name="admin_camera_preview_rotation">Rotación de la vista en vivo</string>
+    <string name="admin_camera_output_rotation">Rotación de la foto</string>
+    <string name="admin_camera_preview_mirror">Espejo en la vista en vivo</string>
+    <string name="admin_camera_output_mirror">Espejo en la foto</string>
     <string name="admin_tab_gestures">Gestos</string>
     <string name="admin_nav_gestures_description">Palma abierta para disparar la foto</string>
     <string name="admin_tab_styles">Estilos</string>
@@ -393,7 +396,7 @@
     <string name="admin_usage_load_more">Cargar más</string>
     <string name="admin_event_hashtag">Hashtag del evento</string>
     <string name="admin_event_drive_folder">Nombre de la carpeta en Drive</string>
-    <string name="admin_home_brands">Marcas del evento</string>
+    <string name="admin_home_brands">Eventos</string>
     <string name="admin_home_event">Evento</string>
     <string name="admin_home_backgrounds">Fondos</string>
     <string name="admin_home_camera">Cámara</string>
@@ -401,7 +404,7 @@
     <string name="admin_home_photos">Fotos</string>
     <string name="admin_home_network_system">Red y sistema</string>
     <string name="admin_home_usage_ai">Uso IA</string>
-    <string name="admin_home_brands_summary">%1$d marcas · %2$s activa</string>
+    <string name="admin_home_brands_summary">%1$d eventos · %2$s activo</string>
     <string name="admin_home_event_summary">Marca activa: %1$s</string>
     <string name="admin_home_backgrounds_summary">%1$d fondos · %2$d visibles</string>
     <string name="admin_home_camera_summary">%1$d cámaras · %2$d USB</string>
@@ -498,6 +501,11 @@
     <string name="admin_brand_secondary_color">Color de líneas</string>
     <string name="admin_brand_logo_title">Logo</string>
     <string name="admin_brand_logo_hint">PNG o WebP con fondo transparente. Sin logo se usa el nombre de la marca.</string>
+    <string name="admin_brand_logo_library">Logos del servidor. Toca uno para usarlo.</string>
+    <string name="admin_sponsor_title">Patrocinadores en el marco</string>
+    <string name="admin_sponsor_subtitle">Los activos se dibujan en el marco de cada foto.</string>
+    <string name="admin_sponsor_empty">Sin logos todavía. El servidor los baja de Drive al refrescar.</string>
+    <string name="admin_sponsor_use_as_brand">Usar como logo de marca</string>
     <string name="admin_brand_logo_choose">Elegir imagen</string>
     <string name="admin_brand_logo_remove">Quitar logo</string>
     <string name="admin_brand_logo_error">No se pudo leer la imagen. Prueba con otra.</string>

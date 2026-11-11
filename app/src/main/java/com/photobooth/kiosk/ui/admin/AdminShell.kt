@@ -205,7 +205,6 @@ private fun AdminShellContent(
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 when (route) {
                     AdminRoute.Home -> {
-                        val backgrounds = appState.adminBackgrounds
                         val modelLabel = appState.serverModels
                             .firstOrNull { it.id == appState.selectedModelId }?.name
                             ?: context.getString(R.string.ai_model_none)
@@ -216,8 +215,6 @@ private fun AdminShellContent(
                             compact = compact,
                             brandCount = appState.eventProfiles.size,
                             activeBrandName = activeBrand?.name ?: "SYSCOM",
-                            backgroundTotal = backgrounds.size,
-                            backgroundVisible = backgrounds.count { it.enabled },
                             cameraCount = cameras.size,
                             usbCount = usbDevices.size,
                             styleVisible = AiStyles.ALL.size - appState.disabledStyleIds.size,
@@ -259,14 +256,10 @@ private fun AdminShellContent(
                             onSaved = {
                                 onMessage(context.getString(R.string.admin_changes_saved))
                             },
-                        )
-                    }
-
-                    AdminRoute.Event -> {
-                        AdminEventScreen(
+                            providerLogos = appState.providerLogos,
                             backgrounds = appState.adminBackgrounds.ifEmpty { viewModel.allBackgrounds },
                             loadThumbnail = viewModel::loadThumbnail,
-                            onImport = { uri, name ->
+                            onImportBackground = { uri, name ->
                                 viewModel.importBackground(uri, name) { error ->
                                     onMessage(
                                         if (error == null) {
@@ -290,8 +283,8 @@ private fun AdminShellContent(
                             summary = summary,
                             cameras = cameras,
                             usbDevices = usbDevices,
-                            rotationDegrees = appState.cameraRotationDegrees,
-                            onRotationChange = viewModel::setCameraRotation,
+                            adjustments = appState.cameraAdjustments,
+                            onAdjustmentsChange = viewModel::setCameraAdjustments,
                             palmEnabled = appState.palmCaptureEnabled,
                             onPalmToggle = viewModel::setPalmCaptureEnabled,
                             onSaved = { onMessage(context.getString(R.string.admin_changes_saved)) },

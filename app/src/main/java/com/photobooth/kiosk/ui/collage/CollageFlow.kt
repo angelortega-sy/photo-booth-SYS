@@ -127,7 +127,6 @@ fun CollageFlow(
     viewModel: PhotoBoothViewModel,
     onHome: () -> Unit,
     onInteraction: () -> Unit,
-    previewRotationDegrees: Int = 0,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -358,7 +357,6 @@ fun CollageFlow(
                             sequenceActive = sequenceActive,
                             poseBanner = poseBanner,
                             gestureActive = gestureActive,
-                            previewRotationDegrees = previewRotationDegrees,
                             viewIndex = viewPhotoIndex,
                             onViewPhoto = { index -> viewPhotoIndex = if (viewPhotoIndex == index) null else index },
                             onRetakeOne = { index -> retakeOne(index) },
@@ -525,7 +523,6 @@ private fun ColumnScope.CollageCaptureContent(
     sequenceActive: Boolean,
     poseBanner: String?,
     gestureActive: Boolean,
-    previewRotationDegrees: Int,
     viewIndex: Int?,
     onViewPhoto: (Int) -> Unit,
     onRetakeOne: (Int) -> Unit,
@@ -602,8 +599,8 @@ private fun ColumnScope.CollageCaptureContent(
                     modifier = Modifier.fillMaxSize(),
                     captureRequest = captureRequest,
                     handDetectionEnabled = gestureActive,
-                    previewRotationDegrees = previewRotationDegrees,
                     onPalmDetected = onPalm,
+                    adjustments = state.cameraAdjustments,
                     onReady = onReady,
                     onCaptured = onCaptured,
                     onError = onError,

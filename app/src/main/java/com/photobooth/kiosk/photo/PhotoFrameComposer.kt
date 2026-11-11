@@ -51,6 +51,7 @@ object PhotoFrameComposer {
 
         drawFrameBackground(canvas, outWidth.toFloat(), outHeight.toFloat(), scale, customization)
         drawTopHeader(canvas, outWidth.toFloat(), 44f * scale, scale, customization)
+        drawSponsorLogos(canvas, customization, outWidth.toFloat(), 44f * scale, scale)
 
         val shape = customization.frameStyle.shape
         val marginX = when (shape) {
@@ -113,6 +114,7 @@ object PhotoFrameComposer {
 
         drawFrameBackground(canvas, outWidth.toFloat(), outHeight.toFloat(), scale, customization)
         drawTopHeader(canvas, outWidth.toFloat(), 42f * scale, scale, customization)
+        drawSponsorLogos(canvas, customization, outWidth.toFloat(), 42f * scale, scale)
 
         val slots = slotRects(customization.layout, scale)
         slots.forEachIndexed { index, slotRect ->
@@ -692,6 +694,48 @@ object PhotoFrameComposer {
             return 0f
         } finally {
             if (!bitmap.isRecycled) bitmap.recycle()
+        }
+    }
+
+    /**
+     * Draws the enabled sponsor logos in a row under the header band, centered.
+     * Each is fitted to the header height, keeping the aspect ratio. Never throws.
+     */
+    private fun drawSponsorLogos(
+        canvas: Canvas,
+        customization: CollageCustomization,
+        width: Float,
+        headerTop: Float,
+        scale: Float,
+    ) {
+        val paths = customization.sponsorLogoPaths
+        if (paths.isEmpty()) return
+        val bitmaps = paths.mapNotNull { path ->
+            decodeBrandLogo(path)
+        }
+        if (bitmaps.isEmpty()) return
+        try {
+            val maxHeight = 40f * scale
+            val gap = 26f * scale
+            val entries = bitmaps.map { bitmap ->
+                val fit = (maxHeight / bitmap.height.toFloat()).coerceAtMost(1f)
+                val w = bitmap.width.toFloat() * fit
+                bitmap to w
+            }
+            val totalWidth = entries.sumOf { it.second.toDouble() }.toFloat() + gap * (entries.size - 1).coerceAtLeast(0)
+            var x = (width - totalWidth) * 0.5f
+            val top = headerTop + 66f * scale
+            entries.forEach { (bitmap, w) ->
+                canvas.drawBitmap(
+                    bitmap,
+                    null,
+                    RectF(x, top, x + w, top + maxHeight),
+                    Paint(Paint.FILTER_BITMAP_FLAG),
+                )
+                x += w + gap
+            }
+        } finally {
+            bitmaps.forEach { if (!it.isRecycled) it.recycle() }
         }
     }
 

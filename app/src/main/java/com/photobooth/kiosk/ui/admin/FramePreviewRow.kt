@@ -62,6 +62,7 @@ private const val EXPANDED_WIDTH = 720
 @Composable
 internal fun FramePreviewRow(
     branding: EventBranding,
+    sponsorPaths: List<String> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -73,12 +74,12 @@ internal fun FramePreviewRow(
         onDispose { rendered.forEach { it.second.recycle() } }
     }
 
-    LaunchedEffect(branding) {
+    LaunchedEffect(branding, sponsorPaths) {
         // Debounce so typing a hex code does not render four frames per keystroke.
         delay(220)
         previews = withContext(Dispatchers.Default) {
             CollageFrameStyle.entries.mapNotNull { style ->
-                renderPreview(context, style, branding, PREVIEW_WIDTH)?.let { style to it }
+                renderPreview(context, style, branding, PREVIEW_WIDTH, sponsorPaths)?.let { style to it }
             }
         }
     }
@@ -117,6 +118,7 @@ internal fun FramePreviewRow(
         ExpandedFramePreview(
             style = style,
             branding = branding,
+            sponsorPaths = sponsorPaths,
             onDismiss = { expandedStyle = null },
         )
     }
@@ -126,14 +128,15 @@ internal fun FramePreviewRow(
 private fun ExpandedFramePreview(
     style: CollageFrameStyle,
     branding: EventBranding,
+    sponsorPaths: List<String>,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    var bitmap by remember(style, branding) { mutableStateOf<Bitmap?>(null) }
+    var bitmap by remember(style, branding, sponsorPaths) { mutableStateOf<Bitmap?>(null) }
 
-    LaunchedEffect(style, branding) {
+    LaunchedEffect(style, branding, sponsorPaths) {
         bitmap = withContext(Dispatchers.Default) {
-            renderPreview(context, style, branding, EXPANDED_WIDTH)
+            renderPreview(context, style, branding, EXPANDED_WIDTH, sponsorPaths)
         }
     }
 
@@ -187,6 +190,7 @@ private fun renderPreview(
     style: CollageFrameStyle,
     branding: EventBranding,
     width: Int,
+    sponsorPaths: List<String> = emptyList(),
 ): Bitmap? {
     val sample = runCatching {
         context.assets.open(SAMPLE_ASSET).use { BitmapFactory.decodeStream(it) }
@@ -198,6 +202,7 @@ private fun renderPreview(
             customization = CollageCustomization(
                 frameStyle = style,
                 eventBranding = branding,
+                sponsorLogoPaths = sponsorPaths,
             ),
             previewScale = true,
         )

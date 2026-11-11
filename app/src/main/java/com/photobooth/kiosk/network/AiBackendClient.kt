@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.UUID
 
@@ -22,6 +23,13 @@ class AiBackendException(
 ) : Exception(message, cause)
 
 data class BoothStyle(val id: String, val name: String)
+
+data class ProviderLogo(
+    val id: String,
+    val name: String,
+    val mimeType: String,
+    val modifiedTime: String,
+)
 
 data class BoothModel(
     val id: String,
@@ -130,6 +138,30 @@ class AiBackendClient(
                 add(BoothStyle(id = item.getString("id"), name = item.optString("name")))
             }
         }
+    }
+
+    fun providerLogos(): List<ProviderLogo> {
+        val (_, text) = open("GET", "/v1/logos", ByteArray(0), null, sign = true)
+        val logos = JSONObject(text).optJSONArray("logos") ?: return emptyList()
+        return buildList {
+            for (index in 0 until logos.length()) {
+                val item = logos.optJSONObject(index) ?: continue
+                val id = item.optString("id")
+                if (id.isBlank()) continue
+                add(
+                    ProviderLogo(
+                        id = id,
+                        name = item.optString("name").ifBlank { id },
+                        mimeType = item.optString("mimeType").ifBlank { "image/png" },
+                        modifiedTime = item.optString("modifiedTime"),
+                    ),
+                )
+            }
+        }
+    }
+
+    fun downloadProviderLogo(id: String): ByteArray {
+        return openBytes("GET", "/v1/logos/${URLEncoder.encode(id, Charsets.UTF_8.name())}", ByteArray(0), sign = true)
     }
 
     /** Signed readiness probe for the Drive share path and TOTEMEXPO service. */
@@ -453,6 +485,39 @@ class AiBackendClient(
                 )
             }
             return code to text
+        } catch (error: AiBackendException) {
+            throw error
+        } catch (error: Exception) {
+            throw AiBackendException(error.message ?: "network")
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun openBytes(method: String, path: String, body: ByteArray, sign: Boolean): ByteArray {
+        val base = identityStore.load().baseUrl.trimEnd('/')
+        val connection = (URL(base + path).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = 20_000
+            readTimeout = 120_000
+            instanceFollowRedirects = false
+            setRequestProperty("Accept", "*/*")
+            if (sign) applySignature(method, path, body)
+        }
+        try {
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val bytes = stream?.use { it.readBytes() } ?: ByteArray(0)
+            if (code !in 200..299) {
+                val text = bytes.toString(Charsets.UTF_8)
+                val parsed = runCatching { JSONObject(text).optJSONObject("error") }.getOrNull()
+                throw AiBackendException(
+                    message = parsed?.optString("message").orEmpty().ifBlank { "HTTP $code" },
+                    httpCode = code,
+                    code = parsed?.optString("code")?.ifBlank { null },
+                )
+            }
+            return bytes
         } catch (error: AiBackendException) {
             throw error
         } catch (error: Exception) {

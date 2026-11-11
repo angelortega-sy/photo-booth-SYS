@@ -187,6 +187,7 @@ class EventProfileStore(context: Context) {
             primaryColor = json.optLong("primaryColor", defaults.primaryColor),
             secondaryColor = json.optLong("secondaryColor", defaults.secondaryColor),
             logoPath = json.optString("logoPath", "").ifBlank { null },
+            sponsorLogoIds = readSponsorIds(json.optJSONArray("sponsorLogoIds")),
             driveFolderName = json.optString("driveFolderName", defaults.driveFolderName),
         )
     }
@@ -203,7 +204,20 @@ class EventProfileStore(context: Context) {
         put("primaryColor", branding.primaryColor)
         put("secondaryColor", branding.secondaryColor)
         if (!branding.logoPath.isNullOrBlank()) put("logoPath", branding.logoPath)
+        if (branding.sponsorLogoIds.isNotEmpty()) {
+            put("sponsorLogoIds", JSONArray().apply { branding.sponsorLogoIds.forEach { put(it) } })
+        }
         if (branding.driveFolderName.isNotBlank()) put("driveFolderName", branding.driveFolderName)
+    }
+
+    private fun readSponsorIds(array: JSONArray?): List<String> {
+        if (array == null) return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val id = array.optString(index)
+                if (id.isNotBlank()) add(id)
+            }
+        }
     }
 
     companion object {

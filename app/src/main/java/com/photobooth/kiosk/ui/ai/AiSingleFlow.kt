@@ -86,7 +86,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
@@ -145,42 +144,37 @@ private enum class AiStep(val index: Int, val titleRes: Int) {
 
 private const val TOTAL_STEPS = 6
 
-private fun accessoryIcon(id: String?): Int? = when (id) {
+private fun accessoryEmoji(id: String?): String? = when (id) {
     null -> null
-    "cap" -> R.drawable.ic_accessory_cap
-    "headband" -> R.drawable.ic_accessory_headband
-    "crown" -> R.drawable.ic_accessory_crown
-    "party_hat" -> R.drawable.ic_accessory_party_hat
-    "bunny_ears" -> R.drawable.ic_accessory_bunny_ears
-    "sunglasses" -> R.drawable.ic_accessory_sunglasses
-            "sharingan" -> R.drawable.ic_accessory_sunglasses
-    "mask" -> R.drawable.ic_accessory_mask
-    "mustache" -> R.drawable.ic_accessory_mustache
-    "flowers" -> R.drawable.ic_accessory_flowers
-    "scarf" -> R.drawable.ic_accessory_scarf
-    "lei" -> R.drawable.ic_accessory_lei
-    "ssj_yellow", "ssj_red", "ssj_blue", "ssj_rose", "naruto" -> R.drawable.ic_accessory_ssj_hair
-    "gi_syscom" -> R.drawable.ic_accessory_gi_syscom
-            "naruto_outfit" -> R.drawable.ic_accessory_gi_syscom
-            "akatsuki" -> R.drawable.ic_accessory_tux
-    "bulma_style" -> R.drawable.ic_accessory_bulma_style
-    "gown" -> R.drawable.ic_accessory_gown
-    "tux" -> R.drawable.ic_accessory_tux
-    "santa_hat" -> R.drawable.ic_accessory_santa_hat
-    "cowboy" -> R.drawable.ic_accessory_cowboy
-    "flower_crown" -> R.drawable.ic_accessory_flower_crown
-    "guitar" -> R.drawable.ic_accessory_guitar
-    "balloons" -> R.drawable.ic_accessory_balloons
-    else -> null
-}
-
-private fun accessoryTint(id: String?): Color = when (id) {
-    "ssj_yellow" -> Color(0xFFFFD54F)
-    "ssj_red" -> Color(0xFFEF5350)
-    "ssj_blue" -> Color(0xFF42A5F5)
-    "ssj_rose" -> Color(0xFFF48FB1)
-    null -> Cream.copy(alpha = 0.55f)
-    else -> Cream
+    "cap" -> "🧢"
+    "headband" -> "🎀"
+    "crown" -> "👑"
+    "party_hat" -> "🎉"
+    "bunny_ears" -> "🐰"
+    "santa_hat" -> "🎅"
+    "cowboy" -> "🤠"
+    "flower_crown" -> "🌸"
+    "sharingan" -> "👁️"
+    "sunglasses" -> "🕶️"
+    "mask" -> "🎭"
+    "mustache" -> "🥸"
+    "flowers" -> "💐"
+    "scarf" -> "🧣"
+    "lei" -> "🌺"
+    "guitar" -> "🎸"
+    "balloons" -> "🎈"
+    "ssj_yellow" -> "⚡"
+    "ssj_red" -> "🔴"
+    "ssj_blue" -> "🔵"
+    "ssj_rose" -> "🟣"
+    "naruto" -> "🍥"
+    "akatsuki" -> "☁️"
+    "naruto_outfit" -> "🥷"
+    "gi_syscom" -> "🥋"
+    "bulma_style" -> "🚀"
+    "gown" -> "👗"
+    "tux" -> "🤵"
+    else -> "✨"
 }
 
 /**
@@ -192,7 +186,6 @@ private fun accessoryTint(id: String?): Color = when (id) {
 fun AiSingleFlow(
     onHome: () -> Unit,
     onInteraction: () -> Unit,
-    previewRotationDegrees: Int = 0,
     viewModel: AiSingleViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -201,6 +194,7 @@ fun AiSingleFlow(
         viewModel.refreshModel()
         viewModel.refreshStyleSettings()
         viewModel.refreshEventProfiles()
+        viewModel.refreshCameraSettings()
     }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -423,7 +417,7 @@ fun AiSingleFlow(
                             onCaptured = viewModel::onPhotoCaptured,
                             onError = { cameraError = it },
                             onPalm = { onInteraction(); startCapture() },
-                            previewRotationDegrees = previewRotationDegrees,
+                            adjustments = state.cameraAdjustments,
                         )
                         AiStep.STYLE -> StyleContent(
                             styles = state.serverStyles.filterNot { it.id in state.disabledStyleIds },
@@ -594,7 +588,7 @@ private fun CaptureContent(
     onCaptured: (Bitmap, Boolean) -> Unit,
     onError: (String) -> Unit,
     onPalm: () -> Unit,
-    previewRotationDegrees: Int,
+    adjustments: com.photobooth.kiosk.data.CameraAdjustments,
 ) {
     var showPreview by remember { mutableStateOf(false) }
     if (!hasPhoto) {
@@ -616,8 +610,8 @@ private fun CaptureContent(
             modifier = Modifier.fillMaxSize(),
             captureRequest = captureRequest,
             handDetectionEnabled = gestureActive && cameraReady,
-            previewRotationDegrees = previewRotationDegrees,
             onPalmDetected = onPalm,
+            adjustments = adjustments,
             onReady = onReady,
             onCaptured = onCaptured,
             onError = onError,
@@ -1060,8 +1054,7 @@ private fun AccessoriesContent(
                         val isNone = choice == null
                         AccessoryCard(
                             title = choice?.name ?: stringResource(R.string.ai_accessory_none),
-                            iconRes = accessoryIcon(choice?.id),
-                            tint = accessoryTint(choice?.id),
+                            emoji = accessoryEmoji(choice?.id),
                             selected = if (isNone) selectedOption == null else choice.id in selected,
                             onClick = {
                                 if (isNone) onClearGroup(group.id) else onToggle(choice.id)
@@ -1092,8 +1085,7 @@ private data class AiAccessoryChoice(
 @Composable
 private fun AccessoryCard(
     title: String,
-    iconRes: Int?,
-    tint: Color,
+    emoji: String?,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1112,23 +1104,23 @@ private fun AccessoryCard(
                 .height(118.dp)
                 .padding(10.dp),
         ) {
-            if (iconRes != null) {
-                Icon(
-                    painter = painterResource(iconRes),
-                    contentDescription = null,
-                    tint = tint,
+            if (emoji != null) {
+                Text(
+                    text = emoji,
+                    fontSize = 36.sp,
                     modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(42.dp),
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp),
                 )
             } else {
                 Icon(
                     Icons.Rounded.Block,
                     contentDescription = null,
-                    tint = tint,
+                    tint = Cream.copy(alpha = 0.55f),
                     modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(42.dp),
+                        .align(Alignment.TopCenter)
+                        .padding(top = 10.dp)
+                        .size(36.dp),
                 )
             }
             if (selected) {
