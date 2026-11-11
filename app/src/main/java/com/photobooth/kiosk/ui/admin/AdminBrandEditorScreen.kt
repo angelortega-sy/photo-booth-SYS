@@ -101,7 +101,7 @@ internal fun AdminBrandEditorScreen(
                     logoFailed = true
                 } else {
                     logoFailed = false
-                    draft = draft.copy(logoPath = path)
+                    draft = draft.copy(logoPath = path, brandLogoId = null)
                     // Only an unsaved pick can go now; the stored logo waits for "Save".
                     if (previous != profile.branding.logoPath) BrandLogoStore.delete(previous)
                 }
@@ -213,7 +213,7 @@ internal fun AdminBrandEditorScreen(
                                 if (draft.logoPath != profile.branding.logoPath) {
                                     BrandLogoStore.delete(draft.logoPath)
                                 }
-                                draft = draft.copy(logoPath = null)
+                                draft = draft.copy(logoPath = null, brandLogoId = null)
                             },
                             modifier = Modifier.height(46.dp),
                         ) {
@@ -283,7 +283,7 @@ internal fun AdminBrandEditorScreen(
                                     if (draft.logoPath != profile.branding.logoPath) {
                                         BrandLogoStore.delete(draft.logoPath)
                                     }
-                                    draft = draft.copy(logoPath = copied)
+                                    draft = draft.copy(logoPath = copied, brandLogoId = logo.id)
                                 },
                                 modifier = Modifier.height(34.dp),
                             ) {
