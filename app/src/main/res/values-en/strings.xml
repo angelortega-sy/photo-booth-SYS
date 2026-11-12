@@ -480,6 +480,8 @@
     <string name="ai_cd_qr">Download QR</string>
     <string name="ai_hint_palm">Palm or button</string>
     <string name="ai_hint_tap">Tap to take the photo</string>
+    <string name="camera_missing_title">It looks like no camera is connected</string>
+    <string name="camera_missing_hint">Plug it in and wait a moment.</string>
     <string name="ai_delivery_title">AI Booth</string>
     <!-- Event profiles / admin home -->
     <string name="admin_home_brands">Events</string>

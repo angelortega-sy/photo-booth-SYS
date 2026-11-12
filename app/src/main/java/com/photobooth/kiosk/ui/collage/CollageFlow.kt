@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photobooth.kiosk.R
+import com.photobooth.kiosk.camera.CAMERA_MISSING
 import com.photobooth.kiosk.camera.CameraPreview
 import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.CollageFrameStyle
@@ -93,6 +94,7 @@ import com.photobooth.kiosk.ui.PhotoBoothUiState
 import com.photobooth.kiosk.ui.PhotoBoothViewModel
 import com.photobooth.kiosk.ui.QrZoomDialog
 import com.photobooth.kiosk.ui.components.BoothBottomBar
+import com.photobooth.kiosk.ui.components.CameraMissingMessage
 import com.photobooth.kiosk.ui.components.BoothFlowHeader
 import com.photobooth.kiosk.ui.components.BoothOutlinedButton
 import com.photobooth.kiosk.ui.components.BoothSecondaryButton
@@ -545,7 +547,9 @@ private fun ColumnScope.CollageCaptureContent(
         gestureActive -> stringResource(R.string.ai_hint_palm)
         else -> stringResource(R.string.ai_hint_tap)
     }
-    Text(hint, color = Cream.copy(alpha = 0.8f), fontSize = 16.sp)
+    if (cameraError != CAMERA_MISSING) {
+        Text(hint, color = Cream.copy(alpha = 0.8f), fontSize = 16.sp)
+    }
 
     Box(Modifier.fillMaxWidth().weight(1f)) {
         Box(
@@ -600,16 +604,21 @@ private fun ColumnScope.CollageCaptureContent(
                     )
                 }
 
-                else -> CameraPreview(
-                    modifier = Modifier.fillMaxSize(),
-                    captureRequest = captureRequest,
-                    handDetectionEnabled = gestureActive,
-                    onPalmDetected = onPalm,
-                    adjustments = state.cameraAdjustments,
-                    onReady = onReady,
-                    onCaptured = onCaptured,
-                    onError = onError,
-                )
+                else -> {
+                    CameraPreview(
+                        modifier = Modifier.fillMaxSize(),
+                        captureRequest = captureRequest,
+                        handDetectionEnabled = gestureActive,
+                        onPalmDetected = onPalm,
+                        adjustments = state.cameraAdjustments,
+                        onReady = onReady,
+                        onCaptured = onCaptured,
+                        onError = onError,
+                    )
+                    if (cameraError == CAMERA_MISSING) {
+                        CameraMissingMessage()
+                    }
+                }
             }
             val showShutter = viewing == null &&
                 !done &&
@@ -729,7 +738,7 @@ private fun ColumnScope.CollageCaptureContent(
             }
         }
     }
-    if (cameraError != null) {
+    if (cameraError != null && cameraError != CAMERA_MISSING) {
         Text(cameraError, color = Cream.copy(alpha = 0.8f), fontSize = 13.sp)
     }
 

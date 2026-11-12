@@ -99,6 +99,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.photobooth.kiosk.R
+import com.photobooth.kiosk.camera.CAMERA_MISSING
 import com.photobooth.kiosk.camera.CameraPreview
 import com.photobooth.kiosk.data.AiAccessories
 import com.photobooth.kiosk.data.AiStatus
@@ -115,6 +116,7 @@ import com.photobooth.kiosk.network.BoothStyle
 import com.photobooth.kiosk.photo.PhotoSaver
 import com.photobooth.kiosk.photo.QrCodeGenerator
 import com.photobooth.kiosk.ui.components.BoothBottomBar
+import com.photobooth.kiosk.ui.components.CameraMissingMessage
 import com.photobooth.kiosk.ui.components.BoothFlowHeader
 import com.photobooth.kiosk.ui.components.BoothOutlinedButton
 import com.photobooth.kiosk.ui.components.BoothSecondaryButton
@@ -636,7 +638,10 @@ private fun ColumnScope.CaptureContent(
                 Text("$countdown", color = Cream, fontSize = 110.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
-        if (!hasPhoto && countdown == 0) {
+        if (cameraError == CAMERA_MISSING) {
+            CameraMissingMessage()
+        }
+        if (!hasPhoto && countdown == 0 && cameraError != CAMERA_MISSING) {
             Text(
                 text = stringResource(if (gestureActive) R.string.ai_hint_palm else R.string.ai_hint_tap),
                 color = Cream,
@@ -652,7 +657,9 @@ private fun ColumnScope.CaptureContent(
         }
         if (flash) Box(Modifier.fillMaxSize().background(Cream))
     }
-    if (cameraError != null) Text(cameraError, color = Cream.copy(alpha = 0.8f), fontSize = 13.sp)
+    if (cameraError != null && cameraError != CAMERA_MISSING) {
+        Text(cameraError, color = Cream.copy(alpha = 0.8f), fontSize = 13.sp)
+    }
     // Taking the photo is the bottom bar's primary action; once a photo exists the
     // inline row only holds the secondary actions.
     if (hasPhoto) {

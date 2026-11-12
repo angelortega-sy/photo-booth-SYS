@@ -500,6 +500,8 @@
     <string name="ai_cd_qr">QR de descarga</string>
     <string name="ai_hint_palm">Palma o botón</string>
     <string name="ai_hint_tap">Toca para tomar la foto</string>
+    <string name="camera_missing_title">Parece que no hay una cámara conectada</string>
+    <string name="camera_missing_hint">Conéctala y espera un momento.</string>
     <string name="ai_delivery_title">Cabina IA</string>
     <string name="admin_brand_colors_title">Colores de la marca</string>
     <string name="admin_brand_colors_subtitle">El fondo y las líneas se aplican a los cuatro marcos.</string>
