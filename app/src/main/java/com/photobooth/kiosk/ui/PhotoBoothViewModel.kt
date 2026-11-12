@@ -7,7 +7,6 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.photobooth.kiosk.R
-import com.photobooth.kiosk.data.AiAccessories
 import com.photobooth.kiosk.data.AiSettings
 import com.photobooth.kiosk.data.AiSettingsStore
 import com.photobooth.kiosk.data.AiStatus
@@ -44,20 +43,16 @@ import com.photobooth.kiosk.network.ServerStatusProbe
 import com.photobooth.kiosk.network.UsageMonth
 import com.photobooth.kiosk.network.UsageLimits
 import com.photobooth.kiosk.network.UsagePage
-import com.photobooth.kiosk.network.UsageRequest
 import com.photobooth.kiosk.network.UsageSummary
-import com.photobooth.kiosk.network.decodeImage
 import com.photobooth.kiosk.security.DeviceKeyStore
 import com.photobooth.kiosk.photo.BitmapTransforms
 import com.photobooth.kiosk.photo.PhotoArchive
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoProcessor
 import com.photobooth.kiosk.photo.PreparedCutout
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -67,8 +62,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
@@ -330,10 +323,6 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         deliveryServer = null
     }
 
-    fun updateEventBranding(branding: EventBranding) {
-        updateEventProfileBranding(_uiState.value.activeEventProfileId, branding)
-    }
-
     /** Saves labels/colors/logo for one profile, without making it the active one. */
     fun updateEventProfileBranding(profileId: String, branding: EventBranding) {
         profileStore.updateBranding(profileId, branding)
@@ -482,10 +471,6 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update { it.copy(retakeIndex = index, errorMessage = null) }
     }
 
-    fun cancelRetake() {
-        _uiState.update { it.copy(retakeIndex = null) }
-    }
-
     fun captureFailed() {
         _uiState.update { it.copy(isCapturing = false) }
     }
@@ -614,10 +599,6 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
                 }
             }
         }
-    }
-
-    fun setWizardStep(step: Int) {
-        _uiState.update { it.copy(wizardStep = step.coerceIn(0, 3)) }
     }
 
     fun setApplyBackgroundToAll(applyAll: Boolean) {
@@ -768,41 +749,6 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         requestPreviewUpdate(sessionToken)
     }
 
-    fun selectBadgePreset(badgePreset: EventBadgePreset) {
-        val customization = _uiState.value.customization
-        if (customization.badgePreset == badgePreset) return
-        exportedStateSignature = null
-        _uiState.update { state ->
-            val branding = if (badgePreset == EventBadgePreset.CUSTOM) {
-                profileStore.activeBranding()
-            } else {
-                state.customization.eventBranding.withBadge(badgePreset)
-            }
-            state.copy(
-                customization = state.customization.copy(
-                    badgePreset = badgePreset,
-                    eventBranding = branding,
-                ),
-            )
-        }
-        requestPreviewUpdate(sessionToken)
-    }
-
-    fun toggleDateStamp(enabled: Boolean) {
-        if (_uiState.value.customization.showDateStamp == enabled) return
-        exportedStateSignature = null
-        _uiState.update { state ->
-            state.copy(customization = state.customization.copy(showDateStamp = enabled))
-        }
-        requestPreviewUpdate(sessionToken)
-    }
-
-    fun retryComposition() {
-        val state = _uiState.value
-        if (state.capturedCount != PhotoBoothUiState.PHOTO_COUNT) return
-        requestPreviewUpdate(sessionToken, forceIndex = -1)
-    }
-
     fun loadAiSettings(): AiSettings = aiSettings.load()
 
     fun loadIdentity(): DeviceIdentity = identityStore.load()
@@ -823,11 +769,12 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update { it.copy(selectedModelId = modelId.trim()) }
     }
 
-    fun selectAiStyle(id: String) {
-        if (aiConfigLocked()) return
-        val known = _uiState.value.serverStyles.any { it.id == id } || AiStyles.ALL.any { it.id == id }
-        if (!known) return
-        _uiState.update { it.copy(selectedAiStyleId = id, aiError = null) }
+    /** Admin-only: stars or unstars a model. Returns the stored set so the screen can redraw. */
+    fun setFavoriteModel(id: String, favorite: Boolean): Set<String> {
+        val current = aiSettings.load().favoriteModelIds
+        val updated = if (favorite) current + id.trim() else current - id.trim()
+        aiSettings.saveFavorites(updated)
+        return updated
     }
 
     /**
@@ -841,15 +788,23 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         return true
     }
 
-    fun keepOriginalPhoto() {
-        if (aiConfigLocked() && _uiState.value.hasAiResult) return
-        _uiState.update {
-            it.copy(
-                styleDecided = true,
-                wizardStep = 2,
-                aiError = null,
-            )
+    /**
+     * Uploads a brand logo picked in the event editor so it appears as a shared
+     * option on every booth. Returns the server logo id, or null when the device
+     * is not enrolled or the server cannot be reached. The caller then keeps the
+     * logo on this booth only.
+     */
+    suspend fun uploadBrandLogo(path: String, name: String): String? {
+        if (!identityStore.load().enrolled) return null
+        val id = withContext(Dispatchers.IO) {
+            runCatching {
+                val bytes = java.io.File(path).readBytes()
+                aiClient.uploadProviderLogo(name, "image/webp", bytes).id
+            }.getOrNull()
         }
+        // Refresh the shared catalog so the new logo shows up in the sponsor options.
+        if (id != null) refreshServerCatalog()
+        return id
     }
 
     fun refreshServerCatalog() {
@@ -949,8 +904,21 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         deviceId
     }
 
-    suspend fun testServer(): Boolean = withContext(Dispatchers.IO) {
-        runCatching { aiClient.health() }.getOrDefault(false)
+    /**
+     * Local-only unenroll: forgets this booth's device id and deletes its signing key.
+     * The server keeps its record; AI stays off until the booth enrolls again.
+     */
+    fun unenrollThisBooth() {
+        identityStore.clearDevice()
+        deviceKeys.delete()
+        _uiState.update {
+            it.copy(
+                serverModels = emptyList(),
+                serverStatusProbe = null,
+                serverStatusError = null,
+                isServerStatusChecking = false,
+            )
+        }
     }
 
     suspend fun loadUsageMonths(): List<UsageMonth> = withContext(Dispatchers.IO) {
@@ -975,36 +943,9 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         aiClient.usageRequests(from, to, cursor)
     }
 
-    /** AI backdrop for one photo: "none", a built-in id, or a custom id. */
-    fun selectAiBackground(index: Int, id: String) {
-        if (index !in 0 until PhotoBoothUiState.PHOTO_COUNT) return
-        if (aiConfigLocked()) return
-        _uiState.update { state ->
-            val updated = state.aiBackgroundIds.toMutableList()
-            if (index >= updated.size) return@update state
-            updated[index] = id
-            state.copy(aiBackgroundIds = updated, aiError = null)
-        }
-    }
-
-    /** Multi-select accessories (sunglasses, hat, crown, flowers). */
-    fun toggleAiAccessory(id: String) {
-        if (AiAccessories.ALL.none { it.id == id }) return
-        if (aiConfigLocked()) return
-        _uiState.update { state ->
-            val updated = state.selectedAiAccessories.toMutableSet()
-            if (!updated.add(id)) updated.remove(id)
-            state.copy(selectedAiAccessories = updated)
-        }
-    }
-
     fun explainServerError(error: Throwable): String = when (error) {
         is AiBackendException -> aiUserMessage(error)
         else -> getApplication<Application>().getString(R.string.ai_error_network)
-    }
-
-    fun cancelAi() {
-        aiJob?.cancel()
     }
 
     /**
@@ -1017,113 +958,6 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         return state.hasAiResult ||
             state.aiStatus == AiStatus.UPLOADING ||
             state.aiStatus == AiStatus.GENERATING
-    }
-
-    /**
-     * Uploads the four exported JPEGs and restyles the strip. The prompt stays
-     * on the server; the booth only sends a style id and a model id.
-     */
-    fun generateWithAi() {
-        val snapshot = _uiState.value
-        if (snapshot.capturedCount != PhotoBoothUiState.PHOTO_COUNT) return
-        if (snapshot.aiStatus == AiStatus.UPLOADING || snapshot.aiStatus == AiStatus.GENERATING) return
-        if (snapshot.isExporting || snapshot.isProcessing) return
-        val app = getApplication<Application>()
-        val styleId = snapshot.selectedAiStyleId
-        val modelId = snapshot.selectedModelId.ifBlank { aiSettings.load().modelId }
-        if (!identityStore.load().enrolled) {
-            _uiState.update {
-                it.copy(aiStatus = AiStatus.ERROR, aiError = app.getString(R.string.ai_error_not_enrolled))
-            }
-            return
-        }
-        if (styleId.isBlank() || modelId.isBlank()) {
-            _uiState.update {
-                it.copy(aiStatus = AiStatus.ERROR, aiError = app.getString(R.string.ai_error_no_model))
-            }
-            return
-        }
-        aiJob?.cancel()
-        aiJob = viewModelScope.launch {
-            val token = sessionToken
-            try {
-                _uiState.update {
-                    it.copy(
-                        aiStatus = AiStatus.UPLOADING,
-                        aiUploadedCount = 0,
-                        aiProgress = 0,
-                        aiError = null,
-                        aiCost = null,
-                    )
-                }
-                val files = ensureExportedFiles() ?: throw AiBackendException("Missing photos")
-                if (files.size != 4) throw AiBackendException("Missing photos")
-                if (token != sessionToken) throw SessionExpiredException()
-                val sessionId = withContext(Dispatchers.IO) {
-                    val created = aiClient.createSession(driveFolderName())
-                    _uiState.update { it.copy(aiUploadedCount = 1) }
-                    aiClient.uploadPhotos(created.id, files[0], files[1], files[2], files[3])
-                    created.id
-                }
-                if (token != sessionToken) throw SessionExpiredException()
-                remoteSessionId = sessionId
-                remoteSessionStyled = true
-                uploadedSignature = null
-                remoteShareUrl = null
-                _uiState.update { it.copy(aiStatus = AiStatus.GENERATING, aiUploadedCount = 4, aiProgress = 45) }
-                val styled = withContext(Dispatchers.IO) {
-                    aiClient.stylize(sessionId, modelId, styleId)
-                }
-                coroutineContext.ensureActive()
-                if (token != sessionToken) throw SessionExpiredException()
-                val bytes = decodeImage(styled.imageBase64)
-                if (bytes.isEmpty()) throw AiBackendException("Styled strip is empty")
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    ?: throw AiBackendException("Styled strip is not a valid image")
-                files[3].writeBytes(bytes)
-                styledStrip = bitmap
-                val cost = styled.costUsd ?: styled.estimatedCostUsd
-                val oldStrip = _uiState.value.stripPreview
-                _uiState.update { current ->
-                    current.copy(
-                        stripPreview = bitmap,
-                        stripFile = files[3],
-                        photoFiles = files.take(PhotoBoothUiState.PHOTO_COUNT),
-                        aiStatus = AiStatus.READY,
-                        hasAiResult = true,
-                        styleDecided = true,
-                        aiCost = cost,
-                        aiProgress = 100,
-                        wizardStep = 2,
-                        selectedPhotoIndex = null,
-                        errorMessage = null,
-                        aiError = null,
-                    )
-                }
-                exportedStateSignature = stateSignature(_uiState.value)
-                if (oldStrip != null && oldStrip !== bitmap && !oldStrip.isRecycled) recycleLater(oldStrip)
-            } catch (error: CancellationException) {
-                _uiState.update { current ->
-                    current.copy(
-                        aiStatus = if (current.hasAiResult) AiStatus.READY else AiStatus.IDLE,
-                    )
-                }
-                throw error
-            } catch (_: SessionExpiredException) {
-                // Session was already reset; nothing to report.
-            } catch (error: AiBackendException) {
-                _uiState.update {
-                    it.copy(aiStatus = AiStatus.ERROR, aiError = aiUserMessage(error))
-                }
-            } catch (_: Throwable) {
-                _uiState.update {
-                    it.copy(
-                        aiStatus = AiStatus.ERROR,
-                        aiError = getApplication<Application>().getString(R.string.ai_error_network),
-                    )
-                }
-            }
-        }
     }
 
     /**

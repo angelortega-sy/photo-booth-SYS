@@ -55,6 +55,9 @@ import java.util.concurrent.atomic.AtomicInteger
 private const val TAG = "CameraPreview"
 private const val HAND_ANALYSIS_INTERVAL_MS = 250L
 
+/** Sent to the UI instead of the raw CameraX message when no camera is attached. */
+const val CAMERA_MISSING = "missing_camera"
+
 private val EXTERNAL_CAMERA_SELECTOR = CameraSelector.Builder()
     .addCameraFilter { cameras ->
         cameras.filter { it.lensFacing == CameraCharacteristics.LENS_FACING_EXTERNAL }
@@ -182,7 +185,12 @@ fun CameraPreview(
                 currentOnReady()
             } catch (error: Throwable) {
                 imageCapture = null
-                currentOnError(error.message ?: "Camera initialization failed")
+                Log.w(TAG, "Camera bind failed", error)
+                val message = error.message.orEmpty()
+                val missing = message.contains("available camera", ignoreCase = true) ||
+                    message.contains("Cams:0") ||
+                    runCatching { provider?.availableCameraInfos?.isEmpty() == true }.getOrDefault(false)
+                currentOnError(if (missing) CAMERA_MISSING else message.ifBlank { "Camera initialization failed" })
             }
         }
 

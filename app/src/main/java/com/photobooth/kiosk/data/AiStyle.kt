@@ -304,19 +304,6 @@ object AiAccessories {
         return updated
     }
 
-    fun promptFor(selectedIds: Set<String>): String {
-        val fragments = ALL.filter { it.id in selectedIds }.map { it.promptFragment }
-        if (fragments.isEmpty()) return ""
-        return "Also add these accessories to the person: " + fragments.joinToString("; ") + ". "
-    }
-
-    /** Legacy multi-toggle kept for the old 3-photo flow; new IA flow uses [selectExclusive]. */
-    fun toggleLegacy(current: Set<String>, id: String): Set<String> {
-        if (ALL.none { it.id == id }) return current
-        val updated = current.toMutableSet()
-        if (!updated.add(id)) updated.remove(id)
-        return updated
-    }
 }
 
 object AiStyles {

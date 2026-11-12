@@ -3,21 +3,22 @@ package com.photobooth.kiosk.ui.admin
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,9 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photobooth.kiosk.R
@@ -45,6 +48,13 @@ import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
+
+/** Same width for every activation control so the rows line up. */
+private val ActivationSlotWidth = 150.dp
+private val ActivationSlotHeight = 34.dp
+
+/** Switch plus delete icon fit here; built-in rows show a lock in the same space. */
+private val ControlSlotWidth = 104.dp
 
 @Composable
 internal fun AdminBrandsScreen(
@@ -84,103 +94,25 @@ internal fun AdminBrandsScreen(
 
     AdminScreenColumn {
         item {
-            AdminCard(
-                title = stringResource(R.string.admin_profiles_title),
-                subtitle = stringResource(R.string.admin_profiles_subtitle),
-            ) {
+            AdminCard(title = stringResource(R.string.admin_profiles_list_title)) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     profiles.forEach { profile ->
-                        val isActive = profile.id == activeProfileId
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(if (isActive) SyscomBlue.copy(alpha = 0.18f) else Ink)
-                                .clickable(role = Role.Button) { onOpenEditor(profile.id) }
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        profile.name,
-                                        color = Cream,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    if (isActive) {
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            text = stringResource(R.string.admin_brand_active_badge),
-                                            color = Ink,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(999.dp))
-                                                .background(SyscomBlueLight)
-                                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                                        )
-                                    }
-                                }
-                                Text(
-                                    stringResource(
-                                        if (isActive) {
-                                            R.string.admin_profiles_active
-                                        } else {
-                                            R.string.admin_profiles_tap_to_activate
-                                        },
-                                    ),
-                                    color = Cream.copy(alpha = 0.6f),
-                                    fontSize = 12.sp,
-                                )
-                            }
-                            if (!isActive) {
-                                OutlinedButton(
-                                    onClick = { onActivate(profile.id) },
-                                    modifier = Modifier.height(34.dp),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                        horizontal = 12.dp,
-                                        vertical = 0.dp,
-                                    ),
-                                ) {
-                                    Text(
-                                        stringResource(R.string.admin_profiles_make_active),
-                                        fontSize = 12.sp,
-                                        color = SyscomBlueLight,
-                                    )
-                                }
-                                Spacer(Modifier.width(4.dp))
-                            }
-                            if (profile.builtIn) {
-                                Text(
-                                    "SYSCOM",
-                                    color = SyscomBlueLight,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            } else {
-                                Switch(
-                                    checked = profile.enabled,
-                                    onCheckedChange = { onToggleEnabled(profile.id, it) },
-                                )
-                                IconButton(onClick = { pendingDelete = profile }) {
-                                    Icon(
-                                        Icons.Rounded.Delete,
-                                        contentDescription = stringResource(R.string.admin_profiles_delete_confirm),
-                                        tint = Cream.copy(alpha = 0.7f),
-                                    )
-                                }
-                            }
-                            Icon(
-                                Icons.AutoMirrored.Rounded.ArrowForward,
-                                contentDescription = null,
-                                tint = Cream.copy(alpha = 0.4f),
-                            )
-                        }
+                        EventRow(
+                            profile = profile,
+                            isActive = profile.id == activeProfileId,
+                            onOpenEditor = { onOpenEditor(profile.id) },
+                            onActivate = { onActivate(profile.id) },
+                            onToggleEnabled = { onToggleEnabled(profile.id, it) },
+                            onDeleteRequested = { pendingDelete = profile },
+                        )
                     }
                 }
+            }
+        }
+        item {
+            AdminCard(title = stringResource(R.string.admin_profiles_add)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     OutlinedTextField(
@@ -206,5 +138,116 @@ internal fun AdminBrandsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EventRow(
+    profile: EventProfile,
+    isActive: Boolean,
+    onOpenEditor: () -> Unit,
+    onActivate: () -> Unit,
+    onToggleEnabled: (Boolean) -> Unit,
+    onDeleteRequested: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isActive) SyscomBlue.copy(alpha = 0.18f) else Ink)
+            .clickable(role = Role.Button, onClick = onOpenEditor)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = profile.name,
+                color = Cream,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(
+                    if (isActive) R.string.admin_profiles_active else R.string.admin_profiles_tap_to_activate,
+                ),
+                color = Cream.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        // Fixed slot: the active event shows a blue chip, the others an outlined button.
+        Box(
+            modifier = Modifier.width(ActivationSlotWidth).height(ActivationSlotHeight),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isActive) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(ActivationSlotHeight)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(SyscomBlue),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.admin_profiles_active_chip),
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onActivate,
+                    modifier = Modifier.fillMaxWidth().height(ActivationSlotHeight),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.admin_profiles_make_active),
+                        fontSize = 12.sp,
+                        color = SyscomBlueLight,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.width(4.dp))
+        // Fixed slot: switch and delete for custom events, a lock for SYSCOM.
+        Box(
+            modifier = Modifier.width(ControlSlotWidth),
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+            if (profile.builtIn) {
+                Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.Lock,
+                        contentDescription = stringResource(R.string.admin_profiles_builtin_locked),
+                        tint = Cream.copy(alpha = 0.4f),
+                    )
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = profile.enabled,
+                        onCheckedChange = onToggleEnabled,
+                    )
+                    IconButton(onClick = onDeleteRequested) {
+                        Icon(
+                            Icons.Rounded.Delete,
+                            contentDescription = stringResource(R.string.admin_profiles_delete_confirm),
+                            tint = Cream.copy(alpha = 0.7f),
+                        )
+                    }
+                }
+            }
+        }
+        Icon(
+            Icons.AutoMirrored.Rounded.ArrowForward,
+            contentDescription = null,
+            tint = Cream.copy(alpha = 0.4f),
+        )
     }
 }

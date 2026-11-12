@@ -1,30 +1,31 @@
 package com.photobooth.kiosk.ui.admin
 
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,28 +44,32 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
 import com.photobooth.kiosk.R
-import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BrandLogoStore
 import com.photobooth.kiosk.data.CachedProviderLogo
 import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventProfile
+import com.photobooth.kiosk.data.driveFolderBase
 import com.photobooth.kiosk.ui.theme.Cream
+import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** Both sponsor states use this width so the "Activo" button matches the outlined one. */
+private val SponsorButtonWidth = 150.dp
+
 /**
- * Edits the name, colors, logo and the 8 [EventBranding] label fields of one
+ * Edits the name, colors, logo and the [EventBranding] label fields of one
  * event profile. Saving only touches this profile; use the "make primary"
  * action (here or in the brand list) to switch the whole booth to it.
+ *
+ * Section order: event data, colors with a live preview, Drive, logo,
+ * sponsors, frame preview. Welcome-screen text is no longer edited here; the
+ * welcome screen only uses the brand name.
  */
 @Composable
 internal fun AdminBrandEditorScreen(
@@ -76,12 +81,8 @@ internal fun AdminBrandEditorScreen(
     onSaveBranding: (String, EventBranding) -> Unit,
     onSaved: () -> Unit,
     providerLogos: List<CachedProviderLogo> = emptyList(),
-    backgrounds: List<BackgroundOption> = emptyList(),
-    loadThumbnail: (String) -> Bitmap? = { null },
-    onImportBackground: (Uri, String?) -> Unit = { _, _ -> },
-    onToggleBackground: (String, Boolean) -> Unit = { _, _ -> },
-    onDeleteBackground: (String) -> Unit = {},
-    onRenameBackground: (String, String) -> Unit = { _, _ -> },
+    /** Uploads a picked logo file; returns the server id, or null when it stayed local. */
+    onUploadBrandLogo: suspend (path: String, name: String) -> String? = { _, _ -> null },
 ) {
     val profile = profiles.firstOrNull { it.id == profileId }
     if (profile == null) return
@@ -96,19 +97,25 @@ internal fun AdminBrandEditorScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var logoFailed by remember(profileId) { mutableStateOf(false) }
+    var logoNotUploaded by remember(profileId) { mutableStateOf(false) }
 
     val logoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
             val previous = draft.logoPath
+            val displayName = displayNameOf(context, uri)
             scope.launch {
                 val path = withContext(Dispatchers.IO) { BrandLogoStore.save(context, uri) }
                 if (path == null) {
                     logoFailed = true
                 } else {
                     logoFailed = false
-                    draft = draft.copy(logoPath = path, brandLogoId = null)
+                    // Upload right away so the logo appears in the shared sponsor options.
+                    // If that fails, the logo still works on this booth.
+                    val serverId = onUploadBrandLogo(path, displayName ?: "${draft.brand}-logo")
+                    draft = draft.copy(logoPath = path, brandLogoId = serverId)
+                    logoNotUploaded = serverId == null
                     // Only an unsaved pick can go now; the stored logo waits for "Save".
                     if (previous != profile.branding.logoPath) BrandLogoStore.delete(previous)
                 }
@@ -120,11 +127,24 @@ internal fun AdminBrandEditorScreen(
 
     val logoBitmap = remember(draft.logoPath) {
         draft.logoPath?.let { path ->
-            runCatching { android.graphics.BitmapFactory.decodeFile(path) }.getOrNull()
+            runCatching { BitmapFactory.decodeFile(path) }.getOrNull()
         }
     }
     val providerLibrary = remember(providerLogos) {
         providerLogos.map { logo -> logo to BitmapFactory.decodeFile(logo.path) }
+    }
+
+    // The frame previews are rendered and cached here, outside the lazy list, so
+    // scrolling them out of view does not drop or re-render the bitmaps.
+    val previewCache = remember(profileId) { FramePreviewCache() }
+    DisposableEffect(previewCache) { onDispose { previewCache.release() } }
+    val framePaths = draft.sponsorLogoIds.mapNotNull { id ->
+        providerLogos.firstOrNull { it.id == id }?.path
+    }
+    LaunchedEffect(draft, framePaths) {
+        // Debounce so typing a hex code does not re-render the strip on every keystroke.
+        delay(220)
+        previewCache.refresh(context, draft, framePaths)
     }
 
     AdminSettingsScreen(
@@ -165,20 +185,98 @@ internal fun AdminBrandEditorScreen(
             }
         }
         item {
+            AdminCard(title = stringResource(R.string.admin_event_data_title)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.admin_brand_name_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                BrandingField(
+                    label = stringResource(R.string.admin_event_brand),
+                    value = draft.brand,
+                    onValueChange = { draft = draft.copy(brand = it) },
+                )
+                BrandingField(
+                    label = stringResource(R.string.admin_event_badge_headline),
+                    value = draft.badgeHeadline,
+                    onValueChange = { draft = draft.copy(badgeHeadline = it) },
+                )
+                BrandingField(
+                    label = stringResource(R.string.admin_event_badge_subheadline),
+                    value = draft.badgeSubheadline,
+                    onValueChange = { draft = draft.copy(badgeSubheadline = it) },
+                )
+                BrandingField(
+                    label = stringResource(R.string.admin_event_badge_tag),
+                    value = draft.badgeTag,
+                    onValueChange = { draft = draft.copy(badgeTag = it) },
+                )
+                BrandingField(
+                    label = stringResource(R.string.admin_event_hashtag),
+                    value = draft.hashtag,
+                    onValueChange = { draft = draft.copy(hashtag = it) },
+                )
+            }
+        }
+        item {
             AdminCard(
                 title = stringResource(R.string.admin_brand_colors_title),
                 subtitle = stringResource(R.string.admin_brand_colors_subtitle),
             ) {
-                BrandColorField(
-                    label = stringResource(R.string.admin_brand_primary_color),
-                    color = draft.primaryColor,
-                    onColorChange = { draft = draft.copy(primaryColor = it) },
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        BrandColorField(
+                            label = stringResource(R.string.admin_brand_primary_color),
+                            color = draft.primaryColor,
+                            onColorChange = { draft = draft.copy(primaryColor = it) },
+                        )
+                        BrandColorField(
+                            label = stringResource(R.string.admin_brand_secondary_color),
+                            color = draft.secondaryColor,
+                            onColorChange = { draft = draft.copy(secondaryColor = it) },
+                        )
+                    }
+                    BrandMiniPreview(
+                        primaryColor = draft.primaryColor,
+                        secondaryColor = draft.secondaryColor,
+                        brand = draft.brand,
+                        hashtag = draft.hashtag,
+                        logo = logoBitmap,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+            }
+        }
+        item {
+            val effectiveFolder = draft.driveFolderBase() ?: draft.brand
+            AdminCard(
+                title = stringResource(R.string.admin_drive_title),
+                subtitle = stringResource(R.string.admin_drive_explanation),
+            ) {
+                OutlinedTextField(
+                    value = draft.driveFolderName,
+                    onValueChange = { draft = draft.copy(driveFolderName = it) },
+                    label = { Text(stringResource(R.string.admin_event_drive_folder)) },
+                    placeholder = { Text(draft.brand.ifBlank { "SYSCOM" }) },
+                    supportingText = {
+                        Text(stringResource(R.string.admin_drive_current, effectiveFolder))
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
-                BrandColorField(
-                    label = stringResource(R.string.admin_brand_secondary_color),
-                    color = draft.secondaryColor,
-                    onColorChange = { draft = draft.copy(secondaryColor = it) },
-                )
+                OutlinedButton(
+                    onClick = { draft = draft.copy(driveFolderName = "") },
+                    enabled = draft.driveFolderName.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(46.dp),
+                ) {
+                    Text(stringResource(R.string.admin_drive_reset))
+                }
             }
         }
         item {
@@ -222,6 +320,7 @@ internal fun AdminBrandEditorScreen(
                                     BrandLogoStore.delete(draft.logoPath)
                                 }
                                 draft = draft.copy(logoPath = null, brandLogoId = null)
+                                logoNotUploaded = false
                             },
                             modifier = Modifier.height(46.dp),
                         ) {
@@ -233,6 +332,14 @@ internal fun AdminBrandEditorScreen(
                     Text(
                         text = stringResource(R.string.admin_brand_logo_error),
                         color = Color(0xFFFF8A8A),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+                if (logoNotUploaded && draft.logoPath != null) {
+                    Text(
+                        text = stringResource(R.string.admin_brand_logo_local_only),
+                        color = Color(0xFFFFD27A),
                         fontSize = 13.sp,
                         modifier = Modifier.padding(top = 8.dp),
                     )
@@ -285,22 +392,46 @@ internal fun AdminBrandEditorScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f),
                             )
-                            OutlinedButton(
-                                onClick = {
-                                    val copied = BrandLogoStore.copyFile(context, File(logo.path))
-                                        ?: return@OutlinedButton
-                                    if (draft.logoPath != profile.branding.logoPath) {
-                                        BrandLogoStore.delete(draft.logoPath)
-                                    }
-                                    draft = draft.copy(logoPath = copied, brandLogoId = logo.id)
-                                },
-                                modifier = Modifier.height(34.dp),
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.admin_sponsor_use_as_brand),
-                                    color = SyscomBlueLight,
-                                    fontSize = 12.sp,
-                                )
+                            val isBrandLogo = draft.brandLogoId == logo.id
+                            if (isBrandLogo) {
+                                // Filled blue button: this sponsor is the brand logo. Tapping it again is a no-op.
+                                Button(
+                                    onClick = {},
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = SyscomBlue,
+                                        contentColor = Color.White,
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.width(SponsorButtonWidth).height(34.dp),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.admin_profiles_active_chip),
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = {
+                                        val copied = BrandLogoStore.copyFile(context, File(logo.path))
+                                            ?: return@OutlinedButton
+                                        if (draft.logoPath != profile.branding.logoPath) {
+                                            BrandLogoStore.delete(draft.logoPath)
+                                        }
+                                        draft = draft.copy(logoPath = copied, brandLogoId = logo.id)
+                                        logoNotUploaded = false
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.width(SponsorButtonWidth).height(34.dp),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.admin_sponsor_use_as_brand),
+                                        color = SyscomBlueLight,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                    )
+                                }
                             }
                             Spacer(Modifier.width(8.dp))
                             Switch(
@@ -326,123 +457,10 @@ internal fun AdminBrandEditorScreen(
                 subtitle = stringResource(R.string.admin_brand_preview_hint),
             ) {
                 FramePreviewRow(
+                    previews = previewCache.previews.value,
                     branding = draft,
-                    sponsorPaths = draft.sponsorLogoIds.mapNotNull { id ->
-                        providerLogos.firstOrNull { it.id == id }?.path
-                    },
+                    sponsorPaths = framePaths,
                 )
-            }
-        }
-        item {
-            AdminCard(
-                title = stringResource(R.string.admin_backgrounds_title),
-                subtitle = stringResource(R.string.admin_backgrounds_subtitle),
-            ) {
-                BackgroundsAdminCard(
-                    backgrounds = backgrounds,
-                    loadThumbnail = loadThumbnail,
-                    onImport = onImportBackground,
-                    onToggle = onToggleBackground,
-                    onDelete = onDeleteBackground,
-                    onRename = onRenameBackground,
-                )
-            }
-        }
-        item {
-            AdminCard(
-                title = profile.name,
-                subtitle = stringResource(R.string.admin_profiles_subtitle),
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.admin_brand_name_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                BrandingField(
-                    label = stringResource(R.string.admin_event_brand),
-                    value = draft.brand,
-                    onValueChange = { draft = draft.copy(brand = it) },
-                )
-                BrandingField(
-                    label = stringResource(R.string.admin_event_badge_headline),
-                    value = draft.badgeHeadline,
-                    onValueChange = { draft = draft.copy(badgeHeadline = it) },
-                )
-                BrandingField(
-                    label = stringResource(R.string.admin_event_badge_subheadline),
-                    value = draft.badgeSubheadline,
-                    onValueChange = { draft = draft.copy(badgeSubheadline = it) },
-                )
-                BrandingField(
-                    label = stringResource(R.string.admin_event_badge_tag),
-                    value = draft.badgeTag,
-                    onValueChange = { draft = draft.copy(badgeTag = it) },
-                )
-                BrandingField(
-                    label = stringResource(R.string.admin_event_hashtag),
-                    value = draft.hashtag,
-                    onValueChange = { draft = draft.copy(hashtag = it) },
-                )
-            }
-        }
-        item {
-            var welcomeOpen by remember(profileId) { mutableStateOf(false) }
-            AdminCard(
-                title = stringResource(R.string.admin_event_welcome_section),
-                subtitle = stringResource(R.string.admin_event_welcome_section_hint),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { welcomeOpen = !welcomeOpen }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = if (welcomeOpen) {
-                            stringResource(R.string.admin_event_welcome_hide)
-                        } else {
-                            stringResource(R.string.admin_event_welcome_show)
-                        },
-                        color = SyscomBlueLight,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(
-                        imageVector = if (welcomeOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                        contentDescription = null,
-                        tint = SyscomBlueLight,
-                    )
-                }
-                if (welcomeOpen) {
-                    Column {
-                        BrandingField(
-                            label = stringResource(R.string.admin_event_tagline),
-                            value = draft.tagline,
-                            onValueChange = { draft = draft.copy(tagline = it) },
-                        )
-                        BrandingField(
-                            label = stringResource(R.string.admin_event_welcome_title),
-                            value = draft.welcomeTitle,
-                            onValueChange = { draft = draft.copy(welcomeTitle = it) },
-                            minLines = 2,
-                        )
-                        BrandingField(
-                            label = stringResource(R.string.admin_event_welcome_subtitle),
-                            value = draft.welcomeSubtitle,
-                            onValueChange = { draft = draft.copy(welcomeSubtitle = it) },
-                            minLines = 2,
-                        )
-                        BrandingField(
-                            label = stringResource(R.string.admin_event_drive_folder),
-                            value = draft.driveFolderName,
-                            onValueChange = { draft = draft.copy(driveFolderName = it) },
-                        )
-                    }
-                }
             }
         }
     }
