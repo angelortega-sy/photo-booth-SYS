@@ -9,6 +9,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
@@ -50,11 +53,15 @@ import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventProfile
 import com.photobooth.kiosk.data.driveFolderBase
 import com.photobooth.kiosk.ui.theme.Cream
+import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+
+/** Both sponsor states use this width so the "Activo" button matches the outlined one. */
+private val SponsorButtonWidth = 150.dp
 
 /**
  * Edits the name, colors, logo and the [EventBranding] label fields of one
@@ -362,22 +369,45 @@ internal fun AdminBrandEditorScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f),
                             )
-                            OutlinedButton(
-                                onClick = {
-                                    val copied = BrandLogoStore.copyFile(context, File(logo.path))
-                                        ?: return@OutlinedButton
-                                    if (draft.logoPath != profile.branding.logoPath) {
-                                        BrandLogoStore.delete(draft.logoPath)
-                                    }
-                                    draft = draft.copy(logoPath = copied, brandLogoId = logo.id)
-                                },
-                                modifier = Modifier.height(34.dp),
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.admin_sponsor_use_as_brand),
-                                    color = SyscomBlueLight,
-                                    fontSize = 12.sp,
-                                )
+                            val isBrandLogo = draft.brandLogoId == logo.id
+                            if (isBrandLogo) {
+                                // Filled blue button: this sponsor is the brand logo. Tapping it again is a no-op.
+                                Button(
+                                    onClick = {},
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = SyscomBlue,
+                                        contentColor = Color.White,
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.width(SponsorButtonWidth).height(34.dp),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.admin_profiles_active_chip),
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = {
+                                        val copied = BrandLogoStore.copyFile(context, File(logo.path))
+                                            ?: return@OutlinedButton
+                                        if (draft.logoPath != profile.branding.logoPath) {
+                                            BrandLogoStore.delete(draft.logoPath)
+                                        }
+                                        draft = draft.copy(logoPath = copied, brandLogoId = logo.id)
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.width(SponsorButtonWidth).height(34.dp),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.admin_sponsor_use_as_brand),
+                                        color = SyscomBlueLight,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                    )
+                                }
                             }
                             Spacer(Modifier.width(8.dp))
                             Switch(
