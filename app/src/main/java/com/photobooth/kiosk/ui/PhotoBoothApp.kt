@@ -13,6 +13,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -127,6 +128,9 @@ import com.photobooth.kiosk.delivery.DeliverySession
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoSaver
 import com.photobooth.kiosk.photo.QrCodeGenerator
+import com.photobooth.kiosk.ui.attract.ATTRACT_TAP_GRACE_MS
+import com.photobooth.kiosk.ui.attract.AttractOverlay
+import com.photobooth.kiosk.ui.attract.shouldShowAttract
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
 import com.photobooth.kiosk.ui.theme.InkSoft
@@ -150,6 +154,10 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
     var showAdmin by rememberSaveable { mutableStateOf(false) }
     var boothMode by rememberSaveable { mutableStateOf<String?>(null) } // "ai" | "collage"
     var lastInteraction by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
+    var attractVisible by remember { mutableStateOf(false) }
+    var attractTapGuard by remember { mutableStateOf(false) }
+    var attractFlashKey by remember { mutableIntStateOf(0) }
+    val attractFlash = remember { Animatable(0f) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -193,6 +201,45 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
         viewModel.endSession()
         showWelcome = true
         boothMode = null
+        lastInteraction = SystemClock.uptimeMillis()
+    }
+
+    LaunchedEffect(showWelcome, showAdmin, lastInteraction, attractTapGuard, state.attractIdleMs) {
+        if (attractVisible || attractTapGuard) return@LaunchedEffect
+        if (!showWelcome || showAdmin) return@LaunchedEffect
+        val remaining = state.attractIdleMs - (SystemClock.uptimeMillis() - lastInteraction)
+        if (remaining > 0L) delay(remaining)
+        val idleMs = SystemClock.uptimeMillis() - lastInteraction
+        if (
+            shouldShowAttract(
+                showWelcome = showWelcome,
+                showAdmin = showAdmin,
+                hasSession = !showWelcome,
+                idleMs = idleMs,
+                delayMs = state.attractIdleMs,
+            )
+        ) {
+            attractVisible = true
+        }
+    }
+
+    LaunchedEffect(attractTapGuard) {
+        if (!attractTapGuard) return@LaunchedEffect
+        delay(ATTRACT_TAP_GRACE_MS)
+        attractTapGuard = false
+    }
+
+    LaunchedEffect(attractFlashKey) {
+        if (attractFlashKey == 0) return@LaunchedEffect
+        attractFlash.snapTo(1f)
+        attractFlash.animateTo(0f, animationSpec = tween(500))
+    }
+
+    fun dismissAttract() {
+        if (!attractVisible) return
+        attractVisible = false
+        attractTapGuard = true
+        attractFlashKey += 1
         lastInteraction = SystemClock.uptimeMillis()
     }
 
@@ -265,6 +312,30 @@ fun PhotoBoothApp(viewModel: PhotoBoothViewModel = viewModel()) {
                 viewModel = viewModel,
                 onHome = { goHome() },
                 onInteraction = { lastInteraction = SystemClock.uptimeMillis() },
+            )
+        }
+
+        AttractOverlay(
+            visible = attractVisible && !showAdmin && showWelcome,
+            videoId = state.attractVideoId,
+            onDismiss = { dismissAttract() },
+        )
+
+        if (attractFlash.value > 0.001f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = attractFlash.value)),
+            )
+        }
+
+        if (attractTapGuard) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {}, onLongPress = {})
+                    },
             )
         }
 

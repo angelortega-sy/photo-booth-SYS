@@ -207,6 +207,8 @@ internal fun AdminRouteTitle(route: AdminRoute, editorProfileName: String?): Pai
             stringResource(R.string.admin_nav_styles_description)
         AdminRoute.Photos -> stringResource(R.string.admin_section_photos) to
             stringResource(R.string.admin_nav_photos_description)
+        AdminRoute.Promo -> stringResource(R.string.admin_promo_title) to
+            stringResource(R.string.admin_promo_subtitle)
         AdminRoute.Usage -> stringResource(R.string.admin_home_usage_ai) to
             stringResource(R.string.admin_nav_usage_description)
         AdminRoute.Network -> stringResource(R.string.admin_home_network_system) to

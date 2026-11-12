@@ -28,6 +28,7 @@ import com.photobooth.kiosk.data.CollageLayout
 import com.photobooth.kiosk.data.EventBadgePreset
 import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventProfile
+import com.photobooth.kiosk.data.AttractSettingsStore
 import com.photobooth.kiosk.data.EventProfileStore
 import com.photobooth.kiosk.data.EventSync
 import com.photobooth.kiosk.data.FrameDecoration
@@ -53,6 +54,11 @@ import com.photobooth.kiosk.photo.PhotoArchive
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.photo.PhotoProcessor
 import com.photobooth.kiosk.photo.PreparedCutout
+import com.photobooth.kiosk.ui.attract.ATTRACT_DELAY_MS
+import com.photobooth.kiosk.ui.attract.AttractImportError
+import com.photobooth.kiosk.ui.attract.AttractVideo
+import com.photobooth.kiosk.ui.attract.AttractVideos
+import com.photobooth.kiosk.ui.attract.clampAttractDelay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -125,6 +131,10 @@ data class PhotoBoothUiState(
     val selectedEventProfileId: String = EventProfileStore.SYSCOM_ID,
     /** When true a copy of every finished photo is kept in the device gallery. */
     val savePhotosToDevice: Boolean = false,
+    /** Attract clip chosen in Admin → Video promocional, shown over the welcome. */
+    val attractVideoId: String = AttractSettingsStore.DEFAULT_VIDEO_ID,
+    /** Idle time on the welcome before that clip takes over. */
+    val attractIdleMs: Long = ATTRACT_DELAY_MS,
     val errorMessage: String? = null,
     val shareError: String? = null,
 ) {
@@ -157,6 +167,7 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     private val styleSettings = StyleSettingsStore(application)
     private val profileStore = EventProfileStore(application)
     private val photoSettings = PhotoSettingsStore(application)
+    private val attractSettings = AttractSettingsStore(application)
     private val aiSettings = AiSettingsStore(application)
     private val identityStore = DeviceIdentityStore(application)
     private val deviceKeys = DeviceKeyStore()
@@ -205,6 +216,8 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
             activeEventProfileId = profileStore.active().id,
             selectedEventProfileId = profileStore.active().id,
             savePhotosToDevice = photoSettings.saveToDevice(),
+            attractVideoId = attractSettings.videoId(),
+            attractIdleMs = attractSettings.idleMs(),
         ).let { state ->
             state.copy(
                 customization = state.customization.copy(
@@ -383,6 +396,42 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
     fun setSavePhotosToDevice(enabled: Boolean) {
         photoSettings.setSaveToDevice(enabled)
         _uiState.update { it.copy(savePhotosToDevice = enabled) }
+    }
+
+    /** Clip played over the welcome screen while the booth is idle. */
+    fun setAttractVideo(videoId: String) {
+        attractSettings.setVideoId(videoId)
+        _uiState.update { it.copy(attractVideoId = videoId) }
+    }
+
+    /** Seconds of no interaction before that clip takes over. */
+    fun setAttractIdleMs(idleMs: Long) {
+        val clamped = clampAttractDelay(idleMs)
+        attractSettings.setIdleMs(clamped)
+        _uiState.update { it.copy(attractIdleMs = clamped) }
+    }
+
+    /** Copies a video picked with SAF into app storage; never references the original. */
+    internal fun importAttractVideo(
+        uri: Uri,
+        displayName: String?,
+        onResult: (AttractVideo?, AttractImportError?) -> Unit,
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            AttractVideos.import(getApplication(), uri, displayName) { video, error ->
+                onResult(video, error)
+            }
+        }
+    }
+
+    fun deleteAttractVideo(videoId: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val deleted = AttractVideos.delete(getApplication(), videoId)
+            if (deleted && uiState.value.attractVideoId == videoId) {
+                setAttractVideo(AttractSettingsStore.DEFAULT_VIDEO_ID)
+            }
+            onResult(deleted)
+        }
     }
 
     /** Switches every screen to the branding of [profileId]. */

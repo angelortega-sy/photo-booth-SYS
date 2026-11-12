@@ -47,6 +47,7 @@ android {
     androidResources {
         noCompress += "tflite"
         noCompress += "task"
+        noCompress += "mp4"
     }
 
     packaging {

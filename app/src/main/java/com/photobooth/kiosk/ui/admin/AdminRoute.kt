@@ -31,6 +31,10 @@ sealed interface AdminRoute {
         override val key: String = "photos"
     }
 
+    data object Promo : AdminRoute {
+        override val key: String = "promo"
+    }
+
     data object Usage : AdminRoute {
         override val key: String = "usage"
     }
@@ -52,6 +56,7 @@ sealed interface AdminRoute {
             key == Camera.key -> Camera
             key == Styles.key -> Styles
             key == Photos.key -> Photos
+            key == Promo.key -> Promo
             key == Usage.key -> Usage
             key == Network.key -> Network
             key == System.key -> System
