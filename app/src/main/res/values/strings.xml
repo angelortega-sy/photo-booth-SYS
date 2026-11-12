@@ -195,6 +195,10 @@
     <string name="admin_backgrounds_title">Fondos del evento</string>
     <string name="admin_backgrounds_subtitle">Sube imágenes del almacenamiento y elige cuáles ve el invitado.</string>
     <string name="admin_background_upload">Subir fondos</string>
+    <string name="admin_background_add_title">Agregar fondos</string>
+    <string name="admin_background_add_hint">Elige imágenes de tu almacenamiento. Se recortan a 9:16 y el invitado las verá en el modo IA.</string>
+    <string name="admin_background_list_title">Fondos disponibles</string>
+    <string name="admin_background_none_hint">Siempre disponible en el modo IA</string>
     <string name="admin_background_builtin">Integrado</string>
     <string name="admin_background_custom">Personalizado</string>
     <string name="admin_background_delete">Eliminar fondo</string>

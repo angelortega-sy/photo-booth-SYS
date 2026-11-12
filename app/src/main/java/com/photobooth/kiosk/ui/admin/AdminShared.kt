@@ -1,8 +1,11 @@
 package com.photobooth.kiosk.ui.admin
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -187,6 +190,13 @@ internal fun BrandingField(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
     )
 }
+
+/** Original file name of a document picked with the system picker, if the provider reports one. */
+internal fun displayNameOf(context: Context, uri: Uri): String? = runCatching {
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0) else null
+    }
+}.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
 
 internal fun formatPhotoDate(epochSeconds: Long): String =
     java.text.SimpleDateFormat("dd MMM · HH:mm", java.util.Locale.getDefault())

@@ -2,12 +2,10 @@ package com.photobooth.kiosk.ui.admin
 
 import android.graphics.Bitmap
 import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,11 +13,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -54,38 +50,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photobooth.kiosk.R
 import com.photobooth.kiosk.data.BackgroundOption
-import com.photobooth.kiosk.ui.backgroundLabel
 import com.photobooth.kiosk.data.BackgroundRepository
+import com.photobooth.kiosk.ui.backgroundLabel
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.Ink
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * Fondos: the backgrounds the guest can pick in AI mode. "Sin fondo" is always
+ * there and cannot be turned off; the bundled and imported backgrounds have a
+ * switch. The route title already names the screen, so the cards do not repeat it.
+ */
 @Composable
-internal fun AdminEventScreen(
-    backgrounds: List<BackgroundOption>,
-    loadThumbnail: (String) -> Bitmap?,
-    onImport: (Uri, String?) -> Unit,
-    onToggleBackground: (String, Boolean) -> Unit,
-    onDeleteBackground: (String) -> Unit,
-    onRenameBackground: (String, String) -> Unit,
-) {
-    AdminScreenColumn {
-        item {
-            BackgroundsAdminCard(
-                backgrounds = backgrounds,
-                loadThumbnail = loadThumbnail,
-                onImport = onImport,
-                onToggle = onToggleBackground,
-                onDelete = onDeleteBackground,
-                onRename = onRenameBackground,
-            )
-        }
-    }
-}
-
-@Composable
-internal fun BackgroundsAdminCard(
+internal fun AdminBackgroundsScreen(
     backgrounds: List<BackgroundOption>,
     loadThumbnail: (String) -> Bitmap?,
     onImport: (Uri, String?) -> Unit,
@@ -99,50 +77,50 @@ internal fun BackgroundsAdminCard(
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
-        uris.forEach { uri ->
-            val name = runCatching {
-                context.contentResolver.query(
-                    uri,
-                    arrayOf(OpenableColumns.DISPLAY_NAME),
-                    null,
-                    null,
-                    null,
-                )?.use { cursor ->
-                    if (cursor.moveToFirst()) cursor.getString(0) else null
-                }
-            }.getOrNull()
-            onImport(uri, name)
-        }
+        uris.forEach { uri -> onImport(uri, displayNameOf(context, uri)) }
     }
 
-    AdminCard(
-        title = stringResource(R.string.admin_backgrounds_title),
-        subtitle = stringResource(R.string.admin_backgrounds_subtitle),
-    ) {
-        OutlinedButton(
-            onClick = { picker.launch(arrayOf("image/*")) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(Icons.Rounded.Add, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.admin_background_upload))
-        }
-        Spacer(Modifier.height(10.dp))
-        backgrounds
-            .filter { it.id != BackgroundRepository.ORIGINAL_ID }
-            .forEach { option ->
-                val label = backgroundLabel(option)
-                BackgroundAdminRow(
-                    option = option,
-                    loadThumbnail = loadThumbnail,
-                    onToggle = { enabled -> onToggle(option.id, enabled) },
-                    onDelete = { onDelete(option.id) },
-                    onRename = {
-                        renameTarget = option
-                        renameText = label
-                    },
+    AdminScreenColumn {
+        item {
+            AdminCard(
+                title = stringResource(R.string.admin_background_add_title),
+            ) {
+                Text(
+                    text = stringResource(R.string.admin_background_add_hint),
+                    color = Cream.copy(alpha = 0.6f),
+                    fontSize = 13.sp,
                 )
+                OutlinedButton(
+                    onClick = { picker.launch(arrayOf("image/*")) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                ) {
+                    Icon(Icons.Rounded.Add, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.admin_background_upload))
+                }
             }
+        }
+        item {
+            AdminCard(title = stringResource(R.string.admin_background_list_title)) {
+                NoBackgroundRow()
+                backgrounds
+                    .filter { it.id != BackgroundRepository.ORIGINAL_ID }
+                    .forEach { option ->
+                        // Resolve the label in composition: backgroundLabel reads string resources.
+                        val label = backgroundLabel(option)
+                        BackgroundAdminRow(
+                            option = option,
+                            loadThumbnail = loadThumbnail,
+                            onToggle = { enabled -> onToggle(option.id, enabled) },
+                            onDelete = { onDelete(option.id) },
+                            onRename = {
+                                renameTarget = option
+                                renameText = label
+                            },
+                        )
+                    }
+            }
+        }
     }
 
     renameTarget?.let { target ->
@@ -172,6 +150,45 @@ internal fun BackgroundsAdminCard(
                 }
             },
         )
+    }
+}
+
+/** Always-on row for "Sin fondo": it has no switch because the guest always has it. */
+@Composable
+private fun NoBackgroundRow() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(46.dp)
+                .aspectRatio(9f / 16f)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Ink),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.PhotoLibrary,
+                contentDescription = null,
+                tint = Cream.copy(alpha = 0.3f),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.ai_background_none),
+                color = Cream,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.admin_background_none_hint),
+                color = Cream.copy(alpha = 0.45f),
+                fontSize = 11.sp,
+            )
+        }
     }
 }
 

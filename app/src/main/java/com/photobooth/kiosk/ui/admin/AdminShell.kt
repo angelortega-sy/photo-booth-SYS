@@ -258,24 +258,6 @@ private fun AdminShellContent(
                                 onMessage(context.getString(R.string.admin_changes_saved))
                             },
                             providerLogos = appState.providerLogos,
-                            backgrounds = appState.adminBackgrounds.ifEmpty { viewModel.allBackgrounds },
-                            loadThumbnail = viewModel::loadThumbnail,
-                            onImportBackground = { uri, name ->
-                                viewModel.importBackground(uri, name) { error ->
-                                    onMessage(
-                                        if (error == null) {
-                                            context.getString(R.string.admin_background_imported)
-                                        } else {
-                                            context.getString(
-                                                R.string.admin_background_import_error,
-                                            )
-                                        },
-                                    )
-                                }
-                            },
-                            onToggleBackground = viewModel::setBackgroundEnabled,
-                            onDeleteBackground = viewModel::deleteBackground,
-                            onRenameBackground = viewModel::renameBackground,
                             onUploadBrandLogo = viewModel::uploadBrandLogo,
                         )
                     }
@@ -303,7 +285,7 @@ private fun AdminShellContent(
                     }
 
                     AdminRoute.Backgrounds -> {
-                        AdminEventScreen(
+                        AdminBackgroundsScreen(
                             backgrounds = appState.adminBackgrounds.ifEmpty { viewModel.allBackgrounds },
                             loadThumbnail = viewModel::loadThumbnail,
                             onImport = { uri, name ->
@@ -317,9 +299,9 @@ private fun AdminShellContent(
                                     )
                                 }
                             },
-                            onToggleBackground = viewModel::setBackgroundEnabled,
-                            onDeleteBackground = viewModel::deleteBackground,
-                            onRenameBackground = viewModel::renameBackground,
+                            onToggle = viewModel::setBackgroundEnabled,
+                            onDelete = viewModel::deleteBackground,
+                            onRename = viewModel::renameBackground,
                         )
                     }
 

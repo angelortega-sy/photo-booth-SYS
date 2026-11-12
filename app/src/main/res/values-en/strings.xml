@@ -195,6 +195,10 @@
     <string name="admin_backgrounds_title">Event backdrops</string>
     <string name="admin_backgrounds_subtitle">Upload images from storage and choose which ones guests see.</string>
     <string name="admin_background_upload">Upload backdrops</string>
+    <string name="admin_background_add_title">Add backdrops</string>
+    <string name="admin_background_add_hint">Pick images from your storage. They are cropped to 9:16 and guests see them in AI mode.</string>
+    <string name="admin_background_list_title">Available backdrops</string>
+    <string name="admin_background_none_hint">Always available in AI mode</string>
     <string name="admin_background_builtin">Built-in</string>
     <string name="admin_background_custom">Custom</string>
     <string name="admin_background_delete">Delete backdrop</string>

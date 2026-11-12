@@ -1,10 +1,6 @@
 package com.photobooth.kiosk.ui.admin
 
-import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -49,7 +45,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photobooth.kiosk.R
-import com.photobooth.kiosk.data.BackgroundOption
 import com.photobooth.kiosk.data.BrandLogoStore
 import com.photobooth.kiosk.data.CachedProviderLogo
 import com.photobooth.kiosk.data.EventBranding
@@ -66,13 +61,6 @@ import java.io.File
 
 /** Both sponsor states use this width so the "Activo" button matches the outlined one. */
 private val SponsorButtonWidth = 150.dp
-
-/** Original file name of a document picked with the system picker, if the provider reports one. */
-private fun displayNameOf(context: Context, uri: Uri): String? = runCatching {
-    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-        if (cursor.moveToFirst()) cursor.getString(0) else null
-    }
-}.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
 
 /**
  * Edits the name, colors, logo and the [EventBranding] label fields of one
@@ -93,12 +81,6 @@ internal fun AdminBrandEditorScreen(
     onSaveBranding: (String, EventBranding) -> Unit,
     onSaved: () -> Unit,
     providerLogos: List<CachedProviderLogo> = emptyList(),
-    backgrounds: List<BackgroundOption> = emptyList(),
-    loadThumbnail: (String) -> Bitmap? = { null },
-    onImportBackground: (Uri, String?) -> Unit = { _, _ -> },
-    onToggleBackground: (String, Boolean) -> Unit = { _, _ -> },
-    onDeleteBackground: (String) -> Unit = {},
-    onRenameBackground: (String, String) -> Unit = { _, _ -> },
     /** Uploads a picked logo file; returns the server id, or null when it stayed local. */
     onUploadBrandLogo: suspend (path: String, name: String) -> String? = { _, _ -> null },
 ) {
@@ -478,21 +460,6 @@ internal fun AdminBrandEditorScreen(
                     previews = previewCache.previews.value,
                     branding = draft,
                     sponsorPaths = framePaths,
-                )
-            }
-        }
-        item {
-            AdminCard(
-                title = stringResource(R.string.admin_backgrounds_title),
-                subtitle = stringResource(R.string.admin_backgrounds_subtitle),
-            ) {
-                BackgroundsAdminCard(
-                    backgrounds = backgrounds,
-                    loadThumbnail = loadThumbnail,
-                    onImport = onImportBackground,
-                    onToggle = onToggleBackground,
-                    onDelete = onDeleteBackground,
-                    onRename = onRenameBackground,
                 )
             }
         }
