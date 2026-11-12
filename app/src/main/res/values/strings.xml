@@ -156,8 +156,14 @@
     <string name="admin_camera_output_mirror">Espejo en la foto</string>
     <string name="admin_tab_gestures">Gestos</string>
     <string name="admin_nav_gestures_description">Palma abierta para disparar la foto</string>
-    <string name="admin_tab_styles">Estilos</string>
-    <string name="admin_nav_styles_description">Elige qué estilos ve el invitado</string>
+    <string name="admin_tab_styles">Personalización</string>
+    <string name="admin_nav_styles_description">Fondos y estilos de IA que ve el invitado</string>
+    <string name="admin_nav_backgrounds_description">Elige qué fondos ve el invitado</string>
+    <string name="admin_nav_ai_styles_description">Elige qué estilos de IA ve el invitado</string>
+    <string name="admin_custom_backgrounds_title">Fondos</string>
+    <string name="admin_custom_backgrounds_subtitle">Los fondos que puede elegir el invitado en el modo IA.</string>
+    <string name="admin_custom_ai_title">Estilos de IA</string>
+    <string name="admin_custom_ai_subtitle">Los estilos que puede elegir el invitado en el modo IA.</string>
     <string name="admin_styles_title">Estilos de IA</string>
     <string name="admin_styles_subtitle">Activa o desactiva los estilos que ve el invitado</string>
     <string name="admin_styles_count">%1$d de %2$d visibles</string>
@@ -419,7 +425,7 @@
     <string name="admin_home_event">Evento</string>
     <string name="admin_home_backgrounds">Fondos</string>
     <string name="admin_home_camera">Cámara</string>
-    <string name="admin_home_styles">Estilos</string>
+    <string name="admin_home_styles">Personalización</string>
     <string name="admin_home_photos">Fotos</string>
     <string name="admin_home_network_system">Red y sistema</string>
     <string name="admin_home_usage_ai">Uso IA</string>

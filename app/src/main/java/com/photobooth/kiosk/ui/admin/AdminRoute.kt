@@ -23,8 +23,17 @@ sealed interface AdminRoute {
         override val key: String = "camera"
     }
 
+    /** Personalización hub: opens the backgrounds and AI styles screens. */
     data object Styles : AdminRoute {
         override val key: String = "styles"
+    }
+
+    data object Backgrounds : AdminRoute {
+        override val key: String = "backgrounds"
+    }
+
+    data object AiStyles : AdminRoute {
+        override val key: String = "ai-styles"
     }
 
     data object Photos : AdminRoute {
@@ -51,6 +60,8 @@ sealed interface AdminRoute {
             key == "event" -> Brands
             key == Camera.key -> Camera
             key == Styles.key -> Styles
+            key == Backgrounds.key -> Backgrounds
+            key == AiStyles.key -> AiStyles
             key == Photos.key -> Photos
             key == Usage.key -> Usage
             key == Network.key -> Network

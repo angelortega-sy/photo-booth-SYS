@@ -156,8 +156,14 @@
     <string name="admin_camera_output_mirror">Mirror the photo</string>
     <string name="admin_tab_gestures">Gestures</string>
     <string name="admin_nav_gestures_description">Open palm to snap the photo</string>
-    <string name="admin_tab_styles">Styles</string>
-    <string name="admin_nav_styles_description">Choose which styles guests see</string>
+    <string name="admin_tab_styles">Customization</string>
+    <string name="admin_nav_styles_description">Backgrounds and AI styles guests see</string>
+    <string name="admin_nav_backgrounds_description">Choose which backgrounds guests see</string>
+    <string name="admin_nav_ai_styles_description">Choose which AI styles guests see</string>
+    <string name="admin_custom_backgrounds_title">Backgrounds</string>
+    <string name="admin_custom_backgrounds_subtitle">Backgrounds guests can choose in AI mode.</string>
+    <string name="admin_custom_ai_title">AI styles</string>
+    <string name="admin_custom_ai_subtitle">Styles guests can choose in AI mode.</string>
     <string name="admin_styles_title">AI styles</string>
     <string name="admin_styles_subtitle">Turn on or off the styles guests see</string>
     <string name="admin_styles_count">%1$d of %2$d visible</string>
@@ -496,7 +502,7 @@
     <string name="admin_home_event">Event</string>
     <string name="admin_home_backgrounds">Backgrounds</string>
     <string name="admin_home_camera">Camera</string>
-    <string name="admin_home_styles">Styles</string>
+    <string name="admin_home_styles">Customization</string>
     <string name="admin_home_photos">Photos</string>
     <string name="admin_home_network_system">Network &amp; system</string>
     <string name="admin_home_usage_ai">AI usage</string>

@@ -294,6 +294,36 @@ private fun AdminShellContent(
                     }
 
                     AdminRoute.Styles -> {
+                        AdminCustomizationScreen(
+                            backgrounds = appState.adminBackgrounds.ifEmpty { viewModel.allBackgrounds },
+                            loadThumbnail = viewModel::loadThumbnail,
+                            onOpenBackgrounds = { navigate(AdminRoute.Backgrounds) },
+                            onOpenAiStyles = { navigate(AdminRoute.AiStyles) },
+                        )
+                    }
+
+                    AdminRoute.Backgrounds -> {
+                        AdminEventScreen(
+                            backgrounds = appState.adminBackgrounds.ifEmpty { viewModel.allBackgrounds },
+                            loadThumbnail = viewModel::loadThumbnail,
+                            onImport = { uri, name ->
+                                viewModel.importBackground(uri, name) { error ->
+                                    onMessage(
+                                        if (error == null) {
+                                            context.getString(R.string.admin_background_imported)
+                                        } else {
+                                            context.getString(R.string.admin_background_import_error)
+                                        },
+                                    )
+                                }
+                            },
+                            onToggleBackground = viewModel::setBackgroundEnabled,
+                            onDeleteBackground = viewModel::deleteBackground,
+                            onRenameBackground = viewModel::renameBackground,
+                        )
+                    }
+
+                    AdminRoute.AiStyles -> {
                         AdminStylesScreen(
                             serverStyles = appState.serverStyles,
                             disabledIds = appState.disabledStyleIds,

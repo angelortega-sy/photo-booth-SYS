@@ -205,6 +205,10 @@ internal fun AdminRouteTitle(route: AdminRoute, editorProfileName: String?): Pai
             stringResource(R.string.admin_section_camera_hint)
         AdminRoute.Styles -> stringResource(R.string.admin_tab_styles) to
             stringResource(R.string.admin_nav_styles_description)
+        AdminRoute.Backgrounds -> stringResource(R.string.admin_custom_backgrounds_title) to
+            stringResource(R.string.admin_nav_backgrounds_description)
+        AdminRoute.AiStyles -> stringResource(R.string.admin_custom_ai_title) to
+            stringResource(R.string.admin_nav_ai_styles_description)
         AdminRoute.Photos -> stringResource(R.string.admin_section_photos) to
             stringResource(R.string.admin_nav_photos_description)
         AdminRoute.Usage -> stringResource(R.string.admin_home_usage_ai) to
