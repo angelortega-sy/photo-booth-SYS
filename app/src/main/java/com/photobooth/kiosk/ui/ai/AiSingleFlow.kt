@@ -28,29 +28,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Block
-import androidx.compose.material.icons.rounded.BusinessCenter
-import androidx.compose.material.icons.rounded.Category
-import androidx.compose.material.icons.rounded.Celebration
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Checkroom
-import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.Face
-import androidx.compose.material.icons.rounded.FilterVintage
-import androidx.compose.material.icons.rounded.FitnessCenter
-import androidx.compose.material.icons.rounded.Landscape
-import androidx.compose.material.icons.rounded.LocalFlorist
-import androidx.compose.material.icons.rounded.Mood
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Pets
-import androidx.compose.material.icons.rounded.Spa
 import androidx.compose.material.icons.rounded.Style
-import androidx.compose.material.icons.rounded.TheaterComedy
-import androidx.compose.material.icons.rounded.WbSunny
-import androidx.compose.material.icons.rounded.Waves
-import androidx.compose.material.icons.rounded.Whatshot
-import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ImageNotSupported
@@ -83,14 +63,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalClipboardManager
+import android.content.ClipData
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -200,7 +180,7 @@ fun AiSingleFlow(
         viewModel.refreshCameraSettings()
     }
     val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val compact = LocalConfiguration.current.screenWidthDp < 600
@@ -476,8 +456,10 @@ fun AiSingleFlow(
                             starting = shareStarting,
                             onCopyLink = {
                                 deliveryUrl?.let {
-                                    clipboard.setText(AnnotatedString(it))
-                                    scope.launch { snackbar.showSnackbar(context.getString(R.string.link_copied)) }
+                                    scope.launch {
+                                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("", it)))
+                                        snackbar.showSnackbar(context.getString(R.string.link_copied))
+                                    }
                                 }
                                 onInteraction()
                             },

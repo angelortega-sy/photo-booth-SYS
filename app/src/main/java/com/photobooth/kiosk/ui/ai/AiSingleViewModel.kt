@@ -268,14 +268,6 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun selectModel(id: String) {
-        if (isLocked()) return
-        val model = _uiState.value.serverModels.firstOrNull { it.id == id } ?: return
-        if (!model.selectable) return
-        aiSettings.saveModel(id)
-        _uiState.update { it.copy(selectedModelId = id, error = null) }
-    }
-
     /**
      * Drive link for the styled photo. A failed finalization remains recoverable through the
      * local delivery server, but must still be visible to the guest.

@@ -413,19 +413,6 @@ class AiBackendClient(
         )
     }
 
-    /** Uploads the exact background the guest picked so the server can keep it while restyling the person. */
-    fun uploadBackground(sessionId: String, background: File) {
-        val boundary = "----Booth${UUID.randomUUID().toString().replace("-", "")}"
-        val body = multipart(boundary, listOf("background" to background))
-        open(
-            "POST",
-            "/v1/sessions/$sessionId/background",
-            body,
-            "multipart/form-data; boundary=$boundary",
-            sign = true,
-        )
-    }
-
     fun stylize(
         sessionId: String,
         modelId: String,
