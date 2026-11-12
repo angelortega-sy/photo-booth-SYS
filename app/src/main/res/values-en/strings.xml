@@ -525,6 +525,7 @@
     <string name="admin_sponsor_use_as_brand">Use as brand logo</string>
     <string name="admin_brand_logo_choose">Choose image</string>
     <string name="admin_brand_logo_remove">Remove logo</string>
+    <string name="admin_brand_logo_local_only">Could not upload to the server; it was saved on this booth only.</string>
     <string name="admin_brand_logo_error">The image could not be read. Try another one.</string>
     <string name="admin_brand_preview_title">Preview</string>
     <string name="admin_brand_preview_hint">This is how the four frames look with this brand.</string>

@@ -1,8 +1,10 @@
 package com.photobooth.kiosk.ui.admin
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -65,6 +67,13 @@ import java.io.File
 /** Both sponsor states use this width so the "Activo" button matches the outlined one. */
 private val SponsorButtonWidth = 150.dp
 
+/** Original file name of a document picked with the system picker, if the provider reports one. */
+private fun displayNameOf(context: Context, uri: Uri): String? = runCatching {
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0) else null
+    }
+}.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+
 /**
  * Edits the name, colors, logo and the [EventBranding] label fields of one
  * event profile. Saving only touches this profile; use the "make primary"
@@ -90,6 +99,8 @@ internal fun AdminBrandEditorScreen(
     onToggleBackground: (String, Boolean) -> Unit = { _, _ -> },
     onDeleteBackground: (String) -> Unit = {},
     onRenameBackground: (String, String) -> Unit = { _, _ -> },
+    /** Uploads a picked logo file; returns the server id, or null when it stayed local. */
+    onUploadBrandLogo: suspend (path: String, name: String) -> String? = { _, _ -> null },
 ) {
     val profile = profiles.firstOrNull { it.id == profileId }
     if (profile == null) return
@@ -104,19 +115,25 @@ internal fun AdminBrandEditorScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var logoFailed by remember(profileId) { mutableStateOf(false) }
+    var logoNotUploaded by remember(profileId) { mutableStateOf(false) }
 
     val logoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
             val previous = draft.logoPath
+            val displayName = displayNameOf(context, uri)
             scope.launch {
                 val path = withContext(Dispatchers.IO) { BrandLogoStore.save(context, uri) }
                 if (path == null) {
                     logoFailed = true
                 } else {
                     logoFailed = false
-                    draft = draft.copy(logoPath = path, brandLogoId = null)
+                    // Upload right away so the logo appears in the shared sponsor options.
+                    // If that fails, the logo still works on this booth.
+                    val serverId = onUploadBrandLogo(path, displayName ?: "${draft.brand}-logo")
+                    draft = draft.copy(logoPath = path, brandLogoId = serverId)
+                    logoNotUploaded = serverId == null
                     // Only an unsaved pick can go now; the stored logo waits for "Save".
                     if (previous != profile.branding.logoPath) BrandLogoStore.delete(previous)
                 }
@@ -321,6 +338,7 @@ internal fun AdminBrandEditorScreen(
                                     BrandLogoStore.delete(draft.logoPath)
                                 }
                                 draft = draft.copy(logoPath = null, brandLogoId = null)
+                                logoNotUploaded = false
                             },
                             modifier = Modifier.height(46.dp),
                         ) {
@@ -332,6 +350,14 @@ internal fun AdminBrandEditorScreen(
                     Text(
                         text = stringResource(R.string.admin_brand_logo_error),
                         color = Color(0xFFFF8A8A),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+                if (logoNotUploaded && draft.logoPath != null) {
+                    Text(
+                        text = stringResource(R.string.admin_brand_logo_local_only),
+                        color = Color(0xFFFFD27A),
                         fontSize = 13.sp,
                         modifier = Modifier.padding(top = 8.dp),
                     )
@@ -412,6 +438,7 @@ internal fun AdminBrandEditorScreen(
                                             BrandLogoStore.delete(draft.logoPath)
                                         }
                                         draft = draft.copy(logoPath = copied, brandLogoId = logo.id)
+                                        logoNotUploaded = false
                                     },
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                                     modifier = Modifier.width(SponsorButtonWidth).height(34.dp),

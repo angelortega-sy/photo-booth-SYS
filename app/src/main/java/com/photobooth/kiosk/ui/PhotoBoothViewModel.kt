@@ -852,6 +852,25 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    /**
+     * Uploads a brand logo picked in the event editor so it appears as a shared
+     * option on every booth. Returns the server logo id, or null when the device
+     * is not enrolled or the server cannot be reached. The caller then keeps the
+     * logo on this booth only.
+     */
+    suspend fun uploadBrandLogo(path: String, name: String): String? {
+        if (!identityStore.load().enrolled) return null
+        val id = withContext(Dispatchers.IO) {
+            runCatching {
+                val bytes = java.io.File(path).readBytes()
+                aiClient.uploadProviderLogo(name, "image/webp", bytes).id
+            }.getOrNull()
+        }
+        // Refresh the shared catalog so the new logo shows up in the sponsor options.
+        if (id != null) refreshServerCatalog()
+        return id
+    }
+
     fun refreshServerCatalog() {
         if (!identityStore.load().enrolled) return
         viewModelScope.launch {

@@ -276,6 +276,7 @@ private fun AdminShellContent(
                             onToggleBackground = viewModel::setBackgroundEnabled,
                             onDeleteBackground = viewModel::deleteBackground,
                             onRenameBackground = viewModel::renameBackground,
+                            onUploadBrandLogo = viewModel::uploadBrandLogo,
                         )
                     }
 

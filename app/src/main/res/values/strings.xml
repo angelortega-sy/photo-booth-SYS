@@ -525,6 +525,7 @@
     <string name="admin_brand_logo_choose">Elegir imagen</string>
     <string name="admin_brand_logo_remove">Quitar logo</string>
     <string name="admin_brand_logo_error">No se pudo leer la imagen. Prueba con otra.</string>
+    <string name="admin_brand_logo_local_only">No se pudo subir al servidor; se guardó en este tótem.</string>
     <string name="admin_brand_preview_title">Vista previa</string>
     <string name="admin_brand_preview_hint">Así se ven los cuatro marcos con esta marca.</string>
     <string name="admin_save_changes">Guardar cambios</string>
