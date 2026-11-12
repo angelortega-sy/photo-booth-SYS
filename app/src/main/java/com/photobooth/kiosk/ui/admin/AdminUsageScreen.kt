@@ -1,33 +1,20 @@
 package com.photobooth.kiosk.ui.admin
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -49,7 +36,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -66,10 +52,8 @@ import com.photobooth.kiosk.network.UsageRequest
 import com.photobooth.kiosk.network.UsageSummary
 import com.photobooth.kiosk.ui.PhotoBoothViewModel
 import com.photobooth.kiosk.ui.theme.Cream
-import com.photobooth.kiosk.ui.theme.InkSoft
 import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
-import com.photobooth.kiosk.ui.theme.SyscomTeal
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -87,6 +71,7 @@ internal fun AdminUsageScreen(
     var savedUrl by remember { mutableStateOf(viewModel.loadIdentity().baseUrl) }
     var draftUrl by remember { mutableStateOf(savedUrl) }
     var draftModelId by remember(selectedModelId) { mutableStateOf(selectedModelId) }
+    var favoriteIds by remember { mutableStateOf(viewModel.loadAiSettings().favoriteModelIds) }
     val urlChanged = draftUrl.trim() != savedUrl.trim()
     val modelChanged = draftModelId != selectedModelId
 
@@ -116,15 +101,31 @@ internal fun AdminUsageScreen(
         },
     ) {
         item {
+            ModelCard(
+                models = models,
+                selectedModelId = draftModelId,
+                savedModelId = selectedModelId,
+                favoriteIds = favoriteIds,
+                onSelect = { draftModelId = it },
+                onToggleFavorite = { id, favorite ->
+                    favoriteIds = viewModel.setFavoriteModel(id, favorite)
+                },
+            )
+        }
+        item {
+            ModelFavoritesCard(
+                models = models,
+                selectedModelId = draftModelId,
+                favoriteIds = favoriteIds,
+                onSelect = { draftModelId = it },
+            )
+        }
+        item {
             AiServerAdminCard(
                 viewModel = viewModel,
                 baseUrl = draftUrl,
                 onBaseUrlChange = { draftUrl = it },
                 onBeforeServerCall = ::saveUrlIfChanged,
-                models = models,
-                selectedModelId = draftModelId,
-                savedModelId = selectedModelId,
-                onSelectModel = { draftModelId = it },
                 statusProbe = statusProbe,
                 statusError = statusError,
                 isStatusChecking = isStatusChecking,
@@ -143,10 +144,6 @@ private fun AiServerAdminCard(
     baseUrl: String,
     onBaseUrlChange: (String) -> Unit,
     onBeforeServerCall: () -> Unit,
-    models: List<BoothModel>,
-    selectedModelId: String,
-    savedModelId: String,
-    onSelectModel: (String) -> Unit,
     statusProbe: ServerStatusProbe?,
     statusError: String?,
     isStatusChecking: Boolean,
@@ -205,14 +202,6 @@ private fun AiServerAdminCard(
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
-        if (models.isNotEmpty()) {
-            ModelSelectField(
-                models = models,
-                selectedModelId = selectedModelId,
-                savedModelId = savedModelId,
-                onSelect = onSelectModel,
-            )
-        }
         OutlinedButton(
             onClick = {
                 onBeforeServerCall()
@@ -279,190 +268,6 @@ private fun AiServerAdminCard(
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
-    }
-}
-
-/** Searchable single-select for the AI model, instead of a long radio list. */
-@Composable
-private fun ModelSelectField(
-    models: List<BoothModel>,
-    selectedModelId: String,
-    savedModelId: String,
-    onSelect: (String) -> Unit,
-) {
-    val context = LocalContext.current
-    var open by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
-    val selected = models.firstOrNull { it.id == selectedModelId }
-    val saved = models.firstOrNull { it.id == savedModelId }
-    val unknownPrice = stringResource(R.string.ai_price_unknown)
-    val unitImage = stringResource(R.string.ai_unit_image)
-    val unitMegapixel = stringResource(R.string.ai_unit_megapixel)
-    val unitToken = stringResource(R.string.ai_unit_token)
-
-    fun priceLabel(model: BoothModel): String {
-        val price = model.priceUsd
-            ?.let { String.format(Locale.US, "$%.4f", it) }
-            ?: unknownPrice
-        val unit = when (model.priceUnit) {
-            "image" -> unitImage
-            "megapixel" -> unitMegapixel
-            "token" -> unitToken
-            else -> model.priceUnit.orEmpty()
-        }
-        return if (unit.isBlank()) price else "$price / $unit"
-    }
-
-    Column(Modifier.fillMaxWidth().padding(top = 14.dp)) {
-        Text(
-            text = stringResource(R.string.ai_model_select_label),
-            color = Cream,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 58.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(InkSoft)
-                .border(
-                    1.dp,
-                    SyscomBlue.copy(alpha = 0.4f),
-                    RoundedCornerShape(14.dp),
-                )
-                .clickable(role = Role.Button) {
-                    query = ""
-                    open = true
-                }
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = selected?.name ?: stringResource(R.string.ai_model_none),
-                    color = if (selected != null) Cream else Cream.copy(alpha = 0.5f),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (selected != null) {
-                    Text(
-                        text = priceLabel(selected),
-                        color = Cream.copy(alpha = 0.6f),
-                        fontSize = 12.sp,
-                    )
-                }
-            }
-            Icon(
-                imageVector = Icons.Rounded.ArrowDropDown,
-                contentDescription = null,
-                tint = SyscomBlueLight,
-            )
-        }
-        if (selectedModelId != savedModelId) {
-            Text(
-                text = stringResource(
-                    R.string.admin_model_pending,
-                    saved?.name ?: stringResource(R.string.ai_model_none),
-                ),
-                color = SyscomTeal,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-        }
-    }
-
-    if (open) {
-        val filtered = models.filter { model ->
-            query.isBlank() ||
-                model.name.contains(query, ignoreCase = true) ||
-                model.id.contains(query, ignoreCase = true)
-        }
-        AlertDialog(
-            onDismissRequest = { open = false },
-            title = {
-                Text(
-                    text = stringResource(R.string.ai_model_select_title),
-                    color = Cream,
-                    fontWeight = FontWeight.Bold,
-                )
-            },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        singleLine = true,
-                        placeholder = { Text(stringResource(R.string.ai_model_search_hint)) },
-                        leadingIcon = {
-                            Icon(Icons.Rounded.Search, contentDescription = null)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    if (filtered.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.ai_model_search_empty),
-                            color = Cream.copy(alpha = 0.6f),
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(8.dp),
-                        )
-                    } else {
-                        LazyColumn(Modifier.heightIn(max = 320.dp)) {
-                            items(filtered, key = { it.id }) { model ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable(enabled = model.selectable) {
-                                            onSelect(model.id)
-                                            open = false
-                                        }
-                                        .padding(vertical = 10.dp, horizontal = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            text = model.name,
-                                            color = if (model.selectable) Cream else Cream.copy(alpha = 0.4f),
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                        )
-                                        Text(
-                                            text = buildString {
-                                                append(priceLabel(model))
-                                                if (model.overBudget) {
-                                                    append(" · ")
-                                                    append(context.getString(R.string.ai_over_budget))
-                                                }
-                                            },
-                                            color = Cream.copy(alpha = 0.55f),
-                                            fontSize = 12.sp,
-                                        )
-                                    }
-                                    if (model.id == selectedModelId) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = stringResource(R.string.ai_model_selected),
-                                            tint = SyscomBlueLight,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { open = false }) {
-                    Text(stringResource(R.string.admin_cancel), color = Cream)
-                }
-            },
-        )
     }
 }
 

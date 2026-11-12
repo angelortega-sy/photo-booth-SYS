@@ -823,6 +823,14 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update { it.copy(selectedModelId = modelId.trim()) }
     }
 
+    /** Admin-only: stars or unstars a model. Returns the stored set so the screen can redraw. */
+    fun setFavoriteModel(id: String, favorite: Boolean): Set<String> {
+        val current = aiSettings.load().favoriteModelIds
+        val updated = if (favorite) current + id.trim() else current - id.trim()
+        aiSettings.saveFavorites(updated)
+        return updated
+    }
+
     fun selectAiStyle(id: String) {
         if (aiConfigLocked()) return
         val known = _uiState.value.serverStyles.any { it.id == id } || AiStyles.ALL.any { it.id == id }
