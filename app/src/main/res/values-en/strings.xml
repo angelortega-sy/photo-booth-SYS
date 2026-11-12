@@ -272,6 +272,7 @@
     <string name="ai_model_search_empty">No model matches.</string>
     <string name="ai_model_selected">Selected model</string>
     <string name="ai_model_none">No model selected</string>
+    <string name="ai_models_empty">Enroll the kiosk to see models and prices.</string>
     <string name="ai_style_simpson">Simpsons</string>
     <string name="ai_style_pixelart">Pixel Art</string>
     <string name="ai_style_cyberpunk">Cyberpunk</string>
