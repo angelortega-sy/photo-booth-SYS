@@ -212,6 +212,9 @@
     <string name="admin_event_save">Guardar etiquetas</string>
     <string name="admin_event_saved">Etiquetas guardadas</string>
     <string name="admin_profiles_make_active">Usar en las fotos</string>
+    <string name="admin_profiles_active_chip">Activo</string>
+    <string name="admin_profiles_list_title">Tus eventos</string>
+    <string name="admin_profiles_builtin_locked">Evento SYSCOM, no se puede eliminar</string>
     <string name="admin_brand_active_title">Evento de las fotos</string>
     <string name="admin_brand_active_hint">Al elegirlo, todas las fotos salen con este evento. Quien se tome la foto no lo elige.</string>
     <string name="admin_brand_is_active">Este evento sale en todas las fotos</string>

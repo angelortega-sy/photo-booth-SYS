@@ -212,6 +212,9 @@
     <string name="admin_event_save">Save labels</string>
     <string name="admin_event_saved">Labels saved</string>
     <string name="admin_profiles_make_active">Use on photos</string>
+    <string name="admin_profiles_active_chip">Active</string>
+    <string name="admin_profiles_list_title">Your events</string>
+    <string name="admin_profiles_builtin_locked">SYSCOM event, cannot be deleted</string>
     <string name="admin_brand_active_title">Event on the photos</string>
     <string name="admin_brand_active_hint">Once chosen, every photo uses this event. The guest is not asked.</string>
     <string name="admin_brand_is_active">This event is printed on every photo</string>
