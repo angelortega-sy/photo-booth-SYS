@@ -224,6 +224,11 @@ private fun AdminShellContent(
                             networkType = networkType,
                             ipAddress = addresses.firstOrNull()?.address ?: "—",
                             modelLabel = modelLabel,
+                            serverStatus = if (viewModel.loadIdentity().enrolled) {
+                                context.getString(R.string.admin_home_server_enrolled)
+                            } else {
+                                context.getString(R.string.admin_home_server_none)
+                            },
                             appVersion = summary?.appVersion ?: "",
                             onNavigate = ::navigate,
                         )
@@ -259,24 +264,7 @@ private fun AdminShellContent(
                                 onMessage(context.getString(R.string.admin_changes_saved))
                             },
                             providerLogos = appState.providerLogos,
-                            backgrounds = appState.adminBackgrounds.ifEmpty { viewModel.allBackgrounds },
-                            loadThumbnail = viewModel::loadThumbnail,
-                            onImportBackground = { uri, name ->
-                                viewModel.importBackground(uri, name) { error ->
-                                    onMessage(
-                                        if (error == null) {
-                                            context.getString(R.string.admin_background_imported)
-                                        } else {
-                                            context.getString(
-                                                R.string.admin_background_import_error,
-                                            )
-                                        },
-                                    )
-                                }
-                            },
-                            onToggleBackground = viewModel::setBackgroundEnabled,
-                            onDeleteBackground = viewModel::deleteBackground,
-                            onRenameBackground = viewModel::renameBackground,
+                            onUploadBrandLogo = viewModel::uploadBrandLogo,
                         )
                     }
 
@@ -294,6 +282,36 @@ private fun AdminShellContent(
                     }
 
                     AdminRoute.Styles -> {
+                        AdminCustomizationScreen(
+                            backgrounds = appState.adminBackgrounds.ifEmpty { viewModel.allBackgrounds },
+                            loadThumbnail = viewModel::loadThumbnail,
+                            onOpenBackgrounds = { navigate(AdminRoute.Backgrounds) },
+                            onOpenAiStyles = { navigate(AdminRoute.AiStyles) },
+                        )
+                    }
+
+                    AdminRoute.Backgrounds -> {
+                        AdminBackgroundsScreen(
+                            backgrounds = appState.adminBackgrounds.ifEmpty { viewModel.allBackgrounds },
+                            loadThumbnail = viewModel::loadThumbnail,
+                            onImport = { uri, name ->
+                                viewModel.importBackground(uri, name) { error ->
+                                    onMessage(
+                                        if (error == null) {
+                                            context.getString(R.string.admin_background_imported)
+                                        } else {
+                                            context.getString(R.string.admin_background_import_error)
+                                        },
+                                    )
+                                }
+                            },
+                            onToggle = viewModel::setBackgroundEnabled,
+                            onDelete = viewModel::deleteBackground,
+                            onRename = viewModel::renameBackground,
+                        )
+                    }
+
+                    AdminRoute.AiStyles -> {
                         AdminStylesScreen(
                             serverStyles = appState.serverStyles,
                             disabledIds = appState.disabledStyleIds,
@@ -341,6 +359,13 @@ private fun AdminShellContent(
                             viewModel = viewModel,
                             models = appState.serverModels,
                             selectedModelId = appState.selectedModelId,
+                            onMessage = ::onMessage,
+                        )
+                    }
+
+                    AdminRoute.Server -> {
+                        AdminServerScreen(
+                            viewModel = viewModel,
                             statusProbe = appState.serverStatusProbe,
                             statusError = appState.serverStatusError,
                             isStatusChecking = appState.isServerStatusChecking,

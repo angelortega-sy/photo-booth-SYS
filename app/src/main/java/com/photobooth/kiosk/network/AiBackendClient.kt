@@ -160,6 +160,29 @@ class AiBackendClient(
         }
     }
 
+    /**
+     * Adds a brand logo to the server catalog so every booth can use it as a
+     * sponsor or brand mark. [bytes] must be a PNG, WebP or JPEG under 2 MB.
+     */
+    fun uploadProviderLogo(name: String, mimeType: String, bytes: ByteArray): ProviderLogo {
+        val body = JSONObject()
+            .put("name", name.take(80))
+            .put("mimeType", mimeType)
+            .put("dataBase64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+            .toString()
+            .toByteArray(Charsets.UTF_8)
+        val (_, text) = open("POST", "/v1/logos", body, JSON, sign = true)
+        val item = JSONObject(text)
+        val id = item.optString("id")
+        if (id.isBlank()) throw AiBackendException("Logo upload did not return an id")
+        return ProviderLogo(
+            id = id,
+            name = item.optString("name").ifBlank { id },
+            mimeType = item.optString("mimeType").ifBlank { mimeType },
+            modifiedTime = item.optString("modifiedTime"),
+        )
+    }
+
     fun downloadProviderLogo(id: String): ByteArray {
         return openBytes("GET", "/v1/logos/${URLEncoder.encode(id, Charsets.UTF_8.name())}", ByteArray(0), sign = true)
     }
@@ -384,19 +407,6 @@ class AiBackendClient(
         open(
             "POST",
             "/v1/sessions/$sessionId/photos",
-            body,
-            "multipart/form-data; boundary=$boundary",
-            sign = true,
-        )
-    }
-
-    /** Uploads the exact background the guest picked so the server can keep it while restyling the person. */
-    fun uploadBackground(sessionId: String, background: File) {
-        val boundary = "----Booth${UUID.randomUUID().toString().replace("-", "")}"
-        val body = multipart(boundary, listOf("background" to background))
-        open(
-            "POST",
-            "/v1/sessions/$sessionId/background",
             body,
             "multipart/form-data; boundary=$boundary",
             sign = true,

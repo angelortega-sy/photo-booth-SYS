@@ -1,8 +1,11 @@
 package com.photobooth.kiosk.ui.admin
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -188,6 +191,13 @@ internal fun BrandingField(
     )
 }
 
+/** Original file name of a document picked with the system picker, if the provider reports one. */
+internal fun displayNameOf(context: Context, uri: Uri): String? = runCatching {
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0) else null
+    }
+}.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+
 internal fun formatPhotoDate(epochSeconds: Long): String =
     java.text.SimpleDateFormat("dd MMM · HH:mm", java.util.Locale.getDefault())
         .format(java.util.Date(epochSeconds * 1000))
@@ -205,12 +215,18 @@ internal fun AdminRouteTitle(route: AdminRoute, editorProfileName: String?): Pai
             stringResource(R.string.admin_section_camera_hint)
         AdminRoute.Styles -> stringResource(R.string.admin_tab_styles) to
             stringResource(R.string.admin_nav_styles_description)
+        AdminRoute.Backgrounds -> stringResource(R.string.admin_custom_backgrounds_title) to
+            stringResource(R.string.admin_nav_backgrounds_description)
+        AdminRoute.AiStyles -> stringResource(R.string.admin_custom_ai_title) to
+            stringResource(R.string.admin_nav_ai_styles_description)
         AdminRoute.Photos -> stringResource(R.string.admin_section_photos) to
             stringResource(R.string.admin_nav_photos_description)
         AdminRoute.Promo -> stringResource(R.string.admin_promo_title) to
             stringResource(R.string.admin_promo_subtitle)
         AdminRoute.Usage -> stringResource(R.string.admin_home_usage_ai) to
             stringResource(R.string.admin_nav_usage_description)
+        AdminRoute.Server -> stringResource(R.string.admin_home_server) to
+            stringResource(R.string.admin_nav_server_description)
         AdminRoute.Network -> stringResource(R.string.admin_home_network_system) to
             stringResource(R.string.admin_nav_network_description)
         AdminRoute.System -> stringResource(R.string.admin_tab_system) to

@@ -20,14 +20,6 @@ object PhotoSaver {
     private const val ALBUM = "Cabina de Fotos"
     private const val JPEG_QUALITY = 95
 
-    fun saveToGallery(context: Context, bitmap: Bitmap): Result<Uri> = runCatching {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            saveModern(context, bitmap)
-        } else {
-            saveLegacy(context, bitmap)
-        }
-    }
-
     fun saveFileToGallery(context: Context, source: File): Result<Uri> = runCatching {
         if (!source.isFile) throw IOException("Photo output is missing")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -36,20 +28,6 @@ object PhotoSaver {
             saveLegacy(context, source)
         }
     }
-
-    fun cacheForShare(context: Context, bitmap: Bitmap): Uri? = runCatching {
-        val directory = File(context.cacheDir, "shared").apply { mkdirs() }
-        directory.listFiles()?.forEach { it.delete() }
-        val file = File(directory, "photo_${System.currentTimeMillis()}.jpg")
-        FileOutputStream(file).use { output ->
-            bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)
-        }
-        FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file,
-        )
-    }.getOrNull()
 
     fun cacheFilesForShare(context: Context, sources: List<File>): List<Uri>? = runCatching {
         if (sources.isEmpty() || sources.any { !it.isFile }) return null
