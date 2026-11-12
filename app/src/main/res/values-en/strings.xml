@@ -33,6 +33,20 @@
     <string name="background_estudio">Studio</string>
     <string name="background_retro80s">Retro 80s</string>
     <string name="background_jardin">Garden</string>
+    <string name="background_pixel">Pixel Arcade</string>
+    <string name="background_bricks">Brick Room</string>
+    <string name="background_toyshelf">Collector Shelf</string>
+    <string name="background_anime_room">Anime Room</string>
+    <string name="background_dojo">Dojo</string>
+    <string name="background_sakura">Sakura Street</string>
+    <string name="background_neon_alley">Neon Alley</string>
+    <string name="background_noir_office">Noir Office</string>
+    <string name="background_videoclub">Video Store</string>
+    <string name="background_altar">Day of the Dead Altar</string>
+    <string name="background_plaza">Mexican Plaza</string>
+    <string name="background_xmas_cabin">Christmas Cabin</string>
+    <string name="background_kpop_stage">K-Pop Stage</string>
+    <string name="background_meadow">Dream Meadow</string>
     <string name="background_original">No background</string>
     <string name="background_custom_default">Custom backdrop</string>
 
@@ -249,7 +263,7 @@
     <string name="ai_error_quota">Today\'s generation quota was reached.</string>
     <string name="ai_error_budget">The monthly budget was reached.</string>
     <string name="ai_error_clock">The kiosk clock does not match the server. Check the date and time.</string>
-    <string name="ai_error_model_budget">That model exceeds the maximum price per image.</string>
+    <string name="ai_error_model_budget">That style is not available on this booth. Try another one.</string>
     <string name="ai_error_enroll_code">The password is not correct.</string>
     <string name="ai_error_enroll_missing">The server has no enrollment password yet.</string>
     <string name="ai_error_revoked">This kiosk was revoked.</string>
@@ -266,7 +280,6 @@
     <string name="ai_style_vhs">VHS 90s</string>
     <string name="ai_style_watercolor">Watercolor</string>
     <string name="ai_style_lego">LEGO</string>
-    <string name="ai_models_empty">Enroll the kiosk to see models and prices.</string>
     <string name="ai_price_unknown">Price unavailable</string>
     <string name="ai_unit_image">image</string>
     <string name="ai_unit_megapixel">megapixel</string>
@@ -328,7 +341,6 @@
     <string name="ai_register_hint">Enroll the kiosk in admin to load the styles.</string>
     <string name="ai_reset">Reset</string>
     <string name="ai_generating_photo">Generating your photo…</string>
-    <string name="ai_generation_cost">Generation cost: $%1$s</string>
     <string name="ai_generation_error">Something went wrong. Go back to accessories and try again.</string>
     <string name="ai_section_frame">Frame</string>
     <string name="ai_section_decoration">Decoration</string>

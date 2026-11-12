@@ -441,7 +441,6 @@ fun AiSingleFlow(
                         )
                         AiStep.FRAMED -> FramedContent(
                             preview = state.resultPreview,
-                            cost = state.cost,
                             status = state.status,
                             selected = state.frameStyle,
                             palette = state.customization.palette(),
@@ -1170,7 +1169,6 @@ private fun AccessoryCard(
 @Composable
 private fun FramedContent(
     preview: Bitmap?,
-    cost: Double?,
     status: AiStatus,
     selected: CollageFrameStyle,
     palette: FramePalette,
@@ -1202,7 +1200,6 @@ private fun FramedContent(
             }
         }
     }
-    cost?.let { Text(stringResource(R.string.ai_generation_cost, it.toString()), color = Cream.copy(alpha = 0.7f), fontSize = 14.sp) }
     if (status == AiStatus.ERROR) {
         Text(stringResource(R.string.ai_generation_error), color = Cream, fontSize = 15.sp)
     }

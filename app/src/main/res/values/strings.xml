@@ -33,6 +33,20 @@
     <string name="background_estudio">Estudio</string>
     <string name="background_retro80s">Retro 80s</string>
     <string name="background_jardin">Jardín</string>
+    <string name="background_pixel">Arcade pixel</string>
+    <string name="background_bricks">Cuarto de ladrillos</string>
+    <string name="background_toyshelf">Repisa de colección</string>
+    <string name="background_anime_room">Cuarto otaku</string>
+    <string name="background_dojo">Dojo</string>
+    <string name="background_sakura">Calle Sakura</string>
+    <string name="background_neon_alley">Callejón neón</string>
+    <string name="background_noir_office">Oficina noir</string>
+    <string name="background_videoclub">Videoclub</string>
+    <string name="background_altar">Altar de muertos</string>
+    <string name="background_plaza">Plaza mexicana</string>
+    <string name="background_xmas_cabin">Cabaña navideña</string>
+    <string name="background_kpop_stage">Escenario K-pop</string>
+    <string name="background_meadow">Campo de ensueño</string>
     <string name="background_original">Sin fondo</string>
     <string name="background_custom_default">Fondo personalizado</string>
 
@@ -249,7 +263,7 @@
     <string name="ai_error_quota">Se alcanzó el cupo de generaciones de hoy.</string>
     <string name="ai_error_budget">Se alcanzó el presupuesto del mes.</string>
     <string name="ai_error_clock">La hora del tótem no coincide con el servidor. Revisa la fecha y la hora.</string>
-    <string name="ai_error_model_budget">Ese modelo supera el precio máximo por imagen.</string>
+    <string name="ai_error_model_budget">Ese estilo no está disponible en esta cabina. Prueba con otro.</string>
     <string name="ai_error_enroll_code">La contraseña no es correcta.</string>
     <string name="ai_error_enroll_missing">El servidor todavía no tiene contraseña de registro.</string>
     <string name="ai_error_revoked">Este tótem fue revocado.</string>
@@ -266,7 +280,6 @@
     <string name="ai_style_vhs">VHS 90s</string>
     <string name="ai_style_watercolor">Acuarela</string>
     <string name="ai_style_lego">LEGO</string>
-    <string name="ai_models_empty">Registra el tótem para ver modelos y precios.</string>
     <string name="ai_price_unknown">Precio no disponible</string>
     <string name="ai_unit_image">imagen</string>
     <string name="ai_unit_megapixel">megapíxel</string>
@@ -342,7 +355,6 @@
     <string name="ai_register_hint">Registra el tótem en el administrador para cargar los estilos.</string>
     <string name="ai_reset">Reiniciar</string>
     <string name="ai_generating_photo">Generando tu foto…</string>
-    <string name="ai_generation_cost">Costo de generación: $%1$s</string>
     <string name="ai_generation_error">Hubo un error. Vuelve a accesorios e intenta de nuevo.</string>
     <string name="ai_section_frame">Marco</string>
     <string name="ai_section_decoration">Adorno</string>
