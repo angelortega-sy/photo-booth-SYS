@@ -27,6 +27,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +57,7 @@ import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.SyscomBlue
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -131,6 +133,19 @@ internal fun AdminBrandEditorScreen(
     }
     val providerLibrary = remember(providerLogos) {
         providerLogos.map { logo -> logo to BitmapFactory.decodeFile(logo.path) }
+    }
+
+    // The frame previews are rendered and cached here, outside the lazy list, so
+    // scrolling them out of view does not drop or re-render the bitmaps.
+    val previewCache = remember(profileId) { FramePreviewCache() }
+    DisposableEffect(previewCache) { onDispose { previewCache.release() } }
+    val framePaths = draft.sponsorLogoIds.mapNotNull { id ->
+        providerLogos.firstOrNull { it.id == id }?.path
+    }
+    LaunchedEffect(draft, framePaths) {
+        // Debounce so typing a hex code does not re-render the strip on every keystroke.
+        delay(220)
+        previewCache.refresh(context, draft, framePaths)
     }
 
     AdminSettingsScreen(
@@ -433,10 +448,9 @@ internal fun AdminBrandEditorScreen(
                 subtitle = stringResource(R.string.admin_brand_preview_hint),
             ) {
                 FramePreviewRow(
+                    previews = previewCache.previews.value,
                     branding = draft,
-                    sponsorPaths = draft.sponsorLogoIds.mapNotNull { id ->
-                        providerLogos.firstOrNull { it.id == id }?.path
-                    },
+                    sponsorPaths = framePaths,
                 )
             }
         }

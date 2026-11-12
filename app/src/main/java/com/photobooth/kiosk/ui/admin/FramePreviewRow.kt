@@ -47,7 +47,6 @@ import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.photo.PhotoFrameComposer
 import com.photobooth.kiosk.ui.theme.Cream
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 private const val SAMPLE_ASSET = "backgrounds/gala.webp"
@@ -55,41 +54,64 @@ private const val PREVIEW_WIDTH = 280
 private const val EXPANDED_WIDTH = 720
 
 /**
- * Renders one live preview per [CollageFrameStyle] using the brand colors and
- * logo being edited. The previews use a bundled sample image, so they work
- * offline and never touch the guest session photos. Tapping one opens it big.
+ * Holds the rendered frame previews for one event editor.
+ *
+ * The cache belongs to the editor screen, not to the lazy list item that shows
+ * the strip. Scrolling the strip out of view therefore keeps the bitmaps, and
+ * coming back does not re-render or flash. [refresh] skips work when the
+ * branding and sponsors have not changed since the last render.
  */
-@Composable
-internal fun FramePreviewRow(
-    branding: EventBranding,
-    sponsorPaths: List<String> = emptyList(),
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    var previews by remember { mutableStateOf<List<Pair<CollageFrameStyle, Bitmap>>>(emptyList()) }
-    var expandedStyle by remember { mutableStateOf<CollageFrameStyle?>(null) }
+internal class FramePreviewCache {
+    val previews = mutableStateOf<List<Pair<CollageFrameStyle, Bitmap>>>(emptyList())
+    private var renderedKey: Pair<EventBranding, List<String>>? = null
+    private var released = false
 
-    DisposableEffect(previews) {
-        val rendered = previews
-        onDispose { rendered.forEach { it.second.recycle() } }
-    }
-
-    LaunchedEffect(branding, sponsorPaths) {
-        // Debounce so typing a hex code does not render four frames per keystroke.
-        delay(220)
-        previews = withContext(Dispatchers.Default) {
+    /** Renders all frame styles for [branding]. The old previews stay visible until the new ones are ready. */
+    suspend fun refresh(context: Context, branding: EventBranding, sponsorPaths: List<String>) {
+        val key = branding to sponsorPaths
+        if (released || key == renderedKey) return
+        val rendered = withContext(Dispatchers.Default) {
             CollageFrameStyle.entries.mapNotNull { style ->
                 renderPreview(context, style, branding, PREVIEW_WIDTH, sponsorPaths)?.let { style to it }
             }
         }
+        if (released) {
+            rendered.forEach { it.second.recycle() }
+            return
+        }
+        renderedKey = key
+        previews.value = rendered
     }
+
+    /** Called when the editor leaves composition. Recycles every bitmap it still holds. */
+    fun release() {
+        released = true
+        previews.value.forEach { if (!it.second.isRecycled) it.second.recycle() }
+        previews.value = emptyList()
+        renderedKey = null
+    }
+}
+
+/**
+ * Horizontal strip of live previews, one per [CollageFrameStyle]. Pass a
+ * [FramePreviewCache] owned by the editor so the bitmaps survive scrolling.
+ * Tapping a preview opens it big.
+ */
+@Composable
+internal fun FramePreviewRow(
+    previews: List<Pair<CollageFrameStyle, Bitmap>>,
+    branding: EventBranding,
+    sponsorPaths: List<String> = emptyList(),
+    modifier: Modifier = Modifier,
+) {
+    var expandedStyle by remember { mutableStateOf<CollageFrameStyle?>(null) }
 
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(top = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        items(previews) { (style, bitmap) ->
+        items(previews, key = { it.first.id }) { (style, bitmap) ->
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
