@@ -48,6 +48,7 @@ import com.photobooth.kiosk.data.BrandLogoStore
 import com.photobooth.kiosk.data.CachedProviderLogo
 import com.photobooth.kiosk.data.EventBranding
 import com.photobooth.kiosk.data.EventProfile
+import com.photobooth.kiosk.data.driveFolderBase
 import com.photobooth.kiosk.ui.theme.Cream
 import com.photobooth.kiosk.ui.theme.SyscomBlueLight
 import kotlinx.coroutines.Dispatchers
@@ -232,12 +233,29 @@ internal fun AdminBrandEditorScreen(
             }
         }
         item {
-            AdminCard(title = stringResource(R.string.admin_drive_title)) {
-                BrandingField(
-                    label = stringResource(R.string.admin_event_drive_folder),
+            val effectiveFolder = draft.driveFolderBase() ?: draft.brand
+            AdminCard(
+                title = stringResource(R.string.admin_drive_title),
+                subtitle = stringResource(R.string.admin_drive_explanation),
+            ) {
+                OutlinedTextField(
                     value = draft.driveFolderName,
                     onValueChange = { draft = draft.copy(driveFolderName = it) },
+                    label = { Text(stringResource(R.string.admin_event_drive_folder)) },
+                    placeholder = { Text(draft.brand.ifBlank { "SYSCOM" }) },
+                    supportingText = {
+                        Text(stringResource(R.string.admin_drive_current, effectiveFolder))
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
+                OutlinedButton(
+                    onClick = { draft = draft.copy(driveFolderName = "") },
+                    enabled = draft.driveFolderName.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(46.dp),
+                ) {
+                    Text(stringResource(R.string.admin_drive_reset))
+                }
             }
         }
         item {

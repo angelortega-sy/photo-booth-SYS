@@ -198,6 +198,9 @@
     <string name="admin_event_title">Event labels</string>
     <string name="admin_event_data_title">Event details</string>
     <string name="admin_drive_title">Drive folder</string>
+    <string name="admin_drive_explanation">Each guest photo is uploaded to a Drive folder with this name. If you leave it empty, the brand name is used.</string>
+    <string name="admin_drive_current">Current folder: %1$s</string>
+    <string name="admin_drive_reset">Use the brand name</string>
     <string name="admin_event_brand">Brand</string>
     <string name="admin_event_tagline">Tagline</string>
     <string name="admin_event_welcome_title">Welcome title</string>

@@ -198,6 +198,9 @@
     <string name="admin_event_title">Etiquetas del evento</string>
     <string name="admin_event_data_title">Datos del evento</string>
     <string name="admin_drive_title">Carpeta de Drive</string>
+    <string name="admin_drive_explanation">Cada foto de los invitados se sube a una carpeta de Drive con este nombre. Si lo dejas vacío, se usa el nombre de la marca.</string>
+    <string name="admin_drive_current">Carpeta actual: %1$s</string>
+    <string name="admin_drive_reset">Usar el nombre de la marca</string>
     <string name="admin_event_brand">Marca</string>
     <string name="admin_event_tagline">Tagline</string>
     <string name="admin_event_welcome_title">Título de bienvenida</string>
