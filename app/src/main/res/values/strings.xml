@@ -196,6 +196,8 @@
     <string name="admin_background_imported">Fondo agregado</string>
     <string name="admin_background_import_error">No se pudo agregar el fondo</string>
     <string name="admin_event_title">Etiquetas del evento</string>
+    <string name="admin_event_data_title">Datos del evento</string>
+    <string name="admin_drive_title">Carpeta de Drive</string>
     <string name="admin_event_brand">Marca</string>
     <string name="admin_event_tagline">Tagline</string>
     <string name="admin_event_welcome_title">Título de bienvenida</string>

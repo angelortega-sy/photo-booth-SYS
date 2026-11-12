@@ -196,6 +196,8 @@
     <string name="admin_background_imported">Backdrop added</string>
     <string name="admin_background_import_error">Could not add the backdrop</string>
     <string name="admin_event_title">Event labels</string>
+    <string name="admin_event_data_title">Event details</string>
+    <string name="admin_drive_title">Drive folder</string>
     <string name="admin_event_brand">Brand</string>
     <string name="admin_event_tagline">Tagline</string>
     <string name="admin_event_welcome_title">Welcome title</string>
