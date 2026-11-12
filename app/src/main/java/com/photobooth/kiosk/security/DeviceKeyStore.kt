@@ -30,6 +30,12 @@ class DeviceKeyStore {
         return Base64.encodeToString(signature.sign(), Base64.NO_WRAP)
     }
 
+    /** Deletes the signing key from the Keystore. A later enrollment generates a new one. */
+    fun delete() {
+        val store = keyStore()
+        if (store.containsAlias(ALIAS)) store.deleteEntry(ALIAS)
+    }
+
     private fun ensureKey() {
         val store = keyStore()
         if (store.containsAlias(ALIAS)) return

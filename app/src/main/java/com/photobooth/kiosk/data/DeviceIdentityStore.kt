@@ -29,6 +29,13 @@ class DeviceIdentityStore(context: Context) {
             .apply()
     }
 
+    /** Local-only unenroll: forgets the device id and keeps the server URL. */
+    fun clearDevice() {
+        prefs.edit()
+            .remove(KEY_DEVICE_ID)
+            .apply()
+    }
+
     private fun normalize(baseUrl: String): String {
         val trimmed = baseUrl.trim().trimEnd('/')
         return trimmed.ifEmpty { DeviceIdentity.DEFAULT_BASE_URL }

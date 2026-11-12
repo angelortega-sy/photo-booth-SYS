@@ -223,6 +223,11 @@ private fun AdminShellContent(
                             networkType = networkType,
                             ipAddress = addresses.firstOrNull()?.address ?: "—",
                             modelLabel = modelLabel,
+                            serverStatus = if (viewModel.loadIdentity().enrolled) {
+                                context.getString(R.string.admin_home_server_enrolled)
+                            } else {
+                                context.getString(R.string.admin_home_server_none)
+                            },
                             appVersion = summary?.appVersion ?: "",
                             onNavigate = ::navigate,
                         )
@@ -332,6 +337,13 @@ private fun AdminShellContent(
                             viewModel = viewModel,
                             models = appState.serverModels,
                             selectedModelId = appState.selectedModelId,
+                            onMessage = ::onMessage,
+                        )
+                    }
+
+                    AdminRoute.Server -> {
+                        AdminServerScreen(
+                            viewModel = viewModel,
                             statusProbe = appState.serverStatusProbe,
                             statusError = appState.serverStatusError,
                             isStatusChecking = appState.isServerStatusChecking,

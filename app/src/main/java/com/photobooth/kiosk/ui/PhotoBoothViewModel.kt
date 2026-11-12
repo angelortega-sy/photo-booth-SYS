@@ -976,6 +976,23 @@ class PhotoBoothViewModel(application: Application) : AndroidViewModel(applicati
         deviceId
     }
 
+    /**
+     * Local-only unenroll: forgets this booth's device id and deletes its signing key.
+     * The server keeps its record; AI stays off until the booth enrolls again.
+     */
+    fun unenrollThisBooth() {
+        identityStore.clearDevice()
+        deviceKeys.delete()
+        _uiState.update {
+            it.copy(
+                serverModels = emptyList(),
+                serverStatusProbe = null,
+                serverStatusError = null,
+                isServerStatusChecking = false,
+            )
+        }
+    }
+
     suspend fun testServer(): Boolean = withContext(Dispatchers.IO) {
         runCatching { aiClient.health() }.getOrDefault(false)
     }

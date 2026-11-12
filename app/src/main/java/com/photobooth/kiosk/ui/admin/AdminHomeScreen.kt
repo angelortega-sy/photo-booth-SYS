@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AttachMoney
 import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PhotoLibrary
@@ -66,6 +67,7 @@ internal fun AdminHomeScreen(
     networkType: String,
     ipAddress: String,
     modelLabel: String,
+    serverStatus: String,
     appVersion: String,
     onNavigate: (AdminRoute) -> Unit,
 ) {
@@ -111,6 +113,12 @@ internal fun AdminHomeScreen(
             titleRes = R.string.admin_home_usage_ai,
             summary = stringResource(R.string.admin_home_usage_summary, modelLabel),
             icon = Icons.Rounded.AttachMoney,
+        ),
+        HomeCard(
+            route = AdminRoute.Server,
+            titleRes = R.string.admin_home_server,
+            summary = serverStatus,
+            icon = Icons.Rounded.Cloud,
         ),
         HomeCard(
             route = AdminRoute.Network,

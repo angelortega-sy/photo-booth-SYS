@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,15 +36,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photobooth.kiosk.R
 import com.photobooth.kiosk.network.BoothModel
-import com.photobooth.kiosk.network.ServerStatusProbe
 import com.photobooth.kiosk.network.UsageLimits
 import com.photobooth.kiosk.network.UsageMonth
 import com.photobooth.kiosk.network.UsageRequest
@@ -62,32 +58,17 @@ internal fun AdminUsageScreen(
     viewModel: PhotoBoothViewModel,
     models: List<BoothModel>,
     selectedModelId: String,
-    statusProbe: ServerStatusProbe?,
-    statusError: String?,
-    isStatusChecking: Boolean,
     onMessage: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    var savedUrl by remember { mutableStateOf(viewModel.loadIdentity().baseUrl) }
-    var draftUrl by remember { mutableStateOf(savedUrl) }
     var draftModelId by remember(selectedModelId) { mutableStateOf(selectedModelId) }
     var favoriteIds by remember { mutableStateOf(viewModel.loadAiSettings().favoriteModelIds) }
-    val urlChanged = draftUrl.trim() != savedUrl.trim()
     val modelChanged = draftModelId != selectedModelId
 
-    fun saveUrlIfChanged() {
-        if (!urlChanged) return
-        viewModel.saveServerBaseUrl(draftUrl)
-        savedUrl = draftUrl.trim()
-    }
-
     AdminSettingsScreen(
-        dirty = urlChanged || modelChanged,
+        dirty = modelChanged,
         onSave = {
-            val modelOk = !modelChanged || viewModel.saveAdminModel(draftModelId)
-            val refreshCatalog = urlChanged
-            saveUrlIfChanged()
-            if (refreshCatalog) viewModel.refreshServerCatalog()
+            val modelOk = viewModel.saveAdminModel(draftModelId)
             onMessage(
                 context.getString(
                     if (modelOk) R.string.admin_changes_saved else R.string.admin_model_save_error,
@@ -95,10 +76,7 @@ internal fun AdminUsageScreen(
             )
             if (!modelOk) draftModelId = selectedModelId
         },
-        onDiscard = {
-            draftUrl = savedUrl
-            draftModelId = selectedModelId
-        },
+        onDiscard = { draftModelId = selectedModelId },
     ) {
         item {
             ModelCard(
@@ -121,156 +99,10 @@ internal fun AdminUsageScreen(
             )
         }
         item {
-            AiServerAdminCard(
-                viewModel = viewModel,
-                baseUrl = draftUrl,
-                onBaseUrlChange = { draftUrl = it },
-                onBeforeServerCall = ::saveUrlIfChanged,
-                statusProbe = statusProbe,
-                statusError = statusError,
-                isStatusChecking = isStatusChecking,
-                onMessage = onMessage,
-            )
-        }
-        item {
             UsageAdminCard(viewModel = viewModel)
         }
     }
 }
-
-@Composable
-private fun AiServerAdminCard(
-    viewModel: PhotoBoothViewModel,
-    baseUrl: String,
-    onBaseUrlChange: (String) -> Unit,
-    onBeforeServerCall: () -> Unit,
-    statusProbe: ServerStatusProbe?,
-    statusError: String?,
-    isStatusChecking: Boolean,
-    onMessage: (String) -> Unit,
-) {
-    val context = LocalContext.current
-    val identity = remember { viewModel.loadIdentity() }
-    var enrollCode by remember { mutableStateOf("") }
-    var deviceId by remember { mutableStateOf(identity.deviceId) }
-    var enrolling by remember { mutableStateOf(false) }
-    var statusText by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(deviceId) {
-        if (deviceId.startsWith("dev_")) viewModel.refreshServerCatalog()
-    }
-
-    AdminCard(
-        title = stringResource(R.string.admin_ai_title),
-        subtitle = stringResource(R.string.admin_ai_subtitle),
-    ) {
-        Text(
-            text = if (deviceId.startsWith("dev_")) {
-                stringResource(R.string.admin_ai_status_ok, deviceId)
-            } else {
-                stringResource(R.string.admin_ai_status_none)
-            },
-            color = if (deviceId.startsWith("dev_")) SyscomBlueLight else Cream.copy(alpha = 0.7f),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        InfoRow("Servidor", baseUrl.ifBlank { "—" })
-        InfoRow(
-            "Última prueba",
-            when {
-                isStatusChecking -> "Comprobando…"
-                statusProbe != null -> "Respondió"
-                !statusError.isNullOrBlank() -> "Error: $statusError"
-                else -> "Sin comprobar"
-            },
-        )
-        InfoRow("Latencia", statusProbe?.latencyMs?.let { "$it ms" } ?: "—")
-        InfoRow(
-            "Drive",
-            statusProbe?.driveHealthy?.let { if (it) "Correcto" else "Error" } ?: "—",
-        )
-        InfoRow(
-            "TOTEMEXPO",
-            statusProbe?.totemExpoReady?.let { if (it) "Listo" else "No listo" } ?: "—",
-        )
-        OutlinedTextField(
-            value = baseUrl,
-            onValueChange = onBaseUrlChange,
-            label = { Text(stringResource(R.string.admin_ai_url)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        )
-        OutlinedButton(
-            onClick = {
-                onBeforeServerCall()
-                viewModel.refreshServerDiagnostics()
-            },
-            enabled = !isStatusChecking,
-            modifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(50.dp),
-        ) {
-            Text(
-                stringResource(
-                    if (isStatusChecking) R.string.admin_ai_testing else R.string.admin_ai_test,
-                ),
-            )
-        }
-        Text(
-            text = stringResource(R.string.admin_ai_enroll_section),
-            color = Cream,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 18.dp),
-        )
-        OutlinedTextField(
-            value = enrollCode,
-            onValueChange = { enrollCode = it },
-            label = { Text(stringResource(R.string.admin_ai_enroll)) },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        )
-        OutlinedButton(
-            onClick = {
-                onBeforeServerCall()
-                enrolling = true
-                statusText = ""
-                scope.launch {
-                    val result = runCatching { viewModel.enrollDevice(enrollCode) }
-                    enrolling = false
-                    result.onSuccess { id ->
-                        deviceId = id
-                        enrollCode = ""
-                        viewModel.refreshServerCatalog()
-                        onMessage(context.getString(R.string.admin_ai_enrolled))
-                    }.onFailure { error ->
-                        statusText = viewModel.explainServerError(error)
-                    }
-                }
-            },
-            enabled = !enrolling && enrollCode.isNotBlank(),
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(50.dp),
-        ) {
-            Text(
-                stringResource(
-                    if (enrolling) R.string.admin_ai_enrolling else R.string.admin_ai_enroll_action,
-                ),
-            )
-        }
-        if (statusText.isNotBlank()) {
-            Text(
-                text = statusText,
-                color = Color(0xFFFF7A7A),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-    }
-}
-
 /** Rows of the usage log shown per batch; "load more" appends the next page. */
 private const val USAGE_ROWS_PER_PAGE = 25
 

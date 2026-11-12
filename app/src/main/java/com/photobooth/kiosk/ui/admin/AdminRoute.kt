@@ -44,6 +44,11 @@ sealed interface AdminRoute {
         override val key: String = "usage"
     }
 
+    /** Servidor: address, health, enroll and local unenroll of this booth. */
+    data object Server : AdminRoute {
+        override val key: String = "server"
+    }
+
     data object Network : AdminRoute {
         override val key: String = "network"
     }
@@ -64,6 +69,7 @@ sealed interface AdminRoute {
             key == AiStyles.key -> AiStyles
             key == Photos.key -> Photos
             key == Usage.key -> Usage
+            key == Server.key -> Server
             key == Network.key -> Network
             key == System.key -> System
             else -> Home
