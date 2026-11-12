@@ -220,6 +220,7 @@ private fun AdminShellContent(
                             styleVisible = AiStyles.ALL.size - appState.disabledStyleIds.size,
                             styleTotal = AiStyles.ALL.size,
                             photoCount = photos.size,
+                            promoDelaySec = (appState.attractIdleMs / 1000L).toInt(),
                             networkType = networkType,
                             ipAddress = addresses.firstOrNull()?.address ?: "—",
                             modelLabel = modelLabel,
@@ -328,6 +329,27 @@ private fun AdminShellContent(
                             onSaveToDeviceChange = viewModel::setSavePhotosToDevice,
                             onRefresh = { refreshKey++ },
                             onRequestPermission = { permissionLauncher.launch(photoPermission()) },
+                            onMessage = ::onMessage,
+                        )
+                    }
+
+                    AdminRoute.Promo -> {
+                        AdminPromoScreen(
+                            videoId = appState.attractVideoId,
+                            idleMs = appState.attractIdleMs,
+                            onSave = { videoId, idleMs ->
+                                viewModel.setAttractVideo(videoId)
+                                viewModel.setAttractIdleMs(idleMs)
+                            },
+                            onSaved = {
+                                onMessage(context.getString(R.string.admin_changes_saved))
+                            },
+                            onImport = { uri, name, onResult ->
+                                viewModel.importAttractVideo(uri, name, onResult)
+                            },
+                            onDelete = { videoId, onResult ->
+                                viewModel.deleteAttractVideo(videoId, onResult)
+                            },
                             onMessage = ::onMessage,
                         )
                     }

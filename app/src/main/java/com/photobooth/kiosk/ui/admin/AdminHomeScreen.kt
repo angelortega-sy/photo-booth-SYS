@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Icon
@@ -64,6 +65,7 @@ internal fun AdminHomeScreen(
     styleVisible: Int,
     styleTotal: Int,
     photoCount: Int,
+    promoDelaySec: Int,
     networkType: String,
     ipAddress: String,
     modelLabel: String,
@@ -107,6 +109,12 @@ internal fun AdminHomeScreen(
             titleRes = R.string.admin_home_photos,
             summary = stringResource(R.string.admin_home_photos_summary, photoCount),
             icon = Icons.Rounded.PhotoLibrary,
+        ),
+        HomeCard(
+            route = AdminRoute.Promo,
+            titleRes = R.string.admin_home_promo,
+            summary = stringResource(R.string.admin_home_promo_summary, promoDelaySec),
+            icon = Icons.Rounded.PlayArrow,
         ),
         HomeCard(
             route = AdminRoute.Usage,
