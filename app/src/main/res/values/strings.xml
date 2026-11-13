@@ -258,6 +258,11 @@
     <string name="ai_error_style">Ese estilo no existe en el servidor.</string>
     <string name="ai_error_background">Ese fondo no existe en el servidor.</string>
     <string name="ai_error_upstream">El proveedor de imágenes rechazó la generación.</string>
+    <string name="ai_error_provider_credits">La cuenta del proveedor de imágenes no tiene crédito.</string>
+    <string name="ai_error_model_incompatible">Ese modelo no acepta esta foto. Elige otro en el administrador.</string>
+    <string name="ai_error_model_unavailable">Ese modelo ya no está disponible. Elige otro en el administrador.</string>
+    <string name="ai_error_provider_rate_limited">El proveedor está saturado. Espera un momento e intenta otra vez.</string>
+    <string name="ai_error_provider_no_image">El proveedor respondió sin una imagen. Intenta de nuevo.</string>
     <string name="ai_error_not_enrolled">Registra este tótem en Modo administrador.</string>
     <string name="ai_error_no_model">Elige un estilo. El modelo se configura en el administrador.</string>
     <string name="ai_error_quota">Se alcanzó el cupo de generaciones de hoy.</string>

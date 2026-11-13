@@ -258,6 +258,11 @@
     <string name="ai_error_style">That style does not exist on the server.</string>
     <string name="ai_error_background">That backdrop does not exist on the server.</string>
     <string name="ai_error_upstream">The image provider rejected the generation.</string>
+    <string name="ai_error_provider_credits">The image account has no credit.</string>
+    <string name="ai_error_model_incompatible">That model cannot take this photo. Pick another one in admin.</string>
+    <string name="ai_error_model_unavailable">That model is no longer available. Pick another one in admin.</string>
+    <string name="ai_error_provider_rate_limited">The provider is busy. Wait a moment and try again.</string>
+    <string name="ai_error_provider_no_image">The provider replied without an image. Try again.</string>
     <string name="ai_error_not_enrolled">Enroll this kiosk in Admin mode.</string>
     <string name="ai_error_no_model">Pick a style. The model is configured in admin.</string>
     <string name="ai_error_quota">Today\'s generation quota was reached.</string>

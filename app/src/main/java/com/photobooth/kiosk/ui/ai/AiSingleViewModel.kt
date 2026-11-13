@@ -604,6 +604,11 @@ class AiSingleViewModel(application: Application) : AndroidViewModel(application
             "style_not_found" -> app.getString(R.string.ai_error_style)
             "background_not_found" -> app.getString(R.string.ai_error_background)
             "upstream_error" -> app.getString(R.string.ai_error_upstream)
+            "provider_credits" -> app.getString(R.string.ai_error_provider_credits)
+            "model_incompatible" -> app.getString(R.string.ai_error_model_incompatible)
+            "model_unavailable" -> app.getString(R.string.ai_error_model_unavailable)
+            "provider_rate_limited" -> app.getString(R.string.ai_error_provider_rate_limited)
+            "provider_no_image" -> app.getString(R.string.ai_error_provider_no_image)
             else -> if (error.httpCode != null) {
                 app.getString(R.string.ai_error_server_code, error.code ?: error.httpCode.toString())
             } else {
